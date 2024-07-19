@@ -40,7 +40,7 @@ module Tidal_Stripping_Mass_Loss_Rate
     <description>Returns the rate of mass loss (in $M_\odot$~Gyr$^{-1}$) due to tidal stripping of {\normalfont \ttfamily component}.</description>
     <type>double precision</type>
     <pass>yes</pass>
-    <argument>class(nodeCOmponent), intent(inout) :: component</argument>
+    <argument>class(nodeComponent), intent(inout) :: component</argument>
    </method>
   </functionClass>
   !!]
