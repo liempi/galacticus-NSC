@@ -48,7 +48,7 @@
      type   (radiusSpecifier         ), allocatable, dimension(:) :: radii
      logical                                                      :: darkMatterScaleRadiusIsNeeded          , diskIsNeeded        , &
           &                                                          spheroidIsNeeded                       , virialRadiusIsNeeded, &
-          &                                                          NSCIsNeeded
+          &                                                          NSCIsNeeded                            , darkCoreIsNeeded
    contains
      final     ::                       rotationCurveDestructor
      procedure :: columnDescriptions => rotationCurveColumnDescriptions
@@ -135,6 +135,7 @@ contains
          &                                          self%diskIsNeeded                 , &
          &                                          self%spheroidIsNeeded             , &
          &                                          self%NSCIsNeeded                  , &
+         &                                          self%darkCoreIsNeeded             , &
          &                                          self%virialRadiusIsNeeded         , &
          &                                          self%darkMatterScaleRadiusIsNeeded  &
          &                                         )
@@ -186,12 +187,13 @@ contains
     !!{
     Implement a {\normalfont \ttfamily rotationCurve} property extractor.
     !!}
-    use :: Galactic_Structure_Options          , only : componentTypeAll               , massTypeGalactic            , massTypeStellar
-    use :: Galactic_Structure_Radii_Definitions, only : radiusTypeDarkMatterScaleRadius, radiusTypeDiskHalfMassRadius, radiusTypeDiskRadius            , radiusTypeGalacticLightFraction, &
-          &                                             radiusTypeGalacticMassFraction , radiusTypeRadius            , radiusTypeSpheroidHalfMassRadius, radiusTypeSpheroidRadius       , &
-          &                                             radiusTypeStellarMassFraction  , radiusTypeVirialRadius      , radiusTypeNSCRadius             , radiusTypeNSCHalfMassRadius
-    use :: Galacticus_Nodes                    , only : nodeComponentDarkMatterProfile , nodeComponentDisk           , nodeComponentSpheroid           , nodeComponentNSC               , &
-          &                                             treeNode
+    use :: Galactic_Structure_Options          , only : componentTypeAll               , massTypeGalactic                 , massTypeStellar
+    use :: Galactic_Structure_Radii_Definitions, only : radiusTypeDarkMatterScaleRadius, radiusTypeDiskHalfMassRadius     , radiusTypeDiskRadius            , radiusTypeGalacticLightFraction, &
+          &                                             radiusTypeGalacticMassFraction , radiusTypeRadius                 , radiusTypeSpheroidHalfMassRadius, radiusTypeSpheroidRadius       , &
+          &                                             radiusTypeStellarMassFraction  , radiusTypeVirialRadius           , radiusTypeNSCRadius             , radiusTypeNSCHalfMassRadius    , &
+          &                                             radiusTypeDarkCoreRadius       , radiusTypeDarkCoreHalfMassRadius
+    use :: Galacticus_Nodes                    , only : nodeComponentDarkMatterProfile , nodeComponentDisk                , nodeComponentSpheroid           , nodeComponentNSC               , &
+          &                                             nodeComponentDarkCore          ,treeNode
     implicit none
     double precision                                    , dimension(:,:), allocatable :: rotationCurveExtract
     class           (nodePropertyExtractorRotationCurve), intent(inout) , target      :: self
@@ -201,6 +203,7 @@ contains
     class           (nodeComponentDisk                 ), pointer                     :: disk
     class           (nodeComponentSpheroid             ), pointer                     :: spheroid
     class           (nodeComponentNSC                  ), pointer                     :: NSC
+    class           (nodeComponentDarkCore             ), pointer                     :: darkCore
     class           (nodeComponentDarkMatterProfile    ), pointer                     :: darkMatterProfile
     integer                                                                           :: i
     double precision                                                                  :: radius                , radiusVirial
@@ -212,6 +215,7 @@ contains
     if (self%                 diskIsNeeded) disk              =>                                        node%disk             ()
     if (self%             spheroidIsNeeded) spheroid          =>                                        node%spheroid         ()
     if (self%                  NSCIsNeeded) NSC               =>                                        node%NSC              ()
+    if (self%             darkCoreIsNeeded) darkCore          =>                                        node%darkCore         ()
     if (self%darkMatterScaleRadiusIsNeeded) darkMatterProfile =>                                        node%darkMatterProfile()
     do i=1,self%radiiCount
        radius=self%radii(i)%value
@@ -228,12 +232,16 @@ contains
           radius=+radius*spheroid         %        radius()
        case   (radiusTypeNSCRadius             %ID)
           radius=+radius*NSC              %        radius()
+       case   (radiusTypeDarkCoreRadius        %ID)
+          radius=+radius*darkCore         %        radius()
        case   (radiusTypeDiskHalfMassRadius    %ID)
           radius=+radius*disk             %halfMassRadius()
        case   (radiusTypeSpheroidHalfMassRadius%ID)
           radius=+radius*spheroid         %halfMassRadius()
        case   (radiusTypeNSCHalfMassRadius     %ID)
           radius=+radius*NSC              %halfMassRadius()
+       case   (radiusTypeDarkCoreHalfMassRadius%ID)
+          radius=+radius*darkCore         %halfMassRadius()
        case   (radiusTypeGalacticMassFraction  %ID,  &
             &  radiusTypeGalacticLightFraction %ID)
           radius=+radius                                           &

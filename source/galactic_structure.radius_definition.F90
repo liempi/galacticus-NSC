@@ -42,10 +42,12 @@ module Galactic_Structure_Radii_Definitions
    <entry label="darkMatterScaleRadius" />
    <entry label="diskRadius"            />
    <entry label="NSCRadius"             />
+   <entry label="darkCoreRadius"        />
    <entry label="spheroidRadius"        />
    <entry label="diskHalfMassRadius"    />
    <entry label="spheroidHalfMassRadius"/>
    <entry label="NSCHalfMassRadius"     />
+   <entry label="darkCoreHalfMassRadius"/>
    <entry label="galacticMassFraction"  />
    <entry label="galacticLightFraction" />
    <entry label="stellarMassFraction"   />
@@ -82,7 +84,7 @@ module Galactic_Structure_Radii_Definitions
 
 contains
 
-  subroutine Galactic_Structure_Radii_Definition_Decode(descriptors,specifiers,diskRequired,spheroidRequired,NSCRequired,radiusVirialRequired,radiusScaleRequired)
+  subroutine Galactic_Structure_Radii_Definition_Decode(descriptors,specifiers,diskRequired,spheroidRequired,NSCRequired, darkCoreRequired,radiusVirialRequired,radiusScaleRequired)
     !!{
     Decode a set of radii descriptors and return the corresponding specifiers.
     !!}
@@ -90,7 +92,7 @@ contains
          &                                        weightIndexNull
     use :: Error                         , only : Component_List                   , Error_Report
     use :: Galacticus_Nodes              , only : defaultDarkMatterProfileComponent, defaultDiskComponent     , defaultSpheroidComponent, defaultNSCComponent, &
-         &                                        treeNode     
+         &                                        defaultDarkCoreComponent         , treeNode     
     use :: ISO_Varying_String            , only : char                             , extract                  , operator(==)            , assignment(=)      , &
          &                                        operator(//)
     use :: Stellar_Luminosities_Structure, only : unitStellarLuminosities
@@ -99,8 +101,8 @@ contains
     type     (varying_string ), intent(in   ), dimension(:)              :: descriptors
     type     (radiusSpecifier), intent(inout), dimension(:), allocatable :: specifiers
     logical                   , intent(  out)                            :: diskRequired        , spheroidRequired    , &
-         &                                                                  NSCRequired         , radiusVirialRequired, &
-         &                                                                  radiusScaleRequired
+         &                                                                  NSCRequired         , darkCoreRequired    , & 
+         &                                                                  radiusVirialRequired, radiusScaleRequired
     type     (varying_string  )              , dimension(5)              :: radiusDefinition
     type     (varying_string  )              , dimension(3)              :: fractionDefinition
     type     (varying_string  )              , dimension(2)              :: weightingDefinition
@@ -112,6 +114,7 @@ contains
     diskRequired        =.false.
     spheroidRequired    =.false.
     NSCRequired         =.false.
+    darkCoreRequired    =.false.
     radiusVirialRequired=.false.
     radiusScaleRequired =.false.
     radiiCount          =size(descriptors)
@@ -193,6 +196,20 @@ contains
                &                       )                                                                             // &
                &       {introspection:location}                                                                         &
                &                             )
+        case ('darkCoreRadius'      )
+          specifiers(i)%type=radiusTypeDarkCoreRadius
+          darkCoreRequired                 =.true.
+          if (.not.defaultDarkCoreComponent        %radiusIsGettable        ())                                         &
+               & call Error_Report                                                                                      &
+               &(                                                                                                       &
+               &                              'dark core radius is not gettable.'//                                     &
+               &        Component_List(                                                                                 &
+               &                       'DarkCore'                                                                   ,   &
+               &                        defaultDarkCoreComponent%        radiusAttributeMatch(requireGettable=.true.)   &
+               &                       )                                                                             // &
+               &       {introspection:location}                                                                         &
+               &                             )
+
        case ('diskHalfMassRadius'    )
           specifiers(i)%type=radiusTypeDiskHalfMassRadius
           diskRequired                 =.true.
@@ -229,6 +246,19 @@ contains
                &        Component_List(                                                                                 &
                &                       'NSC'                                                                         ,  &
                &                        defaultNSCComponent     %halfMassRadiusAttributeMatch(requireGettable=.true.)   &
+               &                       )                                                                             // &
+               &       {introspection:location}                                                                         &
+               &                             )
+        case ('DarkCoreHalfMassRadius')
+          specifiers(i)%type=radiusTypeDarkCoreHalfMassRadius
+          darkCoreRequired   =.true.
+          if (.not.defaultDarkCoreComponent    %halfMassRadiusIsGettable())                                             &
+               & call Error_Report                                                                                      &
+               &(                                                                                                       &
+               &                              'dark core half-mass radius is not gettable.'//                           &
+               &        Component_List(                                                                                 &
+               &                       'NSC'                                                                         ,  &
+               &                        defaultDarkCoreComponent%halfMassRadiusAttributeMatch(requireGettable=.true.)   &
                &                       )                                                                             // &
                &       {introspection:location}                                                                         &
                &                             )
