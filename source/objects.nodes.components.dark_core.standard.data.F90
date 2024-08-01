@@ -23,7 +23,7 @@ Contains a module which stores data for the standard dark core node component.
 
 module Node_Component_Dark_Core_Standard_Data
   !!{
-  Stores data for the standard nuclear star cluster node component.
+  Stores data for the standard dark core node component.
   !!}
   use :: Kind_Numbers      , only : kind_int8
   use :: Mass_Distributions, only : massDistributionClass
@@ -57,7 +57,7 @@ contains
 
   subroutine Node_Component_Dark_Core_Standard_Reset(uniqueID)
     !!{
-    Reset calculations for the standard nuclear star cluster component.
+    Reset calculations for the standard dark core component.
     !!}
     implicit none
     integer(kind=kind_int8), intent(in   ) :: uniqueID

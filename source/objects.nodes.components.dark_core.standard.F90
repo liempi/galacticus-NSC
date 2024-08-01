@@ -52,7 +52,7 @@ module Node_Component_Dark_Core_Standard
       <attributes isSettable="true" isGettable="true" isEvolvable="false" />
     </property>
     <property>
-      <name>massBlackHoles</name>
+      <name>massStellar</name>
       <type>double</type>
       <rank>0</rank>
       <attributes isSettable="true" isGettable="true" isEvolvable="true" />
@@ -132,6 +132,7 @@ module Node_Component_Dark_Core_Standard
     <binding method="potential"                 function="Node_Component_Dark_Core_Standard_Potential"                 bindsTo="component" />
     <binding method="rotationCurve"             function="Node_Component_Dark_Core_Standard_Rotation_Curve"            bindsTo="component" />
     <binding method="rotationCurveGradient"     function="Node_Component_Dark_Core_Standard_Rotation_Curve_Gradient"   bindsTo="component" />
+    <binding method="chandrasekharIntegral"     function="Node_Component_Dark_Core_Standard_Chandrasekhar_Integral"    bindsTo="component" />
    </bindings>
    <functions>objects.nodes.components.dark_core.standard.bound_functions.inc</functions>
   </component>
@@ -389,7 +390,7 @@ contains
           fractionalError=   abs(darkCore%massGas       ()) &
                &          /(                                &
                &             abs(darkCore%massGas       ()) &
-               &            +abs(darkCore%massBlackHoles()) &
+               &            +abs(darkCore%massStellar()) &
                &           )
           !$omp critical (Standard_Dark_Core_Post_Evolve_Check)
           if (fractionalError > fractionalErrorMaximum) then
@@ -398,7 +399,7 @@ contains
              message=message//'  Node index        = '//node%index() //char(10)
              write (valueString,'(e12.6)') darkCore%massGas       ()
              message=message//'  dark core gas mass     = '//trim(valueString)//char(10)
-             write (valueString,'(e12.6)') darkCore%massBlackHoles()
+             write (valueString,'(e12.6)') darkCore%massStellar()
              message=message//'  dark core stellar mass = '//trim(valueString)//char(10)
              write (valueString,'(e12.6)') fractionalError
              message=message//'  Error measure     = '//trim(valueString)//char(10)
@@ -416,10 +417,10 @@ contains
           !$omp end critical (Standard_Dark_Core_Post_Evolve_Check)
           ! Get the specific angular momentum of the dark core material
           massDarkCore= darkCore%massGas       () &
-               &       +darkCore%massBlackHoles()
+               &       +darkCore%massStellar()
           if (massDarkCore == 0.0d0) then
              specificAngularMomentum=0.0d0
-             call darkCore%        massBlackHolesSet(                  0.0d0)
+             call darkCore%        massStellarSet(                  0.0d0)
           else
              specificAngularMomentum=darkCore%angularMomentum()/massDarkCore
              if (specificAngularMomentum < 0.0d0) specificAngularMomentum=darkCore%radius()*darkCore%velocity()
@@ -427,17 +428,17 @@ contains
           ! Reset the gas, abundances and angular momentum of the dark core.
           call darkCore%        massGasSet(                                    0.0d0)
           call darkCore%  abundancesGasSet(                           zeroAbundances)
-          call darkCore%angularMomentumSet(specificAngularMomentum*darkCore%massBlackHoles())
+          call darkCore%angularMomentumSet(specificAngularMomentum*darkCore%massStellar())
           ! Indicate that ODE evolution should continue after this state change.
           if (status == GSL_Success) status=GSL_Continue
        end if
        ! Trap negative stellar masses.
-       if (darkCore%massBlackHoles() < 0.0d0) then
+       if (darkCore%massStellar() < 0.0d0) then
           ! Check if this exceeds the maximum previously recorded error.
-          fractionalError=   abs(darkCore%massBlackHoles()) &
+          fractionalError=   abs(darkCore%massStellar()) &
                &          /(                                &
                &             abs(darkCore%massGas       ()) &
-               &            +abs(darkCore%massBlackHoles()) &
+               &            +abs(darkCore%massStellar()) &
                &           )
           !$omp critical (Standard_Dark_Core_Post_Evolve_Check)
           if (fractionalError > fractionalErrorMaximum) then
@@ -446,7 +447,7 @@ contains
              message=message//'  Node index        = '//node%index() //char(10)
              write (valueString,'(e12.6)') darkCore%massGas       ()
              message=message//'  dark core gas mass     = '//trim(valueString)//char(10)
-             write (valueString,'(e12.6)') darkCore%massBlackHoles()
+             write (valueString,'(e12.6)') darkCore%massStellar()
              message=message//'  dark core black holes mass = '//trim(valueString)//char(10)
              write (valueString,'(e12.6)') fractionalError
              message=message//'  Error measure     = '//trim(valueString)//char(10)
@@ -464,7 +465,7 @@ contains
           !$omp end critical (Standard_Dark_Core_Post_Evolve_Check)
           ! Get the specific angular momentum of the dark core material
           massDarkCore= darkCore%massGas       () &
-                  &    +darkCore%massBlackHoles()
+                  &    +darkCore%massStellar()
           if (massDarkCore == 0.0d0) then
              specificAngularMomentum=0.0d0
              call darkCore%      massGasSet(         0.0d0)
@@ -474,7 +475,7 @@ contains
              if (specificAngularMomentum < 0.0d0) specificAngularMomentum=darkCore%radius()*darkCore%velocity()
           end if
           ! Reset the stellar, abundances and angular momentum of the dark core.
-          call darkCore%   massBlackHolesSet(                                     0.0d0)
+          call darkCore%   massStellarSet(                                     0.0d0)
           call darkCore%  angularMomentumSet(specificAngularMomentum*darkCore%massGas())
           ! Indicate that ODE evolution should continue after this state change.
           if (status == GSL_Success) status=GSL_Continue
@@ -483,14 +484,14 @@ contains
        if (darkCore%angularMomentum() < 0.0d0) then
           spin  => node%spin ()
           basic => node%basic()
-          if (darkCore%massBlackHoles()+darkCore%massGas () <=0.0d0) then
+          if (darkCore%massStellar()+darkCore%massGas () <=0.0d0) then
              call darkCore%angularMomentumSet(0.0d0)
 
           else if (.not.darkCoreNegativeAngularMomentumAllowed) then
              if  (                                     &
                   &    abs(darkCore%angularMomentum()) &
                   &   /(                               &
-                  &        darkCore%massBlackHoles ()  &
+                  &        darkCore%massStellar ()  &
                   &     +  darkCore%massGas        ()  &
                   &    )                          &
                   &   <                           &
@@ -503,7 +504,7 @@ contains
                 message='negative angular momentum in dark core with positive mass'
                 write (valueString,'(e12.6)') darkCore  %angularMomentum()
                 message=message//char(10)//' -> angular momentum       = '//trim(valueString)
-                write (valueString,'(e12.6)') darkCore  %massBlackHoles ()
+                write (valueString,'(e12.6)') darkCore  %massStellar ()
                 message=message//char(10)//' -> stellar mass           = '//trim(valueString)
                 write (valueString,'(e12.6)') darkCore  %massGas        ()
                 message=message//char(10)//' -> gas mass               = '//trim(valueString)
@@ -582,7 +583,7 @@ contains
 
        call darkCore%angularMomentumScale  (angularMomentumMinimum)                                        
        call darkCore%massGasScale          (massMinimum           )
-       call darkCore%massBlackHolesScale   (massMinimum           )
+       call darkCore%massStellarScale   (massMinimum           )
 
        ! Set the scale for the retained stellar mass fraction.
        call darkCore%fractionMassRetainedScale(fractionTolerance*darkCore%fractionMassRetained())
@@ -687,7 +688,7 @@ contains
        case default
           call Error_Report('unrecognized movesTo descriptor'//{introspection:location})
        end select
-       call darkCore%     massBlackHolesSet(                  0.0d0)
+       call darkCore%        massStellarSet(                  0.0d0)
        call darkCore%    angularMomentumSet(                  0.0d0)
     end select
     return

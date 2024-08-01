@@ -141,8 +141,8 @@ contains
       end if
       return
     class is (nodeComponentDarkCoreStandard)
-      call NSC     % massStellarRate   (-rateBlackHoleFormation)
-      call darkCore% massBlackHolesRate(+rateBlackHoleFormation)
+      call NSC     % massStellarRate(-rateBlackHoleFormation)
+      call darkCore% massStellarRate(+rateBlackHoleFormation)
 
       historyTransferRate=NSC%stellarPropertiesHistory()
       if (historyTransferRate%exists()) &

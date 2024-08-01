@@ -32,7 +32,7 @@ double precision function Node_Component_Dark_Core_Standard_Velocity(self)
 
    radiusDarkCore= self%radius()
 
-   massDarkCore  = self%massGas()+self%massBlackHoles()
+   massDarkCore  = self%massGas()+self%massStellar()
    !Units corrected, G in galacticus is in units of Mpc M⊙⁻¹km²s⁻².
    !The velocity is returned in km/s units
    if (massDarkCore > 0.0d0 .and. radiusDarkCore >0.0d0) then
@@ -53,7 +53,7 @@ double precision function Node_Component_Dark_Core_Standard_Angular_Momentum(sel
    
    !Get the velocity and the dunamical mass of the dark core.
    velocityDarkCore      = self%velocity()
-   dynamicalMassDarkCore = self%massGas ()+self%massBlackHoles()
+   dynamicalMassDarkCore = self%massGas ()+self%massStellar()
 
    if (dynamicalMassDarkCore > 0.0d0) then
        Node_Component_Dark_Core_Standard_Angular_Momentum = dynamicalMassDarkCore * velocityDarkCore
@@ -72,7 +72,7 @@ double precision function Node_Component_Dark_Core_Standard_Radius(self)
    class(nodeComponentDarkCoreStandard), intent(inout) :: self 
    double precision                                    :: massDarkCore
 
-   massDarkCore = self%massBlackHoles()
+   massDarkCore = self%massStellar()
 
    !The radius is retunerd in Mpc units.
    if (massDarkCore > 0.0d0) then
@@ -129,11 +129,11 @@ double precision function Node_Component_Dark_Core_Standard_Enclosed_Mass(self,r
   case (weightByMass      %ID)
      select case (massType%ID)
      case (massTypeAll%ID,massTypeBaryonic%ID,massTypeGalactic%ID)
-        Node_Component_Dark_Core_Standard_Enclosed_Mass=self%massGas()+self%massBlackHoles()
+        Node_Component_Dark_Core_Standard_Enclosed_Mass=self%massGas()+self%massStellar()
      case (massTypeGaseous%ID)
         Node_Component_Dark_Core_Standard_Enclosed_Mass=self%massGas()
      case (massTypeStellar%ID)
-        Node_Component_Dark_Core_Standard_Enclosed_Mass=               self%massBlackHoles()
+        Node_Component_Dark_Core_Standard_Enclosed_Mass=               self%massStellar()
      end select
   end select
   ! Return if no mass.
@@ -169,7 +169,7 @@ function Node_Component_Dark_Core_Standard_Acceleration(self,positionCartesian,c
   type            (enumerationComponentTypeType  ), intent(in   )                :: componentType
   type            (enumerationMassTypeType       ), intent(in   )                :: massType
   double precision                                                               :: radius                                        , massTotal
-  type            (coordinateCartesian           )                               :: positioDarkCorealeFree
+  type            (coordinateCartesian           )                               :: positionDarkCorescaleFree
 
   ! Return if the dark core component is not selected.
   Node_Component_Dark_Core_Standard_Acceleration=0.0d0
@@ -177,11 +177,11 @@ function Node_Component_Dark_Core_Standard_Acceleration(self,positionCartesian,c
   ! Determine total mass.
   select case (massType%ID)
   case (massTypeAll%ID,massTypeBaryonic%ID,massTypeGalactic%ID)
-     massTotal=self%massGas()+self%massBlackHoles()
+     massTotal=self%massGas()+self%massStellar()
   case (massTypeGaseous%ID)
      massTotal=self%massGas()
   case (massTypeStellar%ID)
-     massTotal=               self%massBlackHoles()
+     massTotal=               self%massStellar()
   case default
      massTotal=0.0d0
   end select
@@ -189,14 +189,14 @@ function Node_Component_Dark_Core_Standard_Acceleration(self,positionCartesian,c
   if (massTotal <= 0.0d0 .or. self%radius() <= 0.0d0) return
   ! Compute the acceleration.
   radius           =sqrt(sum(positionCartesian**2))
-  positioDarkCorealeFree=positionCartesian/self%radius()
-  Node_Component_Dark_Core_Standard_Acceleration=+kilo                                                     &
-         &                                       *gigaYear                                                &
-         &                                       /megaParsec                                              &
-         &                                       *gravitationalConstantGalacticus                         &
-         &                                       *massTotal                                               &
-         &                                       /self%radius()                                       **2 &
-         &                                       *massDistributionDarkCore%acceleration(positioDarkCorealeFree)
+  positionDarkCorescaleFree=positionCartesian/self%radius()
+  Node_Component_Dark_Core_Standard_Acceleration=+kilo                                                            &
+         &                                       *gigaYear                                                        &
+         &                                       /megaParsec                                                      &
+         &                                       *gravitationalConstantGalacticus                                 &
+         &                                       *massTotal                                                       &
+         &                                       /self%radius()                                               **2 &
+         &                                       *massDistributionDarkCore%acceleration(positionDarkCorescaleFree)
   return
 end function Node_Component_Dark_Core_Standard_Acceleration
 
@@ -218,7 +218,7 @@ function Node_Component_Dark_Core_Standard_Tidal_Tensor(self,positionCartesian,c
   type            (enumerationComponentTypeType  ), intent(in   )               :: componentType
   type            (enumerationMassTypeType       ), intent(in   )               :: massType
   double precision                                                              :: radius                                        , massTotal
-  type            (coordinateCartesian           )                              :: positioDarkCorealeFree
+  type            (coordinateCartesian           )                              :: positionDarkCorescaleFree
 
   ! Return if the dark core cluster component is not selected.
   Node_Component_Dark_Core_Standard_Tidal_Tensor=tensorNullR2D3Sym
@@ -226,11 +226,11 @@ function Node_Component_Dark_Core_Standard_Tidal_Tensor(self,positionCartesian,c
   ! Determine total mass.
   select case (massType%ID)
   case (massTypeAll%ID,massTypeBaryonic%ID,massTypeGalactic%ID)
-     massTotal=self%massGas()+self%massBlackHoles()
+     massTotal=self%massGas()+self%massStellar()
   case (massTypeGaseous%ID)
      massTotal=self%massGas()
   case (massTypeStellar%ID)
-     massTotal=               self%massBlackHoles()
+     massTotal=               self%massStellar()
   case default
      massTotal=0.0d0
   end select
@@ -238,11 +238,11 @@ function Node_Component_Dark_Core_Standard_Tidal_Tensor(self,positionCartesian,c
   if (massTotal <= 0.0d0 .or. self%radius() <= 0.0d0) return
   ! Compute the acceleration.
   radius           =sqrt(sum(positionCartesian**2))
-  positioDarkCorealeFree=positionCartesian/self%radius()
+  positionDarkCorescaleFree=positionCartesian/self%radius()
   Node_Component_Dark_Core_Standard_Tidal_Tensor=+gravitationalConstantGalacticus                        &
          &                                       *massTotal                                              &
          &                                       /self%radius()                                      **3 &
-         &                                       *massDistributionDarkCore%tidalTensor(positioDarkCorealeFree)
+         &                                       *massDistributionDarkCore%tidalTensor(positionDarkCorescaleFree)
   return
 end function Node_Component_Dark_Core_Standard_Tidal_Tensor
 
@@ -272,11 +272,11 @@ double precision function Node_Component_Dark_Core_Standard_Density(self,positio
   case (weightByMass      %ID)
      select case (massType%ID)
      case (massTypeAll%ID,massTypeBaryonic%ID,massTypeGalactic%ID)
-        Node_Component_Dark_Core_Standard_Density=self%massGas()+self%massBlackHoles()
+        Node_Component_Dark_Core_Standard_Density=self%massGas()+self%massStellar()
      case (massTypeGaseous%ID)
         Node_Component_Dark_Core_Standard_Density=self%massGas()
      case (massTypeStellar%ID)
-        Node_Component_Dark_Core_Standard_Density=               self%massBlackHoles()
+        Node_Component_Dark_Core_Standard_Density=               self%massStellar()
      end select
   end select
   ! Skip further calculation if mass or radius is zero.
@@ -322,11 +322,11 @@ double precision function Node_Component_Dark_Core_Standard_Density_Spherical_Av
      case (weightByMass      %ID)
         select case (massType%ID)
         case (massTypeAll%ID,massTypeBaryonic%ID,massTypeGalactic%ID)
-           Node_Component_Dark_Core_Standard_Density_Spherical_Average=self%massGas()+self%massBlackHoles()
+           Node_Component_Dark_Core_Standard_Density_Spherical_Average=self%massGas()+self%massStellar()
         case (massTypeGaseous%ID)
            Node_Component_Dark_Core_Standard_Density_Spherical_Average=self%massGas()
         case (massTypeStellar%ID)
-           Node_Component_Dark_Core_Standard_Density_Spherical_Average=               self%massBlackHoles()
+           Node_Component_Dark_Core_Standard_Density_Spherical_Average=               self%massStellar()
         end select
      end select
      ! Return if density is zero.
@@ -451,3 +451,55 @@ double precision function Node_Component_Dark_Core_Standard_Rotation_Curve_Gradi
        &                  )
   return
 end function Node_Component_Dark_Core_Standard_Rotation_Curve_Gradient
+
+function Node_Component_Dark_Core_Standard_Chandrasekhar_Integral(self,nodeSatellite,positionCartesian,velocityCartesian,componentType,massType)
+  !!{
+  Computes the gravitational acceleration at a given position for a standard dark core.
+  !!}
+  use :: Galactic_Structure_Options, only : componentTypeAll            , componentTypeDarkCore      , weightByMass, weightIndexNull, &
+       &                                    enumerationComponentTypeType, enumerationMassTypeType
+  use :: Numerical_Constants_Math  , only : Pi
+  implicit none
+  double precision                                             , dimension(3) :: Node_Component_Dark_Core_Standard_Chandrasekhar_Integral
+  class           (nodeComponentDarkCoreStandard), intent(inout)               :: self
+  type            (treeNode                     ), intent(inout)               :: nodeSatellite
+  double precision                               , intent(in   ), dimension(3) :: positionCartesian                                , velocityCartesian
+  type            (enumerationComponentTypeType ), intent(in   )               :: componentType
+  type            (enumerationMassTypeType      ), intent(in   )               :: massType
+  double precision                                             , dimension(3) :: positionSpherical
+  double precision                               , parameter                   :: XvMaximum                                         =10.0d0
+  double precision                                                            :: radius                                            , velocity          , &
+       &                                                                         density                                           , xV                , &
+       &                                                                         velocityRotation                                  , velocityDispersion
+  !$GLC attributes unused :: nodeSatellite
+  
+  ! Return if the dark core component is not selected.
+  Node_Component_Dark_Core_Standard_Chandrasekhar_Integral=0.0d0
+  if (.not.(componentType == componentTypeAll .or. componentType == componentTypeDarkCore)) return
+  ! Compute the integral.
+  radius                                             =  sqrt(sum(positionCartesian**2))
+  velocity                                           =  sqrt(sum(velocityCartesian**2))
+  if (velocity <= 0.0d0) return
+  positionSpherical                                  =  [radius,0.0d0,0.0d0]
+  velocityRotation                                   =  Node_Component_Dark_Core_Standard_Rotation_Curve(self,radius           ,componentType,massType                             )
+  density                                            =  Node_Component_Dark_Core_Standard_Density       (self,positionSpherical,componentType,massType,weightByMass,weightIndexNull)
+  if (density  <= 0.0d0) return
+  velocityDispersion                                       = +velocityRotation   &
+       &                                                     /sqrt(2.0d0)
+  xV                                                       = +velocity           &
+       &                                                     /velocityDispersion &
+       &                                                     /sqrt(2.0d0)
+  Node_Component_Dark_Core_Standard_Chandrasekhar_Integral = -density            &
+       &                                                     *velocityCartesian  &
+       &                                                     /velocity         **3
+  if (Xv <= XvMaximum)                                                                                          &
+       & Node_Component_Dark_Core_Standard_Chandrasekhar_Integral=+Node_Component_Dark_Core_Standard_Chandrasekhar_Integral &
+       &                                                         *(                                             &
+       &                                                           +erf ( xV   )                                &
+       &                                                           -2.0d0                                       &
+       &                                                           *      xV                                    &
+       &                                                           *exp (-xV**2)                                &
+       &                                                           /sqrt( Pi   )                                &
+       &                                                         )
+  return
+end function Node_Component_Dark_Core_Standard_Chandrasekhar_Integral
