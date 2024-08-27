@@ -46,6 +46,7 @@ module Galactic_Structure_Radii_Definitions
    <entry label="spheroidRadius"             description="Radii are specified in units of the spheroid scale radius"                                  />
    <entry label="diskHalfMassRadius"         description="Radii are specified in units of the disk half-mass radius"                                  />
    <entry label="NSCHalfMassRadius"          description="Radii are specified in units of the NSC half-mass radius"                                   />
+   <entry label="darkCoreHalfMassRadius"     description="Radii are specified in units of the dark core half-mass radius"                             />
    <entry label="spheroidHalfMassRadius"     description="Radii are specified in units of the spheroid half-mass radius"                              />
    <entry label="satelliteBoundMassFraction" description="Radii are specified in units of the radius enclosing a fraction of the satellite bound mass"/>
    <entry label="galacticMassFraction"       description="Radii are specified in units of the radius enclosing a fraction of the galactic mass"       />
