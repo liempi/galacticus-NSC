@@ -48,7 +48,8 @@
      type   (radiusSpecifier         ), allocatable, dimension(:) :: radii
      logical                                                      :: darkMatterScaleRadiusIsNeeded          , diskIsNeeded        , &
           &                                                          spheroidIsNeeded                       , virialRadiusIsNeeded, &
-          &                                                          NSCIsNeeded                            , darkCoreIsNeeded
+          &                                                          NSCIsNeeded                            , darkCoreIsNeeded    , &
+          &                                                          satelliteIsNeeded
    contains
      final     ::                       rotationCurveDestructor
      procedure :: columnDescriptions => rotationCurveColumnDescriptions
@@ -136,6 +137,7 @@ contains
          &                                          self%spheroidIsNeeded             , &
          &                                          self%NSCIsNeeded                  , &
          &                                          self%darkCoreIsNeeded             , &
+         &                                          self%satelliteIsNeeded            , &
          &                                          self%virialRadiusIsNeeded         , &
          &                                          self%darkMatterScaleRadiusIsNeeded  &
          &                                         )
@@ -187,13 +189,15 @@ contains
     !!{
     Implement a {\normalfont \ttfamily rotationCurve} property extractor.
     !!}
-    use :: Galactic_Structure_Options          , only : componentTypeAll               , massTypeGalactic                 , massTypeStellar
-    use :: Galactic_Structure_Radii_Definitions, only : radiusTypeDarkMatterScaleRadius, radiusTypeDiskHalfMassRadius     , radiusTypeDiskRadius            , radiusTypeGalacticLightFraction, &
-          &                                             radiusTypeGalacticMassFraction , radiusTypeRadius                 , radiusTypeSpheroidHalfMassRadius, radiusTypeSpheroidRadius       , &
-          &                                             radiusTypeStellarMassFraction  , radiusTypeVirialRadius           , radiusTypeNSCRadius             , radiusTypeNSCHalfMassRadius    , &
+    use :: Galactic_Structure_Options          , only : componentTypeAll               , massTypeGalactic                , massTypeStellar
+    use :: Galactic_Structure_Radii_Definitions, only : radiusTypeDarkMatterScaleRadius, radiusTypeDiskHalfMassRadius    , radiusTypeDiskRadius            , radiusTypeGalacticLightFraction, &
+          &                                             radiusTypeGalacticMassFraction , radiusTypeRadius                , radiusTypeSpheroidHalfMassRadius, radiusTypeSpheroidRadius       , &
+          &                                             radiustypestellarmassfraction  , radiusTypeNSCRadius             , radiusTypeNSCHalfMassRadius     , radiusTypeVirialRadius         , &
           &                                             radiusTypeDarkCoreRadius       , radiusTypeDarkCoreHalfMassRadius
-    use :: Galacticus_Nodes                    , only : nodeComponentDarkMatterProfile , nodeComponentDisk                , nodeComponentSpheroid           , nodeComponentNSC               , &
-          &                                             nodeComponentDarkCore          ,treeNode
+          
+    use :: Galacticus_Nodes                    , only : nodeComponentDarkMatterProfile , nodeComponentDisk               , nodeComponentSpheroid           , nodeComponentNSC               , &
+          &                                             nodeComponentDarkCore          , treeNode
+    use :: Error                               , only : Error_Report
     implicit none
     double precision                                    , dimension(:,:), allocatable :: rotationCurveExtract
     class           (nodePropertyExtractorRotationCurve), intent(inout) , target      :: self
@@ -206,7 +210,7 @@ contains
     class           (nodeComponentDarkCore             ), pointer                     :: darkCore
     class           (nodeComponentDarkMatterProfile    ), pointer                     :: darkMatterProfile
     integer                                                                           :: i
-    double precision                                                                  :: radius                , radiusVirial
+    double precision                                                                  :: radius                          , radiusVirial
     !$GLC attributes unused :: time, instance
 
     allocate(rotationCurveExtract(self%radiiCount,self%elementCount_))
@@ -265,6 +269,8 @@ contains
                &   weightBy      =self%radii(i)%weightBy        ,  &
                &   weightIndex   =self%radii(i)%weightByIndex      &
                &  )
+       case default
+          call Error_Report('unrecognized radius type'//{introspection:location})
        end select
        rotationCurveExtract       (i,1)=self%galacticStructure_%velocityRotation(                                       &
                &                                                                 node                                 , &

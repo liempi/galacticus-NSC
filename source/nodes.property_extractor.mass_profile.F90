@@ -20,9 +20,10 @@
   !!{
   Contains a module which implements a property extractor class for the enclosed mass at a set of radii.
   !!}
-  use :: Dark_Matter_Halo_Scales             , only : darkMatterHaloScale   , darkMatterHaloScaleClass
+  use :: Dark_Matter_Halo_Scales             , only : darkMatterHaloScaleClass
   use :: Galactic_Structure_Radii_Definitions, only : radiusSpecifier
   use :: Galactic_Structure                  , only : galacticStructureClass
+  use :: Cosmology_Parameters                , only : cosmologyParametersClass
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorMassProfile">
@@ -36,12 +37,15 @@
      private
      class  (darkMatterHaloScaleClass), pointer                   :: darkMatterHaloScale_          => null()
      class  (galacticStructureClass  ), pointer                   :: galacticStructure_            => null()
+     class  (cosmologyParametersClass), pointer                   :: cosmologyParameters_          => null()
      integer                                                      :: radiiCount                             , elementCount_
      logical                                                      :: includeRadii
      type   (varying_string          ), allocatable, dimension(:) :: radiusSpecifiers
-     type   (radiusSpecifier         ), allocatable, dimension(:) :: radii
-     logical                                                      :: darkMatterScaleRadiusIsNeeded          , diskIsNeeded        , NSCIsNeeded     , &
-          &                                                          spheroidIsNeeded                       , virialRadiusIsNeeded, darkCoreisNeeded
+     logical                                                      :: darkMatterScaleRadiusIsNeeded          , diskIsNeeded        , &
+          &                                                          spheroidIsNeeded                       , virialRadiusIsNeeded, &
+          &                                                          NSCIsNeeded                            , satelliteIsNeeded   , &
+          &                                                          darkCoreIsNeeded 
+     double precision                                             :: fractionDarkMatter
    contains
      final     ::                       massProfileDestructor
      procedure :: columnDescriptions => massProfileColumnDescriptions
@@ -74,6 +78,7 @@ contains
     type   (varying_string                  ), allocatable  , dimension(:) :: radiusSpecifiers
     class  (darkMatterHaloScaleClass        ), pointer                     :: darkMatterHaloScale_
     class  (galacticStructureClass          ), pointer                     :: galacticStructure_
+    class  (cosmologyParametersClass        ), pointer                     :: cosmologyParameters_
     logical                                                                :: includeRadii
 
     allocate(radiusSpecifiers(parameters%count('radiusSpecifiers')))
@@ -91,8 +96,9 @@ contains
     </inputParameter>
     <objectBuilder class="darkMatterHaloScale" name="darkMatterHaloScale_" source="parameters"/>
     <objectBuilder class="galacticStructure"   name="galacticStructure_"   source="parameters"/>
+    <objectBuilder class="cosmologyParameters" name="cosmologyParameters_" source="parameters"/>
     !!]
-    self=nodePropertyExtractorMassProfile(radiusSpecifiers,includeRadii,darkMatterHaloScale_,galacticStructure_)
+    self=nodePropertyExtractorMassProfile(radiusSpecifiers,includeRadii,darkMatterHaloScale_,galacticStructure_,cosmologyParameters_)
     !![
     <inputParametersValidate source="parameters"/>
     <objectDestructor name="darkMatterHaloScale_"/>
@@ -101,7 +107,7 @@ contains
     return
   end function massProfileConstructorParameters
 
-  function massProfileConstructorInternal(radiusSpecifiers,includeRadii,darkMatterHaloScale_,galacticStructure_) result(self)
+  function massProfileConstructorInternal(radiusSpecifiers,includeRadii,darkMatterHaloScale_,galacticStructure_,cosmologyParameters_) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily massProfile} property extractor class.
     !!}
@@ -111,9 +117,10 @@ contains
     type   (varying_string                  ), intent(in   ), dimension(:) :: radiusSpecifiers
     class  (darkMatterHaloScaleClass        ), intent(in   ), target       :: darkMatterHaloScale_
     class  (galacticStructureClass          ), intent(in   ), target       :: galacticStructure_
+    class  (cosmologyParametersClass        ), intent(in   ), target       :: cosmologyParameters_
     logical                                  , intent(in   )               :: includeRadii
     !![
-    <constructorAssign variables="radiusSpecifiers, includeRadii, *darkMatterHaloScale_, *galacticStructure_"/>
+    <constructorAssign variables="radiusSpecifiers, includeRadii, *darkMatterHaloScale_, *galacticStructure_, *cosmologyParameters_"/>
     !!]
 
     if (includeRadii) then
@@ -129,9 +136,15 @@ contains
          &                                          self%spheroidIsNeeded             , &
          &                                          self%NSCIsNeeded                  , &
          &                                          self%darkCoreisNeeded             , &
+         &                                          self%satelliteIsNeeded            , &
          &                                          self%virialRadiusIsNeeded         , &
          &                                          self%darkMatterScaleRadiusIsNeeded  &
          &                                         )
+    self%fractionDarkMatter=+(                                         &
+         &                    +self%cosmologyParameters_%OmegaMatter() &
+         &                    -self%cosmologyParameters_%OmegaBaryon() &
+         &                   )                                         &
+         &                  /  self%cosmologyParameters_%OmegaMatter()
     return
   end function massProfileConstructorInternal
 
@@ -145,6 +158,7 @@ contains
     !![
     <objectDestructor name="self%darkMatterHaloScale_"/>
     <objectDestructor name="self%galacticStructure_"  />
+    <objectDestructor name="self%cosmologyParameters_"/>
     !!]
     return
   end subroutine massProfileDestructor
@@ -180,13 +194,16 @@ contains
     !!{
     Implement a {\normalfont \ttfamily massProfile} property extractor.
     !!}
-    use :: Galactic_Structure_Options          , only : componentTypeAll               , massTypeGalactic                , massTypeStellar
-    use :: Galactic_Structure_Radii_Definitions, only : radiusTypeDarkMatterScaleRadius, radiusTypeDiskHalfMassRadius    , radiusTypeDiskRadius            , radiusTypeGalacticLightFraction, &
-          &                                             radiusTypeGalacticMassFraction , radiusTypeRadius                , radiusTypeSpheroidHalfMassRadius, radiusTypeSpheroidRadius       , &
-          &                                             radiusTypeStellarMassFraction  , radiusTypeVirialRadius          , radiusTypeNSCHalfMassRadius     , radiusTypeNSCRadius            , &
-          &                                             radiusTypeDarkCoreRadius       , radiusTypeDarkCoreHalfMassRadius
-    use :: Galacticus_Nodes                    , only : nodeComponentDarkMatterProfile , nodeComponentDisk               , nodeComponentSpheroid           , nodeComponentNSC               , &
-          &                                             nodeComponentDarkCore          , treeNode
+
+
+    use :: Galactic_Structure_Options          , only : componentTypeAll               , massTypeGalactic            , massTypeStellar                     , massTypeDark
+    use :: Galactic_Structure_Radii_Definitions, only : radiusTypeDarkMatterScaleRadius, radiusTypeDiskHalfMassRadius, radiusTypeDiskRadius                , radiusTypeGalacticLightFraction, &
+         &                                              radiusTypeGalacticMassFraction , radiusTypeRadius            , radiusTypeSpheroidHalfMassRadius    , radiusTypeSpheroidRadius       , &
+         &                                              radiusTypeStellarMassFraction  , radiusTypeVirialRadius      , radiusTypeSatelliteBoundMassFraction, radiusTypeNSCRadius            , &
+         &                                              radiusTypeNSCHalfMassRadius    , radiusTypeDarkCoreRadius    , radiusTypeDarkCoreHalfMassRadius
+    use :: Galacticus_Nodes                    , only : nodeComponentDarkMatterProfile , nodeComponentDisk           , nodeComponentSpheroid               , nodeComponentNSC               , & 
+         &                                              nodeComponentSatellite         , nodeComponentDarkCore       , treeNode
+    use :: Error                               , only : Error_Report
     implicit none
     double precision                                  , dimension(:,:), allocatable :: massProfileExtract
     class           (nodePropertyExtractorMassProfile), intent(inout) , target      :: self
@@ -198,8 +215,10 @@ contains
     class           (nodeComponentNSC                ), pointer                     :: NSC
     class           (nodeComponentDarkCore           ), pointer                     :: darkCore
     class           (nodeComponentDarkMatterProfile  ), pointer                     :: darkMatterProfile
+    class           (nodeComponentSatellite          ), pointer                     :: satellite
     integer                                                                         :: i
-    double precision                                                                :: radius             , radiusVirial
+    double precision                                                                :: radius             , radiusVirial, &
+         &                                                                             mass
     !$GLC attributes unused :: time, instance
 
     allocate(massProfileExtract(self%radiiCount,self%elementCount_))
@@ -209,6 +228,7 @@ contains
     if (self%             spheroidIsNeeded) spheroid          =>                                        node%spheroid         ()
     if (self%                  NSCIsNeeded) NSC               =>                                        node%NSC              ()
     if (self%             darkCoreisNeeded) darkCore          =>                                        node%darkCore         ()
+    if (self%            satelliteIsNeeded) satellite         =>                                        node%satellite        ()
     if (self%darkMatterScaleRadiusIsNeeded) darkMatterProfile =>                                        node%darkMatterProfile()
     do i=1,self%radiiCount
        radius=self%radii(i)%value
@@ -235,6 +255,19 @@ contains
           radius=+radius*NSC              %halfMassRadius()
        case   (radiusTypeDarkCoreHalfMassRadius%ID)
           radius=+radius*darkCore         %halfMassRadius()
+       case   (radiusTypeSatelliteBoundMassFraction%ID)
+          mass  =+satellite%boundMass         () &
+               & *self     %fractionDarkMatter
+          radius=+radius                                            &
+               & *self%galacticStructure_%radiusEnclosingMass       &
+               &  (                                                 &
+               &   node                                          ,  &
+               &   mass         =              mass              ,  &
+               &   massType     =              massTypeDark      ,  &
+               &   componentType=              componentTypeAll  ,  &
+               &   weightBy     =self%radii(i)%weightBy          ,  &
+               &   weightIndex  =self%radii(i)%weightByIndex        &
+               &  )
        case   (radiusTypeGalacticMassFraction  %ID,  &
             &  radiusTypeGalacticLightFraction %ID)
           radius=+radius                                           &
@@ -258,6 +291,8 @@ contains
                &   weightBy      =self%radii(i)%weightBy        ,  &
                &   weightIndex   =self%radii(i)%weightByIndex      &
                &  )
+       case default
+          call Error_Report('unrecognized radius type'//{introspection:location})
        end select
        massProfileExtract       (i,1)=self%galacticStructure_%massEnclosed(                                       &
             &                                                              node                                 , &

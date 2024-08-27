@@ -48,7 +48,8 @@
      type   (radiusSpecifier         ), allocatable, dimension(:) :: radii
      logical                                                      :: darkMatterScaleRadiusIsNeeded          , diskIsNeeded        , &
           &                                                          spheroidIsNeeded                       , NSCIsNeeded         , &
-          &                                                          darkCoreIsNeeded                       , virialRadiusIsNeeded
+          &                                                          darkCoreIsNeeded                       , virialRadiusIsNeeded, &
+          &                                                          satelliteIsNeeded
    contains
      final     ::                       projectedMassDestructor
      procedure :: columnDescriptions => projectedMassColumnDescriptions
@@ -140,6 +141,7 @@ contains
          &                                          self%spheroidIsNeeded             , &
          &                                          self%NSCIsNeeded                  , &
          &                                          self%darkCoreIsNeeded             , &
+         &                                          self%satelliteIsNeeded            , &
          &                                          self%virialRadiusIsNeeded         , &
          &                                          self%darkMatterScaleRadiusIsNeeded  &
          &                                         )
@@ -200,6 +202,7 @@ contains
           &                                             nodeComponentDarkCore          , treeNode
     use :: Numerical_Integration               , only : integrator, GSL_Integ_Gauss15
     use :: Numerical_Comparison                , only : Values_Agree
+    use :: Error                               , only : Error_Report
     implicit none
     double precision                                    , dimension(:,:), allocatable :: massProjected
     class           (nodePropertyExtractorProjectedMass), intent(inout) , target      :: self
@@ -275,6 +278,8 @@ contains
                &   weightBy      =self%radii(i)%weightBy        ,  &
                &   weightIndex   =self%radii(i)%weightByIndex      &
                &  )
+       case default
+          call Error_Report('unrecognized radius type'//{introspection:location})
        end select
        massProjectedPrevious=0.0d0
        radiusOuter          =max(radius_*2.0d0,radiusVirial)
