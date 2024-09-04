@@ -90,7 +90,7 @@ module Node_Component_Dark_Core_Standard
       <name>radius</name>
       <type>double</type>
       <rank>0</rank>
-      <attributes isSettable="true" isGettable="true" isEvolvable="true" />
+      <attributes isSettable="true" isGettable="true" isEvolvable="false" />
       <output unitsInSI="megaParsec" comment="Radial scale length in the standard dark core."/>
     </property>
     <property>
@@ -671,6 +671,7 @@ contains
        end select
        call darkCore%        massStellarSet(                  0.0d0)
        call darkCore%    angularMomentumSet(                  0.0d0)
+
     end select
     return
   end subroutine satelliteMerger
