@@ -135,7 +135,7 @@ contains
             ! Standard class, just compute the dark core radius and set.
             radiusDarkCore = self%efficiency * radiusNSC
             print *, radiusDarkCore
-            call darkCore%radiusSet(radiusDarkCore)
+            call darkCore%radiusRate(radiusDarkCore)
             return
           end select
         end if 
