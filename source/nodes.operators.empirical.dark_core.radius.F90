@@ -131,11 +131,11 @@ contains
             interrupt = .true.
             ! point to the interrupt method to create the Dark Core
             functionInterrupt => DarkCoreCreate
+            return
           class is (nodeComponentDarkCoreStandard)
             ! Standard class, just compute the dark core radius and set.
             radiusDarkCore = self%efficiency * radiusNSC
-            print *, radiusDarkCore
-            call darkCore%radiusRate(radiusDarkCore)
+            call darkCore%radiusSet(radiusDarkCore)
             return
           end select
         end if 
