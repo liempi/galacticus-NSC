@@ -63,26 +63,6 @@ double precision function Node_Component_Dark_Core_Standard_Angular_Momentum(sel
    return
 end function Node_Component_Dark_Core_Standard_Angular_Momentum
 
-double precision function Node_Component_Dark_Core_Standard_Radius(self)
-   !!{
-      Return the radius of the standard dark core.
-   !!}
-   use :: Node_Component_Dark_Core_Standard_Data, only: radiusNorm
-   implicit none 
-   class(nodeComponentDarkCoreStandard), intent(inout) :: self 
-   double precision                                    :: massDarkCore
-
-   massDarkCore = self%massStellar()
-
-   !The radius is retunerd in Mpc units.
-   if (massDarkCore > 0.0d0) then
-      Node_Component_Dark_Core_Standard_Radius = radiusNorm
-   else
-      Node_Component_Dark_Core_Standard_Radius = 0.0d0
-   end if
-   return
-end function Node_Component_Dark_Core_Standard_Radius
-
 double precision function Node_Component_Dark_Core_Standard_Half_Mass_Radius(self)
   !!{
   Return the half-mass radius of the standard dark core.

@@ -90,8 +90,7 @@ module Node_Component_Dark_Core_Standard
       <name>radius</name>
       <type>double</type>
       <rank>0</rank>
-      <attributes isSettable="true" isGettable="true" isEvolvable="false" />
-      <getFunction>Node_Component_Dark_Core_Standard_Radius</getFunction>
+      <attributes isSettable="true" isGettable="true" isEvolvable="true" />
       <output unitsInSI="megaParsec" comment="Radial scale length in the standard dark core."/>
     </property>
     <property>
@@ -176,7 +175,6 @@ contains
     use :: Error                                 , only : Error_Report
     use :: Galacticus_Nodes                      , only : defaultDarkCoreComponent , nodeComponentDarkCoreStandard
     use :: Input_Parameters                      , only : inputParameter           , inputParameters
-    use :: Node_Component_Dark_Core_Standard_Data, only : radiusNorm
     implicit none
     type(inputParameters              ), intent(inout) :: parameters
     type(inputParameters              )                :: subParameters
@@ -206,12 +204,6 @@ contains
          <name>DarkCoreNegativeAngularMomentumAllowed</name>
          <defaultValue>.true.</defaultValue>
          <description>Specifies whether or not negative angular momentum is allowed for the dark core.</description>
-         <source>subParameters</source>
-       </inputParameter>
-       <inputParameter>
-         <name>radiusNorm</name>
-         <defaultValue>3.3d-6</defaultValue>
-         <description>Value of the r0 normalizer in radii evolution of the dark core</description>
          <source>subParameters</source>
        </inputParameter>
        !!]
@@ -352,13 +344,13 @@ contains
     !!{
     Trim histories attached to the dark core.
     !!}
-    use :: Abundances_Structure          , only : abs                , zeroAbundances
-    use :: Display                       , only : displayMessage     , verbosityLevelWarn
+    use :: Abundances_Structure          , only : abs                     , zeroAbundances
+    use :: Display                       , only : displayMessage          , verbosityLevelWarn
     use :: Error                         , only : Error_Report
     use :: Galacticus_Nodes              , only : defaultDarkCoreComponent, nodeComponentDarkCore , nodeComponentDarkCoreStandard, &
           &                                       nodeComponentSpin       , nodeComponentBasic    , treeNode
-    use :: Interface_GSL                 , only : GSL_Success        , GSL_Continue
-    use :: ISO_Varying_String            , only : assignment(=)      , operator(//)       , varying_string
+    use :: Interface_GSL                 , only : GSL_Success             , GSL_Continue
+    use :: ISO_Varying_String            , only : assignment(=)           , operator(//)          , varying_string
     use :: String_Handling               , only : operator(//)
     implicit none
     type            (treeNode             ), intent(inout), pointer :: node
@@ -528,8 +520,8 @@ contains
     use :: Galacticus_Nodes, only : nodeComponentBasic, nodeComponentDarkCore, treeNode
     use :: Histories       , only : history
     implicit none
-    type   (treeNode             ), intent(inout) , target  :: node
-    class  (nodeComponentDarkCore)                , pointer :: darkCore
+    type   (treeNode             ), intent(inout), target  :: node
+    class  (nodeComponentDarkCore)               , pointer :: darkCore
 
     ! Get the dark core component.
     darkCore => node%darkCore()
@@ -537,19 +529,8 @@ contains
     ! Exit if already initialized.
     if (darkCore%isInitialized()) return
 
-    !If not, check if the NSC is initialized, if yes, we create a Dark Core component.
-
-
-    ! NSC => node%NSC()
-    ! if (NSC%isInitialized()) then 
-    ! bla bla bla bla...
-    ! else return 
-
-    ! Set the fraction of mass retained.
-    call darkCore%fractionMassRetainedSet(1.0d0)
-
-    ! Record that the dark core has been initialized.
-    call darkCore%isInitializedSet(.true.  )
+    call darkCore%fractionMassRetainedSet( 1.0d0)
+    call darkCore%       isInitializedSet(.true.)
     return
   end subroutine Node_Component_Dark_Core_Standard_Create
 
@@ -583,7 +564,7 @@ contains
 
        call darkCore%angularMomentumScale  (angularMomentumMinimum)                                        
        call darkCore%massGasScale          (massMinimum           )
-       call darkCore%massStellarScale   (massMinimum           )
+       call darkCore%massStellarScale      (massMinimum           )
 
        ! Set the scale for the retained stellar mass fraction.
        call darkCore%fractionMassRetainedScale(fractionTolerance*darkCore%fractionMassRetained())

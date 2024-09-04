@@ -36,7 +36,6 @@ module Node_Component_Dark_Core_Standard_Data
   ! Records of previously computed and stored quantities.
   logical                                     :: surfaceDensityCentralGasComputed  , surfaceDensityCentralStellarComputed, &
        &                                         surfaceDensityCentralTotalComputed
-  double precision                            :: radiusNorm
 
   !$omp threadprivate(surfaceDensityCentralGasComputed, surfaceDensityCentralStellarComputed, surfaceDensityCentralTotalComputed)
   
