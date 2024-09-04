@@ -66,6 +66,7 @@ contains
     <inputParameter>
       <name>efficiency</name>
       <source>parameters</source>
+      <defaultValue>0.1d0</defaultValue>
       <description>The assumed value with Dark Core radius scales with NSC radius.</description>
     </inputParameter>
     !!]
@@ -89,7 +90,7 @@ contains
     !!]
     return
   end function darkCoreRadiusConstructorInternal
-
+  
     subroutine darkCoreRadiusDifferentialEvolution(self,node,interrupt,functioninterrupt,propertyType)
       !!{
         Compute the nuclear star cluster gas mass rate change.
@@ -133,6 +134,7 @@ contains
           class is (nodeComponentDarkCoreStandard)
             ! Standard class, just compute the dark core radius and set.
             radiusDarkCore = self%efficiency * radiusNSC
+            print *, radiusDarkCore
             call darkCore%radiusSet(radiusDarkCore)
             return
           end select
