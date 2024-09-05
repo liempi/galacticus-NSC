@@ -67,7 +67,7 @@ contains
       <name>efficiency</name>
       <source>parameters</source>
       <defaultValue>0.1d0</defaultValue>
-      <description>The assumed value with Dark Core radius scales with NSC radius.</description>
+      <description>The assumed value with Dark Core radius scales with the NSC radius.</description>
     </inputParameter>
     !!]
     self=nodeOperatorDarkCoreRadius(efficiency)
@@ -111,32 +111,32 @@ contains
     ! Return immediately if inactive variables are requested.
     if (propertyInactive(propertyType)) return
 
-    NSC      =>  node %NSC()
+    NSC      =>  node%     NSC()
     darkCore =>  node%darkCore()
 
-    !Check if there there is a NSC in the node.
+    !Check if there is a NSC in the node.
     select type (NSC)
       type is  (nodeComponentNSC        )
-        ! Null NSC class, there is no NSC. Do nothing.
+        ! Generic NSC component. Nothing to do here.
         return
       class is (nodeComponentNSCStandard)
-        ! Standard NSC class. Get the radius and check if it is physical NSC.
+        ! Standard NSC class. Get the radius and check if it is positive.
         radiusNSC = NSC%radius()
         if (radiusNSC > 0.0d0) then
           !Check if the Dark Core component has already initialized.
           select type (darkCore)
-            type is (nodeComponentDarkCore       )
+            type is (nodeComponentDarkCore         )
             ! Null Dark Core class in this node, but there is a NSC class.
             ! Let's interrupt the ODE solver and create a Dark Core standard  
             interrupt = .true.
             ! point to the interrupt method to create the Dark Core
             functionInterrupt => DarkCoreCreate
             return
-          class is (nodeComponentDarkCoreStandard)
-            ! Standard class, just compute the dark core radius and set.
-            radiusDarkCore = self%efficiency * radiusNSC
-            call darkCore%radiusSet(radiusDarkCore)
-            return
+            class is (nodeComponentDarkCoreStandard)
+            ! Standard class, compute the dark core radius and set.
+              radiusDarkCore = self%efficiency * radiusNSC
+              call darkCore%radiusSet(radiusDarkCore)
+              return
           end select
         end if 
     end select 

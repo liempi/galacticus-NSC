@@ -671,7 +671,7 @@ contains
        end select
        call darkCore%        massStellarSet(                  0.0d0)
        call darkCore%    angularMomentumSet(                  0.0d0)
-
+       call darkCore%             radiusSet(                  0.0d0)
     end select
     return
   end subroutine satelliteMerger
