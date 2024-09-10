@@ -40,7 +40,7 @@ module NSC_Timescales
     <description>Returns the timescale (in Gyr) for Nuclear Star Clusters {\normalfont \ttfamily component}.</description>
     <type>double precision</type>
     <pass>yes</pass>
-    <argument>type(treeNode), intent(inout), target :: node </argument>
+    <argument>type(treeNode), intent(inout) :: node </argument>
    </method>
   </functionClass>
   !!]
