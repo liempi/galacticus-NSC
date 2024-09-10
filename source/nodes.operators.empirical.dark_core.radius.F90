@@ -28,13 +28,12 @@
   !!]
   type, extends(nodeOperatorClass) :: nodeOperatorDarkCoreRadius
      !!{     
-     A node operator class that inserts an empirical model of the formation history of a massive elliptical galaxy. The galaxy is
-     assumed to grow in the main branch of the tree with a constant specific star formation rate, such that it mass is given by:
+     A node operator class that inserts an empirical model for the evolution of the dark core radius. Specifically, this node operator
+     assumes that the radius scales with the radius of the host nuclear star cluster
      \begin{equation}
-       M_\star(t) = M_{\star,0} \exp(-\phi_\star [t-t_0]),
+     r_{\rm DC} = \epsilon r_{\rm NSC}
      \end{equation}
-     where $M_{\star,0}=${\normalfont \ttfamily [massStellarFinal]} is the stellar mass in the root node of the tree,
-     $\phi_\star=${\normalfont \ttfamily [rateStarFormationSpecific]}, and $t_0$ is the cosmic time at the root node of the tree.
+     where $\epsilon=${\normalfont \ttfamily [efficiency]} is an efficiency free parameter.
      !!}
      private
      double precision :: efficiency       
