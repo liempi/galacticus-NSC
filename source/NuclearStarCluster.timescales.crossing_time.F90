@@ -98,22 +98,15 @@ contains
 
   double precision function CrossingTimeTimescale(self,node)
     !!{
-    Returns the timescale (in Gyr) for star formation in the given {\normalfont \ttfamily component}. The timescale is given by
-    \begin{equation}
-    \tau_\star = \epsilon_\star^{-1} \tau_\mathrm{Crossing} \left( {V \over 200\hbox{km/s}} \right)^{\alpha_\star},
-    \end{equation}
-    where $\epsilon_\star$(={\normalfont \ttfamily efficiency}) is a star formation efficiency and $\alpha_\star$(={\normalfont \ttfamily
-    exponentVelocity}) controls the scaling with velocity. Note that $\tau_\mathrm{Crossing}=R/V$ where the radius and
-    velocity are whatever characteristic values returned by the component. This scaling is functionally similar to that adopted
-    by \cite{cole_hierarchical_2000}, but they specifically used the half-mass radius and circular velocity at that
-    radius.
+    Returns the crossing timescale (in Gyr) for star formation in the given {\normalfont \ttfamily component}. The timescale is given by
+
     !!}
     use :: Galacticus_Nodes, only : nodeComponentNSC, treeNode
     implicit none
-    class           (NSCTimescaleCrossingTime), intent(inout)  :: self
-    type            (treeNode                ), intent(inout)  :: treeNode
-    class           (nodeComponentNSC        ), pointer                :: NSC  
-    double precision                                                   :: velocity     , radius
+    class           (NSCTimescaleCrossingTime), intent(inout) :: self
+    type            (treeNode                ), intent(inout) :: treeNode
+    class           (nodeComponentNSC        ), pointer       :: NSC  
+    double precision                                          :: velocity     , radius
     ! Check for zero velocity.
 
 
