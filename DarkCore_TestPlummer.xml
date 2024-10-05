@@ -272,7 +272,7 @@
       <efficiency value="0.1"/>
     </nodeOperator>
     <nodeOperator value="darkCoreRadius">
-      <efficiency value="0.1d0"/>
+      <efficiency value="0.1"/>
    </nodeOperator>
 
     <!--Stellar feedback outflows-->

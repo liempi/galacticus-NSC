@@ -35,7 +35,7 @@ module NSC_Timescales
    <description>
     Class providing models of timescales for nuclear star clusters.
    </description>
-   <default>crossingTime</default>
+   <default>dynamicalFrictionTime</default>
    <method name="timescale" >
     <description>Returns the timescale (in Gyr) for Nuclear Star Clusters {\normalfont \ttfamily component}.</description>
     <type>double precision</type>
