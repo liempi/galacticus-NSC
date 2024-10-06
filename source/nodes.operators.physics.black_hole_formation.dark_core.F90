@@ -18,16 +18,16 @@
 !!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
 
   !!{
-  Implements a node operator class that performs star formation in nuclear star cluster.
+  Implements a node operator class that performs black hole formation in nuclear star cluster.
   !!}
 
   use :: Star_Formation_Rates_NSC , only : starFormationRateNSCClass
   !![
-  <nodeOperator name="nodeOperatorBlackHoleFormation">
+  <nodeOperator name="nodeOperatorBlackHoleFormationNSC">
    <description>A node operator class that performs black hole formation.</description>
   </nodeOperator>
   !!]
-  type, extends(nodeOperatorClass) :: nodeOperatorBlackHoleFormation
+  type, extends(nodeOperatorClass) :: nodeOperatorBlackHoleFormationNSC
      !!{
      A node operator class that performs the black hole evolution in dark cores.
      !!}
@@ -38,15 +38,15 @@
    contains
      final     ::                                        blackHoleFormationDestructor
      procedure :: differentialEvolution               => blackHoleFormationDifferentialEvolution
-  end type nodeOperatorBlackHoleFormation
+  end type nodeOperatorBlackHoleFormationNSC
   
-  interface nodeOperatorBlackHoleFormation
+  interface nodeOperatorBlackHoleFormationNSC
      !!{
      Constructors for the {\normalfont \ttfamily blackHoleFormationDarkCore} node operator class.
      !!}
      module procedure blackHoleFormationConstructorParameters
      module procedure blackHoleFormationConstructorInternal
-  end interface nodeOperatorBlackHoleFormation
+  end interface nodeOperatorBlackHoleFormationNSC
   
 contains
 
@@ -56,7 +56,7 @@ contains
     !!}
     use :: Input_Parameters, only : inputParameters
     implicit none
-    type (nodeOperatorBlackHoleFormation)                :: self
+    type (nodeOperatorBlackHoleFormationNSC)                :: self
     type (inputParameters               ), intent(inout) :: parameters
     class(starFormationRateNSCClass     ), pointer       :: starFormationRateNSC_
     double precision                                     :: efficiency
@@ -69,7 +69,7 @@ contains
     </inputParameter>
     <objectBuilder class="starFormationRateNSC"      name="starFormationRateNSC_"  source="parameters"/>
     !!]
-    self=nodeOperatorBlackHoleFormation(efficiency, starFormationRateNSC_)
+    self=nodeOperatorBlackHoleFormationNSC(efficiency, starFormationRateNSC_)
     !![
     <inputParametersValidate source="parameters"/>
     <objectDestructor name="starFormationRateNSC_"/>
@@ -82,7 +82,7 @@ contains
     Internal constructor for the {\normalfont \ttfamily blackHoleFormationDarkCore} node operator class.
     !!}
     implicit none
-    type   (nodeOperatorBlackHoleFormation)                        :: self
+    type   (nodeOperatorBlackHoleFormationNSC)                        :: self
     class  (starFormationRateNSCClass     ), intent(in   ), target :: starFormationRateNSC_
     double precision                       , intent(in   ), target :: efficiency
     !![
@@ -97,7 +97,7 @@ contains
     Destructor for the {\normalfont \ttfamily blackHoleFormationDarkCore} node operator class.
     !!}
     implicit none
-    type (nodeOperatorBlackHoleFormation), intent(inout) :: self
+    type (nodeOperatorBlackHoleFormationNSC), intent(inout) :: self
 
     !![
     <objectDestructor name="self%starFormationRateNSC_"/>
@@ -113,7 +113,7 @@ contains
           &                                       propertyInactive, treeNode
     use :: Histories                     , only :  operator(*), history
     implicit none
-    class           (nodeOperatorBlackHoleFormation), intent(inout), target  :: self
+    class           (nodeOperatorBlackHoleFormationNSC), intent(inout), target  :: self
     type            (treeNode                      ), intent(inout), target  :: node
     logical                                         , intent(inout)          :: interrupt
     procedure       (interruptTask                 ), intent(inout), pointer :: functionInterrupt
@@ -141,8 +141,8 @@ contains
       end if
       return
     class is (nodeComponentDarkCoreStandard)
-      call NSC     % massStellarRate(-rateBlackHoleFormation)
-      call darkCore% massStellarRate(+rateBlackHoleFormation)
+      call NSC% massStellarRate(-rateBlackHoleFormation)
+      call NSC%     massBHsRate(+rateBlackHoleFormation)
 
       historyTransferRate=NSC%stellarPropertiesHistory()
       if (historyTransferRate%exists()) &
@@ -156,7 +156,7 @@ contains
     return
   end subroutine blackHoleFormationDifferentialEvolution
 
-    subroutine DarkCoreCreate(node,timeEnd)
+  subroutine DarkCoreCreate(node,timeEnd)
   !!{
     Creates the dark ocre via interrupt.
   !!}

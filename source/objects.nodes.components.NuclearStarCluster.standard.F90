@@ -92,6 +92,13 @@ module Node_Component_NSC_Standard
       <output unitsInSI="massSolar" comment="Mass of BH seed created in the standard nuclear star cluster."/>
     </property>
     <property>
+      <name>massBHs</name>
+      <type>double</type>
+      <rank>0</rank>
+      <attributes isSettable="true" isGettable="true" isEvolvable="true"/>
+      <output unitsInSI="massSolar" comment="Mass of the BHs formed due to stellar evolution in the standard Nuclear Star Cluster."/>
+    </property>
+    <property>
       <name>fractionMassRetained</name>
       <type>double</type>
       <rank>0</rank>
@@ -568,7 +575,7 @@ contains
           end if
           !$omp end critical (Standard_NSC_Post_Evolve_Check)
           ! Get the specific angular momentum of the nuclear star cluster material
-          massNSC= NSC%massGas    () &
+          massNSC=  NSC%massGas    () &
                &   +NSC%massStellar()
           if (massNSC == 0.0d0) then
              specificAngularMomentum=0.0d0
@@ -974,6 +981,7 @@ contains
        call NSC%           massSeedSet(                  0.0d0)
        call NSC%           CollapseSet(                .false.)
        call NSC%       CriticalMassSet(                  0.0d0)
+       call NSC%            massBHsSet(                  0.0d0)
     end select
     return
   end subroutine satelliteMerger
