@@ -24,7 +24,7 @@
   use :: Galactic_Structure                        , only : galacticStructureClass
 
   !![
-  <NSCTimescale name="NSCTimescaleDynamicalFrictionTime">
+  <NSCTimescale name="NSCTimescaleDynamicalFriction">
    <description>
     A timescale class in which the crossing timescale is computed as
     time. Specifically:
@@ -36,7 +36,7 @@
    </description>
   </NSCTimescale>
   !!]
-  type, extends(NSCTimescaleClass) :: NSCTimescaleDynamicalFrictionTime
+  type, extends(NSCTimescaleClass) :: NSCTimescaleDynamicalFriction
      !!{
      Implementation of a timescale for star formation which scales with the Crossing time.
      !!}
@@ -47,18 +47,17 @@
        &                                         exponent           , massCharacteristic, &
        &                                         sigma
    contains
-  
-     final     ::              DynamicalFrictionTimeTimescaleDestructor 
-     procedure :: timescale => DynamicalFrictionTimeTimescale
-  end type NSCTimescaleDynamicalFrictionTime
+     final     ::              DynamicalFrictionTimescaleDestructor 
+     procedure :: timescale => DynamicalFrictionTimescale
+  end type NSCTimescaleDynamicalFriction
 
-  interface NSCTimescaleDynamicalFrictionTime
+  interface NSCTimescaleDynamicalFriction
      !!{
      Constructors for the {\normalfont \ttfamily DynamicalFrictionTime} timescale for star formation class.
      !!}
      module procedure DynamicalFrictionTimeConstructorParameters
      module procedure DynamicalFrictionTimeConstructorInternal
-  end interface NSCTimescaleDynamicalFrictionTime
+  end interface NSCTimescaleDynamicalFriction
 
 contains
 
@@ -69,16 +68,13 @@ contains
     !!}
     use :: Input_Parameters, only : inputParameter, inputParameters
     implicit none
-    type            (NSCTimescaleDynamicalFrictionTime)                :: self
+    type            (NSCTimescaleDynamicalFriction)                :: self
     type            (inputParameters                  ), intent(inout) :: parameters
     class           (galacticStructureClass           ), pointer       :: galacticStructure_
-    double precision                                                   :: efficiency
-    double precision                                                   :: massLower
-    double precision                                                   :: massTransition
-    double precision                                                   :: massUpper
-    double precision                                                   :: exponent
-    double precision                                                   :: massCharacteristic
-    double precision                                                   :: sigma  
+    double precision                                                   :: efficiency         , massLower         , &
+       &                                                                  massTransition     , massUpper         , &
+       &                                                                  exponent           , massCharacteristic, &
+       &                                                                  sigma  
 
     !![
     <inputParameter>
@@ -125,7 +121,7 @@ contains
   </inputParameter>
     <objectBuilder class="galacticStructure"         name="galacticStructure_"         source="parameters"/>
     !!]
-    self=NSCTimescaleDynamicalFrictionTime(efficiency,massLower,massTransition,massUpper,exponent,massCharacteristic,sigma,galacticStructure_)
+    self=NSCTimescaleDynamicalFriction(efficiency,massLower,massTransition,massUpper,exponent,massCharacteristic,sigma,galacticStructure_)
     !![
     <inputParametersValidate source="parameters"/>
     <objectDestructor name="galacticStructure_" />
@@ -138,35 +134,35 @@ contains
     Internal constructor for the {\normalfont \ttfamily DynamicalFrictionTime} timescale for star formation class.
     !!}
     implicit none
-    type            (NSCTimescaleDynamicalFrictionTime)                        :: self
-    class           (galacticStructureClass           ), intent(in   ), target :: galacticStructure_
-    double precision                                   , intent(in   )         :: efficiency        , massLower         , &
-          &                                                                       massTransition    , massUpper         , &
-          &                                                                       exponent          , massCharacteristic, &
-          &                                                                       sigma  
+    type            (NSCTimescaleDynamicalFriction)                        :: self
+    class           (galacticStructureClass       ), intent(in   ), target :: galacticStructure_
+    double precision                               , intent(in   )         :: efficiency        , massLower         , &
+          &                                                                   massTransition    , massUpper         , &
+          &                                                                   exponent          , massCharacteristic, &
+          &                                                                   sigma  
     !![
     <constructorAssign variables="efficiency,massLower,massTransition,massUpper,exponent,massCharacteristic,sigma,*galacticStructure_"/>
     !!]
     return
   end function DynamicalFrictionTimeConstructorInternal
 
-  subroutine DynamicalFrictionTimeTimescaleDestructor(self)
+  subroutine DynamicalFrictionTimescaleDestructor(self)
     !!{
-    Destructor for the {\normalfont \ttfamily NSCTimescaleDynamicalFrictionTime}  class
+    Destructor for the {\normalfont \ttfamily NSCTimescaleDynamicalFriction}  class
     !!} 
     implicit none
-    type(NSCTimescaleDynamicalFrictionTime), intent(inout) :: self
+    type(NSCTimescaleDynamicalFriction), intent(inout) :: self
     !![
     <objectDestructor name="self%galacticStructure_"/>
     !!]
     return
-  end subroutine DynamicalFrictionTimeTimescaleDestructor
+  end subroutine DynamicalFrictionTimescaleDestructor
   
-  double precision function DynamicalFrictionTimeTimescale(self, component)
+  double precision function DynamicalFrictionTimescale(self, component)
     !!{
     Returns the crossing timescale (in Gyr) for star formation in the given {\normalfont \ttfamily component}. The timescale is given by
-
     !!}
+    use :: Error                                     , only : Error_Report
     use :: Galacticus_Nodes                          , only : nodeComponentNSC                , nodeComponent
     use :: Galactic_Structure_Options                , only : componentTypeNSC                , massTypeStellar
     use :: Numerical_Constants_Astronomical          , only : Mpc_per_km_per_s_To_Gyr
@@ -174,7 +170,7 @@ contains
     use :: Stellar_Populations_Initial_Mass_Functions, only : initialMassFunctionChabrier2001
 
     implicit none
-    class           (NSCTimescaleDynamicalFrictionTime), intent(inout) :: self
+    class           (NSCTimescaleDynamicalFriction    ), intent(inout) :: self
     class           (nodeComponent                    ), intent(inout) :: component
     type            (initialMassFunctionChabrier2001  ),               :: initialMassFunction
     type            (integratorCompositeTrapezoidal1D )                :: integrator_
@@ -217,25 +213,12 @@ contains
           &                                                     massCharacteristic=self%massCharacteristic, &
           &                                                     sigma             =self%sigma               &
           &                                                )
-      ! first we need to call the integrator
-      call integrator_%initialize  (24           )
-      call integrator_%toleranceSet(1.0d-7,1.0d-7)
-      call integrator_%integrandSet(initialMassFunctionIntegrand)
-
-      massInInitialMassFunction =  integrator_%evaluate(                                   &
-         &                                              initialMassFunction%massMinimum(), &
-         &                                              initialMassFunction%massMaximum()  &
-         &                                             )
+      massInInitialMassFunction =  1
       ! Determinates the constant to match the stellar mass of the mass function and the stellar
       ! mass of the NSC
       C = massStellar/massInInitialMassFunction
 
-      call integrator_%integrandSet(initialMassFunctionIntegrandNumber)
-
-      N_un = integrator_%evaluate(                                   &
-          &                       initialMassFunction%massMinimum(), &
-          &                       initialMassFunction%massMaximum()  &
-          &                     )
+      N_un = initialMassFunction%numberCumulative()
       N        = C*N_un
       meanMass = massInInitialMassFunction/N_un
     
@@ -252,30 +235,9 @@ contains
 
        RelaxingTimeTimescale           = 0.138*(((1+q)**4)/(log(N*gamma)))*DynamicalFrictionTimeTimescale 
        DynamicalFrictionTimeTimescale  = 0.33*(meanMass/self%massLower)*RelaxingTimeTimescale
+       return
       end if
-      return
-    end select
-  end function DynamicalFrictionTimeTimescale
-
-  double precision function initialMassFunctionIntegrand(mass)
-    !!{
-    Integrand used to find the total mass in the initial mass function.
-    !!}
-    implicit none
-    double precision, intent(in   ) :: mass
-
-    initialMassFunctionIntegrand=+       mass  &
-         &                       *initialMassFunction%phi(mass)
-    return
-  end function initialMassFunctionIntegrand
-
-  double precision function initialMassFunctionIntegrandNumber(mass)
-    !!{
-    Integrand used to find the total number of stars in the initial mass function.
-    !!}
-    implicit none
-    double precision, intent(in   ) :: mass
-
-    initialMassFunctionIntegrand= initialMassFunction%phi(mass)
-    return
-  end function initialMassFunctionIntegrandNumber
+      class default
+        call Error_Report('unsupported component'//{introspection:location})
+      end select
+   end function DynamicalFrictionTimescale

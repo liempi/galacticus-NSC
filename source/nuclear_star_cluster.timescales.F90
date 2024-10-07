@@ -25,7 +25,7 @@ module NSC_Timescales
   !!{
   Provides a class that implements calculations of timescales for dark cores.
   !!}
-  use :: Galacticus_Nodes, only : treeNode
+  use :: Galacticus_Nodes, only : nodeComponent
   private
 
   !![
@@ -35,7 +35,7 @@ module NSC_Timescales
    <description>
     Class providing models of timescales for nuclear star clusters.
    </description>
-   <default>dynamicalFrictionTime</default>
+   <default>dynamicalFriction</default>
    <method name="timescale" >
     <description>Returns the timescale (in Gyr) for Nuclear Star Clusters {\normalfont \ttfamily component}.</description>
     <type>double precision</type>
