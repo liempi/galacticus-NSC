@@ -23,7 +23,6 @@
 
   use :: Galactic_Structure                        , only : galacticStructureClass
 
-
   !![
   <NSCTimescale name="NSCTimescaleDynamicalFrictionTime">
    <description>
@@ -42,14 +41,11 @@
      Implementation of a timescale for star formation which scales with the Crossing time.
      !!}
      private
-     class  (galacticStructureClass         ), pointer :: galacticStructure_         => null()
-     double precision                                  :: efficiency
-     double precision                                  :: massLower
-     double precision                                  :: massTransition
-     double precision                                  :: massUpper
-     double precision                                  :: exponent
-     double precision                                  :: massCharacteristic
-     double precision                                  :: sigma
+     class  (galacticStructureClass), pointer :: galacticStructure_ => null()
+     double precision                         :: efficiency         , massLower         , &
+       &                                         massTransition     , massUpper         , &
+       &                                         exponent           , massCharacteristic, &
+       &                                         sigma
    contains
   
      final     ::              DynamicalFrictionTimeTimescaleDestructor 
@@ -144,19 +140,13 @@ contains
     implicit none
     type            (NSCTimescaleDynamicalFrictionTime)                        :: self
     class           (galacticStructureClass           ), intent(in   ), target :: galacticStructure_
-    double precision                                   , intent(in   )         :: efficiency
-    double precision                                   , intent(in   )         :: massLower
-    double precision                                   , intent(in   )         :: massTransition
-    double precision                                   , intent(in   )         :: massUpper
-    double precision                                   , intent(in   )         :: exponent
-    double precision                                   , intent(in   )         :: massCharacteristic
-    double precision                                   , intent(in   )         :: sigma  
- 
-    
+    double precision                                   , intent(in   )         :: efficiency        , massLower         , &
+          &                                                                       massTransition    , massUpper         , &
+          &                                                                       exponent          , massCharacteristic, &
+          &                                                                       sigma  
     !![
     <constructorAssign variables="efficiency,massLower,massTransition,massUpper,exponent,massCharacteristic,sigma,*galacticStructure_"/>
     !!]
-
     return
   end function DynamicalFrictionTimeConstructorInternal
 
@@ -172,97 +162,100 @@ contains
     return
   end subroutine DynamicalFrictionTimeTimescaleDestructor
   
-  double precision function DynamicalFrictionTimeTimescale(self,node)
+  double precision function DynamicalFrictionTimeTimescale(self, component)
     !!{
     Returns the crossing timescale (in Gyr) for star formation in the given {\normalfont \ttfamily component}. The timescale is given by
 
     !!}
-    use :: Galacticus_Nodes                          , only : nodeComponentNSC                , treeNode
+    use :: Galacticus_Nodes                          , only : nodeComponentNSC                , nodeComponent
     use :: Galactic_Structure_Options                , only : componentTypeNSC                , massTypeStellar
-    use :: Stellar_Populations_Initial_Mass_Functions, only : initialMassFunctionChabrier2001
+    use :: Numerical_Constants_Astronomical          , only : Mpc_per_km_per_s_To_Gyr
     use :: Numerical_Integration2                    , only : integratorCompositeTrapezoidal1D
+    use :: Stellar_Populations_Initial_Mass_Functions, only : initialMassFunctionChabrier2001
+
     implicit none
     class           (NSCTimescaleDynamicalFrictionTime), intent(inout) :: self
-    type            (treeNode                         ), intent(inout) :: treeNode
+    class           (nodeComponent                    ), intent(inout) :: component
     type            (initialMassFunctionChabrier2001  ),               :: initialMassFunction
     type            (integratorCompositeTrapezoidal1D )                :: integrator_
-    class           (nodeComponentNSC                 ), pointer       :: NSC
-  
-    double precision                                                   :: velocity             , radius               , &
-      &                                                                   massStellar          , massGas              , &
-      &                                                                   q                    , N_un                 , &
-      &                                                                   gamma                , meanMass             , &
-      &                                                                   CrossingTimeTimescale, RelaxingTimeTimescale         
+    double precision                                                   :: velocity                 , radius               , &
+      &                                                                   massStellar              , massGas              , &
+      &                                                                   q                        , N_un                 , &
+      &                                                                   N                        , C                    , &
+      &                                                                   gamma                    , meanMass             , &
+      &                                                                   CrossingTimeTimescale    , RelaxingTimeTimescale, &
+      &                                                                   massInInitialMassFunction
     ! Check for zero velocity.
-    NSC        => node%           NSC            ()
-    radius     =  self%efficiency*NSC%     radius() !Mpc
-    massGas    =                  NSC%    gasMass() 
-    massStellar=                  NSC%stellarMass()
-    gamma      = 0.4
+    select type(component)                
+    class is (nodeComponentNSC)
+      radius     =  self%efficiency*component%     radius() !Mpc
+      massGas    =                  component%    massGas() 
+      massStellar=                  component%massStellar()
+      gamma      = 0.4
     
-    ! Trap cases where there is no stellar component and return 0.0.
-    if (massStellar > 0.0d0) then
-      q = massGas/massStellar
-    else
-      DynamicalFrictionTimeTimescale = +0.0d0
-      return
-    end if 
+      ! Trap cases where there is no stellar component and return 0.0.
+      if (massStellar > 0.0d0) then
+        q = massGas/massStellar
+      else
+        DynamicalFrictionTimeTimescale = +0.0d0
+        return
+      end if 
     
-    velocity =  self%galacticStructure_%velocityRotation   (                                    &
-         &                                                     node                           , &
-         &                                                     radiusNSC                      , &
-         &                                                     componentType=componentTypeNSC , &
-         &                                                     massType     =massTypeStellar    &
-         &                                                  )                                   &
-         &     *(1+q)
+      velocity =  self%galacticStructure_%velocityRotation   (                                  &
+          &                                                     component%hostNode            , &
+          &                                                     radius                        , &
+          &                                                     componentType=componentTypeNSC, &
+          &                                                     massType     =massTypeStellar   &
+          &                                                  )                                  &
+          &     *(1+q)
 
-    initialMassFunction =initialMassFunctionChabrier2001  (                                                                                                                                                &
-         &                                                     massLower         =self%massLower                                                                                                    , &
-         &                                                     massTransition    =self%massTransition                                                                                                    , &
-         &                                                     massUpper         =self%massUpper                                                                                                    , &
-         &                                                     exponent          =self%exponent                                                                                                    , &
-         &                                                     massCharacteristic=self%massCharacteristic                                                                                                    , &
-         &                                                     sigma             =self%sigma                                                                                                      &
-         &                                                )
-    ! first we need to call the integrator
-    call integrator_%initialize  (24           )
-    call integrator_%toleranceSet(1.0d-7,1.0d-7)
-    call integrator_%integrandSet(initialMassFunctionIntegrand)
+      initialMassFunction =initialMassFunctionChabrier2001(                                                 &
+          &                                                     massLower         =self%massLower         , &
+          &                                                     massTransition    =self%massTransition    , &
+          &                                                     massUpper         =self%massUpper         , &
+          &                                                     exponent          =self%exponent          , &
+          &                                                     massCharacteristic=self%massCharacteristic, &
+          &                                                     sigma             =self%sigma               &
+          &                                                )
+      ! first we need to call the integrator
+      call integrator_%initialize  (24           )
+      call integrator_%toleranceSet(1.0d-7,1.0d-7)
+      call integrator_%integrandSet(initialMassFunctionIntegrand)
 
-    massInInitialMassFunction =  integrator_%evaluate(                                     &
+      massInInitialMassFunction =  integrator_%evaluate(                                   &
          &                                              initialMassFunction%massMinimum(), &
          &                                              initialMassFunction%massMaximum()  &
-         &                                           )
-    ! Determinates the constant to match the stellar mass of the mass function and the stellar
-    ! mass of the NSC
-    C = massStellar/massInInitialMassFunction
+         &                                             )
+      ! Determinates the constant to match the stellar mass of the mass function and the stellar
+      ! mass of the NSC
+      C = massStellar/massInInitialMassFunction
 
-    call integrator_%integrandSet(initialMassFunctionIntegrandNumber)
+      call integrator_%integrandSet(initialMassFunctionIntegrandNumber)
 
-    N_un = integrator_%evaluate(                                    &
-         &                       initialMassFunction%massMinimum(), &
-         &                       initialMassFunction%massMaximum()  &
-         &                     )
-    N        = C*N_un
-    meanMass = massInInitialMassFunction/N_un
+      N_un = integrator_%evaluate(                                   &
+          &                       initialMassFunction%massMinimum(), &
+          &                       initialMassFunction%massMaximum()  &
+          &                     )
+      N        = C*N_un
+      meanMass = massInInitialMassFunction/N_un
     
-    if (velocity <= 0.0d0) then
-       DynamicalFrictionTimeTimescale=0.0d0
-    else if (self%efficiency == 0.0d0)
-       DynamicalFrictionTimeTimescale=0.0d0
-    else
-       ! Get the Crossing time in Gyr.
-       CrossingTimeTimescale=+Mpc_per_km_per_s_To_Gyr &
-            &        *radius                  &
-            &        /velocity
-       ! Let's compute the relaxing time
+      if (velocity <= 0.0d0) then
+        DynamicalFrictionTimeTimescale=0.0d0
+      else if (self%efficiency == 0.0d0) then
+        DynamicalFrictionTimeTimescale=0.0d0
+      else
+        ! Get the Crossing time in Gyr.
+        CrossingTimeTimescale=+Mpc_per_km_per_s_To_Gyr &
+                     &        *radius                  &
+                     &        /velocity
+        ! Let's compute the relaxing time
 
-      RelaxingTimeTimescale           = 0.138*(((1+q)**4)/(log(N*gamma)))*DynamicalFrictionTimeTimescale 
-      DynamicalFrictionTimeTimescale  = 0.33*(meanMass/self%massLower)*RelaxingTimeTimescale
-    end if
-    return
+       RelaxingTimeTimescale           = 0.138*(((1+q)**4)/(log(N*gamma)))*DynamicalFrictionTimeTimescale 
+       DynamicalFrictionTimeTimescale  = 0.33*(meanMass/self%massLower)*RelaxingTimeTimescale
+      end if
+      return
+    end select
   end function DynamicalFrictionTimeTimescale
-
 
   double precision function initialMassFunctionIntegrand(mass)
     !!{
@@ -277,12 +270,12 @@ contains
   end function initialMassFunctionIntegrand
 
   double precision function initialMassFunctionIntegrandNumber(mass)
-  !!{
-  Integrand used to find the total number of stars in the initial mass function.
-  !!}
-  implicit none
-  double precision, intent(in   ) :: mass
+    !!{
+    Integrand used to find the total number of stars in the initial mass function.
+    !!}
+    implicit none
+    double precision, intent(in   ) :: mass
 
-  initialMassFunctionIntegrand= initialMassFunction%phi(mass)
-  return
-end function initialMassFunctionIntegrandNumber
+    initialMassFunctionIntegrand= initialMassFunction%phi(mass)
+    return
+  end function initialMassFunctionIntegrandNumber
