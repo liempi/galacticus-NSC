@@ -21,7 +21,8 @@
   Implements a node operator class that performs star formation in nuclear star cluster.
   !!}
 
-  use :: NSC_Timescales , only : NSCTimescaleClass
+  use :: Galactic_Structure , only : galacticStructureClass
+
   !![
   <nodeOperator name="nodeOperatordarkCoreMassEvolution">
    <description>A node operator class that performs black hole formation.</description>
@@ -32,11 +33,14 @@
      A node operator class that performs the black hole evolution in dark cores.
      !!}
      private
-     class(NSCTimescaleClass), pointer :: timescaleNSC_ => null()
-
+     class(galacticStructureClass), pointer :: galacticStructure_ => null()
+     double precision                       :: efficiency         , massLower         , &
+       &                                       massTransition     , massUpper         , &
+       &                                       exponent           , massCharacteristic, &
+       &                                       sigma
    contains
-     final     ::                                        darkCoreMassEvolutionDestructor
-     procedure :: differentialEvolution               => darkCoreMassEvolutionDifferentialEvolution
+     final     ::                               darkCoreMassEvolutionDestructor
+     procedure :: differentialEvolution      => darkCoreMassEvolutionDifferentialEvolution
   end type nodeOperatordarkCoreMassEvolution
   
   interface nodeOperatordarkCoreMassEvolution
@@ -57,27 +61,77 @@ contains
     implicit none
     type (nodeOperatordarkCoreMassEvolution)                :: self
     type (inputParameters                  ), intent(inout) :: parameters
-    class(NSCTimescaleClass                ), pointer       :: timescaleNSC_
+    class(galacticStructureClass           ), pointer       :: galacticStructure_
+    double precision                                        :: efficiency         , massLower         , &
+       &                                                       massTransition     , massUpper         , &
+       &                                                       exponent           , massCharacteristic, &
+       &                                                       sigma  
     !![
-    <objectBuilder class="timescaleNSC"  name="timescaleNSC_"  source="parameters"/>
+    <inputParameter>
+      <name>efficiency</name>
+      <defaultValue>0.01d0</defaultValue>
+      <description>The efficiency of star formation for the Crossing time method.</description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter>
+      <name>massLower</name>
+      <description>The lower mass limit for the Chabrier 2001 IMF.</description>
+      <defaultValue>0.10d0</defaultValue>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter>
+      <name>massTransition</name>
+      <defaultValue>1.0d0</defaultValue>
+      <description>The transition limit for the Chabrier 2001 IMF.</description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter>
+    <name>massUpper</name>
+    <description>The upper mass limit for the Chabrier 2001 IMF.</description>
+    <defaultValue>1.25d2</defaultValue>
+    <source>parameters</source>
+  </inputParameter>
+  <inputParameter>
+    <name>exponent</name>
+    <defaultValue>-2.30d0</defaultValue>
+    <description>The exponent apperaing in Chabrier initial mass function .</description>
+    <source>parameters</source>
+  </inputParameter>
+  <inputParameter>
+    <name>massCharacteristic</name>
+    <defaultValue>0.08d0</defaultValue>
+    <description>} Characteristic mass of the lognormal part of the Chabrier 2001 IMF.</description>
+    <source>parameters</source>
+  </inputParameter>
+  <inputParameter>
+    <name>sigma</name>
+    <defaultValue>0.69d0</defaultValue>
+    <description>The exponent of the power law part of the Chabrier 2001 IMF.</description>
+    <source>parameters</source>
+  </inputParameter>
+    <objectBuilder class="galacticStructure"         name="galacticStructure_"         source="parameters"/>
     !!]
-    self=nodeOperatordarkCoreMassEvolution(timescaleNSC_)
+    self=nodeOperatordarkCoreMassEvolution(efficiency,massLower,massTransition,massUpper,exponent,massCharacteristic,sigma,galacticStructure_)
     !![
     <inputParametersValidate source="parameters"/>
-    <objectDestructor name="timescaleNSC_"/>
+    <objectDestructor name="galacticStructure_"/>
     !!]
     return
   end function darkCoreMassEvolutionConstructorParameters
 
-  function darkCoreMassEvolutionConstructorInternal(timescaleNSC_) result(self)
+  function darkCoreMassEvolutionConstructorInternal(efficiency,massLower,massTransition,massUpper,exponent,massCharacteristic,sigma,galacticStructure_) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily darkCoreMassEvolutionDarkCore} node operator class.
     !!}
     implicit none
     type   (nodeOperatordarkCoreMassEvolution)                        :: self
-    class  (NSCTimescaleClass                ), intent(in   ), target :: timescaleNSC_
+    class  (galacticStructureClass           ), intent(in   ), target :: galacticStructure_
+    double precision                          , intent(in   )         :: efficiency        , massLower         , &
+          &                                                              massTransition    , massUpper         , &
+          &                                                              exponent          , massCharacteristic, &
+          &                                                              sigma  
     !![
-    <constructorAssign variables="*timescaleNSC_"/>
+    <constructorAssign variables="efficiency,massLower,massTransition,massUpper,exponent,massCharacteristic,sigma,*galacticStructure_"/>
     !!]
     return
   end function darkCoreMassEvolutionConstructorInternal
@@ -90,7 +144,7 @@ contains
     type (nodeOperatordarkCoreMassEvolution), intent(inout) :: self
 
     !![
-    <objectDestructor name="self%timescaleNSC_"/>
+    <objectDestructor name="self%galacticStructure_"/>
     !!]
     return
   end subroutine darkCoreMassEvolutionDestructor
@@ -99,8 +153,12 @@ contains
     !!{
     Perform mass of the dark core.
     !!}
-    use :: Galacticus_Nodes              , only : interruptTask, nodeComponentNSC, nodeComponentDarkCore, nodeComponentDarkCoreStandard, &
-          &                                       propertyInactive, treeNode
+    use :: Galacticus_Nodes                          , only : interruptTask   , nodeComponentNSC, nodeComponentDarkCore, nodeComponentDarkCoreStandard, &
+          &                                                   propertyInactive, treeNode
+    use :: Galactic_Structure_Options                , only : componentTypeNSC               , massTypeStellar
+    use :: Numerical_Constants_Astronomical          , only : Mpc_per_km_per_s_To_Gyr
+    use :: Stellar_Populations_Initial_Mass_Functions, only : initialMassFunctionChabrier2001
+
     implicit none
     class           (nodeOperatordarkCoreMassEvolution), intent(inout), target  :: self
     type            (treeNode                         ), intent(inout), target  :: node
@@ -109,26 +167,84 @@ contains
     integer                                            , intent(in   )          :: propertyType
     class           (nodeComponentNSC                 )               , pointer :: NSC
     class           (nodeComponentDarkCore            )               , pointer :: darkCore
-    double precision                                                            :: dynFrictionTimescale, massDarkCore
+    type            (initialMassFunctionChabrier2001  ),                        :: initialMassFunction
+    double precision                                                            :: velocity                 , radius              , &
+      &                                                                            massStellar              , massGas             , &
+      &                                                                            q                        , N_un                , &
+      &                                                                            N                        , C                   , &
+      &                                                                            gamma                    , meanMass            , &
+      &                                                                            crossTimescale           , relaxTimescale      , &
+      &                                                                            massInInitialMassFunction, dynFrictionTimescale, &
+      &                                                                            massDarkCoreRate,
     
     if (propertyInactive(propertyType)) return
 
     ! Check for a realistic dark core, return immediately if nuclear star cluster is unphysical.
     darkCore => node%darkCore()
-    if (ratedarkCoreMassEvolution <= 0.0d0) return
 
     select type (darkCore)
     class is (nodeComponentDarkCoreStandard)
-      NSC => node%NSC     ()
+      NSC        => node%NSC     ()
+      radius     =  self%efficiency*NSC%     radius() !Mpc
+      massGas    =                  NSC%    massGas() 
+      massStellar=                  NSC%massStellar()
+      gamma      = 0.4
+    
       !Return inmediatly if the mass of BHs in NSC is zero.
       if (NSC%massBHs() == 0.0d0) return
-      dynFrictionTimescale = self%timescaleNSC_%timescale(node) 
-      if (dynFrictionTimescale > 0.0d0) then 
-        massDarkCoreRate   = NSC% massBHs()/dynFrictionTimescale
-        call NSC     % massBHsRate    (-ratedarkCoreMassEvolution)
-        call darkCore% massStellarRate(+ratedarkCoreMassEvolution)
+
+      ! Trap cases where there is no stellar component and return 0.0.
+      if (massStellar > 0.0d0) then
+        q = massGas/massStellar
       else
         return
+      end if
+
+      velocity =  self%galacticStructure_%velocityRotation   (                                  &
+          &                                                     node                          , &
+          &                                                     radius                        , &
+          &                                                     componentType=componentTypeNSC, &
+          &                                                     massType     =massTypeStellar   &
+          &                                                  )                                  &
+          &     *(1+q)
+
+      initialMassFunction =initialMassFunctionChabrier2001(                                                 &
+          &                                                     massLower         =self%massLower         , &
+          &                                                     massTransition    =self%massTransition    , &
+          &                                                     massUpper         =self%massUpper         , &
+          &                                                     exponent          =self%exponent          , &
+          &                                                     massCharacteristic=self%massCharacteristic, &
+          &                                                     sigma             =self%sigma               &
+          &                                                )
+      massInInitialMassFunction =  1
+      ! Determinates the constant to match the stellar mass of the mass function and the stellar
+      ! mass of the NSC
+      C = massStellar/massInInitialMassFunction
+
+      N_un = initialMassFunction%numberCumulative(                                   &
+          &                                       massLower         =self%massLower, &
+          &                                       massUpper         =self%massUpper   )
+      N        = C*N_un
+      meanMass = massInInitialMassFunction/N_un
+    
+      if (velocity <= 0.0d0) then
+        dynFrictionTimescale =0.0d0
+      else if (self%efficiency == 0.0d0) then
+        dynFrictionTimescale =0.0d0
+      else
+        ! Get the Crossing time in Gyr.
+        crossTimescale=+Mpc_per_km_per_s_To_Gyr &
+              &        *radius                  &
+              &        /velocity
+      ! Let's compute the relaxing time
+       relaxTimescale        = 0.138*(((1+q)**4)/(log(N*gamma)))*crossTimescale 
+       dynFrictionTimescale  = 0.333*(meanMass/self%massLower)  *relaxTimescale
+       end if
+
+      if (dynFrictionTimescale > 0.0d0) then 
+        massDarkCoreRate   = NSC% massBHs()/dynFrictionTimescale
+        call NSC     % massBHsRate    (-massDarkCoreRate)
+        call darkCore% massStellarRate(+massDarkCoreRate)
       end if 
     end select
     return
