@@ -56,10 +56,11 @@ module Galactic_Structure_Options
    <entry label="spheroid"       description="The spheroid component"        />
    <entry label="hotHalo"        description="The hot halo (CGM) component"  />
    <entry label="NSC"            description="The NSC component"             />
+   <entry label="darkCore"       description="The dark core component"       />
    <entry label="coldHalo"       description="The cold halo (CGM) component" />
    <entry label="darkHalo"       description="The dark matter halo component"/>
    <entry label="blackHole"      description="The black hole component"      />
-   <entry label="darkMatterOnly" description="The dark matter only component"/>
+   <entry label="darkMatterOnly" description="The dark matter only component"/> 
    <entry label="unknown"        description="Unknown components"            />
   </enumeration>
   !!]
