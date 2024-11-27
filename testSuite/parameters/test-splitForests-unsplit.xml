@@ -3,7 +3,7 @@
 <!-- 30-October-2011                          -->
 <parameters>
   <formatVersion>2</formatVersion>
-  <version>0.9.4</version>
+  <lastModified revision="3f3d9a2af2b05c0a279e4aa3602f89fd682665cc"/>
 
   <!-- Forest split options -->
   <task value="evolveForests">
@@ -220,6 +220,8 @@
     <nodeOperator value="darkMatterProfileScaleInterpolate"/>
     <!-- Halo spins -->
     <nodeOperator value="haloAngularMomentumInterpolate"/>
+    <!-- Halo positions -->
+    <nodeOperator value="positionDiscrete"/>
     <!-- Star formation -->
     <nodeOperator value="starFormationDisks"/>
     <nodeOperator value="starFormationSpheroids"/>
