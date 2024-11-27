@@ -17,20 +17,21 @@
 !!    You should have received a copy of the GNU General Public License
 !!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
 
-  use :: Galacticus_Nodes               , only : mergerTree                 , treeNode                , universe
-  use :: Input_Parameters               , only : inputParameters
-  use :: Kind_Numbers                   , only : kind_int8
-  use :: Merger_Tree_Construction       , only : mergerTreeConstructorClass
-  use :: Merger_Tree_Initialization     , only : mergerTreeInitializorClass
-  use :: Merger_Tree_Operators          , only : mergerTreeOperatorClass
-  use :: Merger_Tree_Outputters         , only : mergerTreeOutputter        , mergerTreeOutputterClass
-  use :: Merger_Trees_Evolve            , only : mergerTreeEvolver          , mergerTreeEvolverClass
-  use :: Nodes_Operators                , only : nodeOperatorClass
-  use :: Numerical_Random_Numbers       , only : randomNumberGeneratorClass
-  use :: Output_Times                   , only : outputTimesClass
-  use :: Task_Evolve_Forests_Work_Shares, only : evolveForestsWorkShareClass
-  use :: Timers                         , only : timer
-  use :: Universe_Operators             , only : universeOperator           , universeOperatorClass
+  use, intrinsic :: ISO_C_Binding                  , only : c_size_t
+  use            :: Galacticus_Nodes               , only : mergerTree                 , treeNode                , universe
+  use            :: Input_Parameters               , only : inputParameters
+  use            :: Kind_Numbers                   , only : kind_int8
+  use            :: Merger_Tree_Construction       , only : mergerTreeConstructorClass
+  use            :: Merger_Tree_Initialization     , only : mergerTreeInitializorClass
+  use            :: Merger_Tree_Operators          , only : mergerTreeOperatorClass
+  use            :: Merger_Tree_Outputters         , only : mergerTreeOutputter        , mergerTreeOutputterClass
+  use            :: Merger_Trees_Evolve            , only : mergerTreeEvolver          , mergerTreeEvolverClass
+  use            :: Nodes_Operators                , only : nodeOperatorClass
+  use            :: Numerical_Random_Numbers       , only : randomNumberGeneratorClass
+  use            :: Output_Times                   , only : outputTimesClass
+  use            :: Task_Evolve_Forests_Work_Shares, only : evolveForestsWorkShareClass
+  use            :: Timers                         , only : timer
+  use            :: Universe_Operators             , only : universeOperator           , universeOperatorClass
 
   !![
   <task name="taskEvolveForests">
@@ -42,6 +43,8 @@
      Implementation of a task which evolves galaxies within a set of merger tree forests.
      !!}
      private
+     ! Parameter controlling maximum number of forests to evolve.
+     integer         (c_size_t )                            :: countForestsMaximum
      ! Parameter controlling maximum wall time for which forest evolution can run.
      integer         (kind_int8)                            :: walltimeMaximum
      ! Parameters controlling tree suspension.
@@ -75,8 +78,8 @@
    contains
      !![
      <methods>
-       <method description="Suspend a tree (to memory or to file)." method="suspendTree" />
-       <method description="Restore a suspended tree." method="resumeTree" />
+       <method description="Suspend a tree (to memory or to file)." method="suspendTree"/>
+       <method description="Restore a suspended tree."              method="resumeTree" />
      </methods>
      !!]
      final     ::                evolveForestsDestructor
@@ -127,6 +130,7 @@ contains
     type            (inputParameters            ), pointer               :: parametersRoot
     logical                                                              :: evolveForestsInParallel, suspendToRAM
     integer         (kind_int8                  )                        :: walltimeMaximum        , timeIntervalCheckpoint
+    integer         (c_size_t                   )                        :: countForestsMaximum
     type            (varying_string             )                        :: suspendPath            , fileNameCheckpoint
 
     ! Ensure the nodes objects are initialized.
@@ -143,6 +147,12 @@ contains
        call Node_Components_Initialize  (parameters    )
     end if
     !![
+    <inputParameter>
+      <name>countForestsMaximum</name>
+      <defaultValue>-1_c_size_t</defaultValue>
+      <description>If set to a positive number, this is the maximum number of forests that will be evolved.</description>
+      <source>parameters</source>
+    </inputParameter>
     <inputParameter>
       <name>walltimeMaximum</name>
       <defaultValue>-1_kind_int8</defaultValue>
@@ -201,9 +211,9 @@ contains
     <objectBuilder class="randomNumberGenerator" name="randomNumberGenerator_"  source="parameters"/>
     !!]
     if (associated(parametersRoot)) then
-       self=taskEvolveForests(evolveForestsInParallel,walltimeMaximum,suspendToRAM,suspendPath,timeIntervalCheckpoint,fileNameCheckpoint,mergerTreeConstructor_,mergerTreeOperator_,nodeOperator_,evolveForestsWorkShare_,outputTimes_,universeOperator_,mergerTreeEvolver_,mergerTreeOutputter_,mergerTreeInitializor_,randomNumberGenerator_,parametersRoot)
+       self=taskEvolveForests(evolveForestsInParallel,countForestsMaximum,walltimeMaximum,suspendToRAM,suspendPath,timeIntervalCheckpoint,fileNameCheckpoint,mergerTreeConstructor_,mergerTreeOperator_,nodeOperator_,evolveForestsWorkShare_,outputTimes_,universeOperator_,mergerTreeEvolver_,mergerTreeOutputter_,mergerTreeInitializor_,randomNumberGenerator_,parametersRoot)
     else
-       self=taskEvolveForests(evolveForestsInParallel,walltimeMaximum,suspendToRAM,suspendPath,timeIntervalCheckpoint,fileNameCheckpoint,mergerTreeConstructor_,mergerTreeOperator_,nodeOperator_,evolveForestsWorkShare_,outputTimes_,universeOperator_,mergerTreeEvolver_,mergerTreeOutputter_,mergerTreeInitializor_,randomNumberGenerator_,parameters    )
+       self=taskEvolveForests(evolveForestsInParallel,countForestsMaximum,walltimeMaximum,suspendToRAM,suspendPath,timeIntervalCheckpoint,fileNameCheckpoint,mergerTreeConstructor_,mergerTreeOperator_,nodeOperator_,evolveForestsWorkShare_,outputTimes_,universeOperator_,mergerTreeEvolver_,mergerTreeOutputter_,mergerTreeInitializor_,randomNumberGenerator_,parameters    )
     end if
     self%nodeComponentsInitialized=.true.
     !![
@@ -222,7 +232,7 @@ contains
     return
   end function evolveForestsConstructorParameters
 
-  function evolveForestsConstructorInternal(evolveForestsInParallel,walltimeMaximum,suspendToRAM,suspendPath,timeIntervalCheckpoint,fileNameCheckpoint,mergerTreeConstructor_,mergerTreeOperator_,nodeOperator_,evolveForestsWorkShare_,outputTimes_,universeOperator_,mergerTreeEvolver_,mergerTreeOutputter_,mergerTreeInitializor_,randomNumberGenerator_,parameters) result(self)
+  function evolveForestsConstructorInternal(evolveForestsInParallel,countForestsMaximum,walltimeMaximum,suspendToRAM,suspendPath,timeIntervalCheckpoint,fileNameCheckpoint,mergerTreeConstructor_,mergerTreeOperator_,nodeOperator_,evolveForestsWorkShare_,outputTimes_,universeOperator_,mergerTreeEvolver_,mergerTreeOutputter_,mergerTreeInitializor_,randomNumberGenerator_,parameters) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily evolveForests} task class.
     !!}
@@ -232,6 +242,7 @@ contains
     type            (taskEvolveForests          )                        :: self
     logical                                      , intent(in   )         :: evolveForestsInParallel, suspendToRAM
     integer         (kind_int8                  ), intent(in   )         :: walltimeMaximum        , timeIntervalCheckpoint
+    integer         (c_size_t                   ), intent(in   )         :: countForestsMaximum
     type            (varying_string             ), intent(in   )         :: suspendPath            , fileNameCheckpoint
     class           (mergerTreeConstructorClass ), intent(in   ), target :: mergerTreeConstructor_
     class           (mergerTreeOperatorClass    ), intent(in   ), target :: mergerTreeOperator_
@@ -247,7 +258,7 @@ contains
     integer         (c_size_t                   )                        :: i
     double precision                                                     :: timeStepMinimum
     !![
-    <constructorAssign variables="evolveForestsInParallel, walltimeMaximum, suspendToRAM, suspendPath, timeIntervalCheckpoint, fileNameCheckpoint, *mergerTreeConstructor_, *mergerTreeOperator_, *nodeOperator_, *evolveForestsWorkShare_, *outputTimes_, *universeOperator_, *mergerTreeEvolver_, *mergerTreeOutputter_, *mergerTreeInitializor_, *randomNumberGenerator_"/>
+    <constructorAssign variables="evolveForestsInParallel, countForestsMaximum, walltimeMaximum, suspendToRAM, suspendPath, timeIntervalCheckpoint, fileNameCheckpoint, *mergerTreeConstructor_, *mergerTreeOperator_, *nodeOperator_, *evolveForestsWorkShare_, *outputTimes_, *universeOperator_, *mergerTreeEvolver_, *mergerTreeOutputter_, *mergerTreeInitializor_, *randomNumberGenerator_"/>
     !!]
 
     self%parameters  => parameters
@@ -435,7 +446,7 @@ contains
     type            (mergerTree              ), pointer                  , save :: currentTree          , previousTree           , &
          &                                                                         nextTree
     type            (mergerTreeWalkerAllNodes)                           , save :: treeWalkerAll
-    !$omp threadprivate(currentTree,previousTree,treeWalkerAll)
+    !$omp threadprivate(currentTree,previousTree,nextTree,treeWalkerAll)
     type            (treeNode                ), pointer                  , save :: satelliteNode
     class           (nodeComponentBasic      ), pointer                  , save :: basicNodeBase
     !$omp threadprivate(satelliteNode,basicNodeBase,treeIsFinished,evolutionIsEventLimited,success,removeTree,suspendTree,treeDidEvolve)
@@ -508,7 +519,7 @@ contains
     <deepCopy source="self%mergerTreeConstructor_" destination="mergerTreeConstructor_"/>
     <deepCopy source="self%mergerTreeOperator_"    destination="mergerTreeOperator_"   />
     <deepCopy source="self%nodeOperator_"          destination="nodeOperator_"         />
-    <deepCopyFinalize variables="mergerTreeEvolver_ mergerTreeOutputter_ mergerTreeInitializor_ mergerTreeConstructor_ mergerTreeOperator_ nodeOperator_"/>  
+    <deepCopyFinalize variables="mergerTreeEvolver_ mergerTreeOutputter_ mergerTreeInitializor_ mergerTreeConstructor_ mergerTreeOperator_ nodeOperator_"/>
     !!]
     !$omp end critical(evolveForestsDeepCopy)
     ! Call routines to perform initialization which must occur for all threads if run in parallel.
@@ -557,7 +568,15 @@ contains
              tree       => mergerTreeConstructor_                        %construct   (treeNumber,treesFinished)
           end do
        end if
-       if (associated(tree)) tree%hostUniverse => self%universeWaiting
+       if (associated(tree)) then
+          tree%hostUniverse => self%universeWaiting
+          ! Limit to the maximum number of forests allowed to be run.
+          if (self%countForestsMaximum >= 0_c_size_t .and. treeNumber > self%countForestsMaximum) then
+             call tree%destroy()
+             deallocate(tree)
+             tree => null()
+          end if
+       end if
        finished                                =  finished.or..not.associated(tree)
        treeIsNew                               =  .not.finished.and..not.checkpointRestored       
        ! If no new tree was available, attempt to pop one off the universe stack.
@@ -615,7 +634,7 @@ contains
              treeIsFinished=.true.
           end if
           ! Iterate evolving the tree until no more outputs are required.
-          treeEvolveLoop : do while (iOutput <= self%outputTimes_%count())
+          treeEvolveLoop : do while (iOutput <= self%outputTimes_%count() .and. associated(tree))
              ! We want to find the maximum time to which we can evolve this tree. This will be the minimum of the next output
              ! time (at which we must stop and output the tree) and the next universal event time (at which we must stop and
              ! perform the event task). Find the next output time.
@@ -656,6 +675,7 @@ contains
              currentTree  => tree
              do while (associated(currentTree))
                 ! Skip empty trees.
+                removeTree=.false.
                 if (associated(currentTree%nodeBase)) then
                    basicNodeBase => currentTree%nodeBase%basic()
                    removeTree    =   .not.associated(currentTree%nodeBase%firstChild) &
@@ -683,10 +703,16 @@ contains
                    message=message//currentTree%index//" {"//currentTree%nodeBase%index()//"}"
                    call displayMessage(message,verbosityLevelInfo)
                    if (.not.associated(previousTree)) then
+                      ! No previous tree is set, so the current tree is the first tree in the forest. Destroy it, but reset the
+                      ! `tree` pointer to the next tree in the forest (otherwise `tree` will become a dangling pointer).
                       nextTree    => currentTree%nextTree
                       call currentTree%destroy()
+                      deallocate(currentTree)
                       currentTree => nextTree
+                      tree        => currentTree
                    else
+                      ! A previous tree exists - simply connect its `next` pointer to the `next` pointer of the current tree, and
+                      ! then destroy the current tree.
                       previousTree%nextTree => currentTree%nextTree
                       call currentTree%destroy()
                       deallocate(currentTree)
@@ -698,24 +724,26 @@ contains
                 end if
              end do
              ! Check that tree reached required time. If it did not, we can evolve it no further.
-             treeTimeEarliest=tree%earliestTimeEvolving()
-             treeTimeLatest  =tree%  latestTime        ()
-             if     (                                 &
-                  &   treeTimeLatest   > evolveToTime &
-                  &  .and.                            &
-                  &   treeTimeEarliest < evolveToTime &
-                  &  .and.                            &
-                  &   .not.evolutionIsEventLimited    &
-                  & ) then
-                if (deadlockReport) exit
-                message='failed to evolve tree to required time'//char(10)
-                write (label,'(f7.2)') evolveToTime
-                message=message//"            target time = "//trim(label)//" Gyr"//char(10)
-                write (label,'(f7.2)') treeTimeEarliest
-                message=message//"  earliest time in tree = "//trim(label)//" Gyr"//char(10)
-                write (label,'(f7.2)') treeTimeLatest
-                message=message//"    latest time in tree = "//trim(label)//" Gyr"
-                call Error_Report(message//{introspection:location})
+             if (associated(tree)) then
+                treeTimeEarliest=tree%earliestTimeEvolving()
+                treeTimeLatest  =tree%  latestTime        ()
+                if     (                                 &
+                     &   treeTimeLatest   > evolveToTime &
+                     &  .and.                            &
+                     &   treeTimeEarliest < evolveToTime &
+                     &  .and.                            &
+                     &   .not.evolutionIsEventLimited    &
+                     & ) then
+                   if (deadlockReport) exit
+                   message='failed to evolve tree to required time'//char(10)
+                   write (label,'(f7.2)') evolveToTime
+                   message=message//"            target time = "//trim(label)//" Gyr"//char(10)
+                   write (label,'(f7.2)') treeTimeEarliest
+                   message=message//"  earliest time in tree = "//trim(label)//" Gyr"//char(10)
+                   write (label,'(f7.2)') treeTimeLatest
+                   message=message//"    latest time in tree = "//trim(label)//" Gyr"
+                   call Error_Report(message//{introspection:location})
+                end if
              end if
              ! Determine what limited evolution.
              if (evolutionIsEventLimited) then
@@ -729,16 +757,18 @@ contains
                 write (label,self%outputTimeFormat) evolveToTime
                 message="Output tree data at t="//trim(label)//" Gyr"
                 call displayMessage(message)
-                call mergerTreeOutputter_%outputTree(tree,iOutput,evolveToTime)
-                ! Perform any extra output and post-output processing on nodes.
-                treeWalkerAll=mergerTreeWalkerAllNodes(tree,spanForest=.true.)
-                do while (treeWalkerAll%next(node))
-                   basic => node%basic()
-                   if (basic%time() == evolveToTime) call node%postOutput(evolveToTime)
-                end do
+                if (associated(tree)) then
+                   call mergerTreeOutputter_%outputTree(tree,iOutput,evolveToTime)
+                   ! Perform any extra output and post-output processing on nodes.
+                   treeWalkerAll=mergerTreeWalkerAllNodes(tree,spanForest=.true.)
+                   do while (treeWalkerAll%next(node))
+                      basic => node%basic()
+                      if (basic%time() == evolveToTime) call node%postOutput(evolveToTime)
+                   end do
+                end if
                 iOutput=iOutput+1
-                ! If all output times have been reached, we're finished.
-                if (iOutput > self%outputTimes_%count()) then
+                ! If all output times have been reached, or all trees have been destroyed, we're finished.
+                if (iOutput > self%outputTimes_%count() .or. .not.associated(tree)) then
                    treeIsFinished=.true.
                    exit
                 end if
