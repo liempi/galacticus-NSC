@@ -1,4 +1,4 @@
-!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+ !! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
 !!           2019, 2020, 2021, 2022, 2023, 2024
 !!    Andrew Benson <abenson@carnegiescience.edu>
 !!
@@ -91,6 +91,13 @@ module Node_Component_NSC_Standard
       <rank>0</rank>
       <attributes isSettable="true" isGettable="true" isEvolvable="false" />
       <output unitsInSI="massSolar" comment="Mass of BH seed created in the standard nuclear star cluster."/>
+    </property>
+    <property>
+      <name>massBHs</name>
+      <type>double</type>
+      <rank>0</rank>
+      <attributes isSettable="true" isGettable="true" isEvolvable="true"/>
+      <output unitsInSI="massSolar" comment="Mass of the BHs formed due to stellar evolution in the standard Nuclear Star Cluster."/>
     </property>
     <property>
       <name>fractionMassRetained</name>
@@ -572,7 +579,7 @@ contains
           end if
           !$omp end critical (Standard_NSC_Post_Evolve_Check)
           ! Get the specific angular momentum of the nuclear star cluster material
-          massNSC= NSC%massGas    () &
+          massNSC=  NSC%massGas    () &
                &   +NSC%massStellar()
           if (massNSC == 0.0d0) then
              specificAngularMomentum=0.0d0
@@ -1217,6 +1224,7 @@ contains
        call NSC%           massSeedSet(                  0.0d0)
        call NSC%           CollapseSet(                .false.)
        call NSC%       CriticalMassSet(                  0.0d0)
+       call NSC%            massBHsSet(                  0.0d0)
     end if
     end select
     return

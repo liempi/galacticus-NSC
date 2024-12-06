@@ -154,6 +154,7 @@ contains
     select type (NSC)
     type is (nodeComponentNSC)
       ! Generic type - interrupt and create a standard nuclear star cluster if accretion rate is non-zero.
+      ! Also creates a dark core component
       if (gasmassAccretionRate /= 0.0d0) then
         interrupt=.true.
         functionInterrupt => NSCCreate
@@ -170,14 +171,18 @@ contains
   !!{
     Creates the nuclear star cluster via interrupt.
   !!}
-    use :: Galacticus_Nodes, only : interruptTask   , nodeComponentNSC, nodeComponentNSCStandard, &
-          &                         propertyInactive, treeNode
+    use :: Galacticus_Nodes, only : interruptTask        , nodeComponentNSC, nodeComponentNSCStandard, &
+          &                         nodeComponentDarkCore, propertyInactive, treeNode
     implicit none
-    type (treeNode        ), intent(inout), target  :: node
-    double precision       , intent(in   ), optional:: timeEnd
-    class(nodeComponentNSC),                pointer :: NSC
+    type (treeNode             ), intent(inout), target  :: node
+    double precision            , intent(in   ), optional:: timeEnd
+    class(nodeComponentNSC     ),                pointer :: NSC
+    class(nodeComponentDarkCore),                pointer :: darkCore
+
     !$GLC attributes unused :: timeEnd
-    NSC => node%NSC(autoCreate=.true.)
+    NSC      => node%NSC     (autoCreate=.true.)
+    darkCore => node%darkCore(autoCreate=.true.)
+
     return 
   end subroutine NSCCreate
   
