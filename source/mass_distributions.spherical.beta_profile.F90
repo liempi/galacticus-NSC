@@ -32,10 +32,9 @@
      !!}
      double precision :: beta                  , coreRadius           , densityNormalization  , &
           &              momentRadial2Previous , momentRadial3Previous, momentRadial2XPrevious, &
-          &              momentRadial3XPrevious, outerRadius
+          &              momentRadial3XPrevious, outerRadius          
      logical          :: betaIsTwoThirds       , truncateAtOuterRadius
    contains
-     procedure :: massTotal             => betaProfileMassTotal
      procedure :: density               => betaProfileDensity
      procedure :: densityGradientRadial => betaProfileDensityGradientRadial
      procedure :: densityRadialMoment   => betaProfileDensityRadialMoment
@@ -44,6 +43,7 @@
      procedure :: potentialIsAnalytic   => betaProfilePotentialIsAnalytic
      procedure :: potential             => betaProfilePotential
      procedure :: descriptor            => betaProfileDescriptor
+     procedure :: radiusHalfMass        => betaProfileRadiusHalfMass
   end type massDistributionBetaProfile
 
   interface massDistributionBetaProfile
@@ -757,23 +757,6 @@ contains
          &                           *self%coreRadius                 **3
     return
   end function betaProfileDensitySquareIntegral
-
-  double precision function betaProfileRadiusHalfMass(self,componentType,massType)
-    !!{
-    Return the half-mass radius of a beta prodile distribution.
-    !!}
-    implicit none
-    class(massDistributionBetaProfile ), intent(inout)           :: self
-    type (enumerationComponentTypeType), intent(in   ), optional :: componentType
-    type (enumerationMassTypeType     ), intent(in   ), optional :: massType
-
-    if (.not.self%matches(componentType,massType)) then
-       betaProfileRadiusHalfMass=0.0d0
-       return
-    end if
-    betaProfileRadiusHalfMass= self%coreRadius
-    return
-  end function betaProfileRadiusHalfMass
   
   subroutine betaProfileDescriptor(self,descriptor,includeClass,includeFileModificationTimes)
     !!{
@@ -798,3 +781,24 @@ contains
     call parameters%addParameter('coreRadius'          ,trim(adjustl(parameterLabel)))
     return
   end subroutine betaProfileDescriptor
+
+  double precision function betaProfileRadiusHalfMass(self)
+    !!{
+    Return the half-mass radius of for a beta distribution.
+    !!}
+    use :: Numerical_Comparison, only : Values_Agree
+    use :: Error               , only : Error_Report
+    implicit none
+    class           (massDistributionBetaProfile), intent(inout) :: self
+    double precision                             , parameter     :: radiusHalfMassToScaleRadius = 1.3d0
+    
+    if (Values_Agree(self%beta,5.0d0/3.0d0,absTol=1.0d-3)) then
+        betaProfileRadiusHalfMass=+radiusHalfMassToScaleRadius &
+         &                        *self%coreRadius
+    else
+        PRINT *, self%beta
+        call Error_Report('half-mass radius available just for β=5/3'//{introspection:location})
+    end if 
+    return
+  end function betaProfileRadiusHalfMass
+

@@ -69,7 +69,7 @@ function Node_Component_NSC_Standard_Mass_Distribution(self,componentType,massTy
         &                                         massDistributionSpherical, massDistributionMatches_
   use :: Node_Component_NSC_Standard_Data, only : massDistributionStellar_ , massDistributionGas_           , kinematicDistribution_
   use :: Galactic_Structure_Options      , only : componentTypeNSC         , massTypeStellar                , massTypeGaseous             , enumerationWeightByType, &
-       &                                          weightByMass             , weightByLuminosity             , enumerationComponentTypeType, enumerationMassTypeType
+       &                                          weightByMass             , weightByLuminosity             , enumerationComponentTypeType, enumerationMassTypeType  
   implicit none
   class           (massDistributionClass          ), pointer                 :: massDistribution_
   class           (nodeComponentNSCStandard       ), intent(inout)           :: self
@@ -99,7 +99,7 @@ function Node_Component_NSC_Standard_Mass_Distribution(self,componentType,massTy
   else if (weightBy_ == weightByLuminosity) then
      luminosities      =             self        %luminositiesStellar(           )
      massStellar       =  max (0.0d0,luminosities%luminosity         (weightIndex))
-     massGas           =       0.0d0
+     massGas           =       0.0d0    
   else
      massDistribution_ => null()
      return

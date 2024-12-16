@@ -29,14 +29,13 @@ module Node_Component_Dark_Core_Standard
   use :: Satellite_Merging_Mass_Movements, only : mergerMassMovementsClass
   use :: Star_Formation_Histories        , only : starFormationHistory            , starFormationHistoryClass
   use :: Stellar_Population_Properties   , only : stellarPopulationPropertiesClass
-  use :: Galactic_Structure              , only : galacticStructureClass
   implicit none
   private
-  public :: Node_Component_Dark_Core_Standard_Scale_Set        , Node_Component_Dark_Core_Standard_Pre_Evolve                  , &
-       &    Node_Component_Dark_Core_Standard_Post_Step        , Node_Component_Dark_Core_Standard_Thread_Uninitialize         , &
-       &    Node_Component_Dark_Core_Standard_Initialize       , Node_Component_Dark_Core_Standard_Calculation_Reset           , &
-       &    Node_Component_Dark_Core_Standard_State_Store      , Node_Component_Dark_Core_Standard_State_Retrieve              , &
-       &    Node_Component_Dark_Core_Standard_Thread_Initialize, Node_Component_Dark_Core_Standard_Inactive                  
+  public :: Node_Component_Dark_Core_Standard_Scale_Set        , Node_Component_Dark_Core_Standard_Pre_Evolve          , &
+       &    Node_Component_Dark_Core_Standard_Post_Step        , Node_Component_Dark_Core_Standard_Thread_Uninitialize , &
+       &    Node_Component_Dark_Core_Standard_Initialize       , Node_Component_Dark_Core_Standard_Inactive            , &
+       &    Node_Component_Dark_Core_Standard_State_Store      , Node_Component_Dark_Core_Standard_State_Retrieve      , &
+       &    Node_Component_Dark_Core_Standard_Thread_Initialize                   
 
   !![
   <component>
@@ -122,18 +121,11 @@ module Node_Component_Dark_Core_Standard
       <attributes isSettable="true" isGettable="true" isEvolvable="true" />
     </property>
    </properties>
-   <bindings>
-    <binding method="enclosedMass"              function="Node_Component_Dark_Core_Standard_Enclosed_Mass"             bindsTo="component" />
-    <binding method="acceleration"              function="Node_Component_Dark_Core_Standard_Acceleration"              bindsTo="component" />
-    <binding method="tidalTensor"               function="Node_Component_Dark_Core_Standard_Tidal_Tensor"              bindsTo="component" />
-    <binding method="density"                   function="Node_Component_Dark_Core_Standard_Density"                   bindsTo="component" />
-    <binding method="densitySphericalAverage"   function="Node_Component_Dark_Core_Standard_Density_Spherical_Average" bindsTo="component" />
-    <binding method="potential"                 function="Node_Component_Dark_Core_Standard_Potential"                 bindsTo="component" />
-    <binding method="rotationCurve"             function="Node_Component_Dark_Core_Standard_Rotation_Curve"            bindsTo="component" />
-    <binding method="rotationCurveGradient"     function="Node_Component_Dark_Core_Standard_Rotation_Curve_Gradient"   bindsTo="component" />
-    <binding method="chandrasekharIntegral"     function="Node_Component_Dark_Core_Standard_Chandrasekhar_Integral"    bindsTo="component" />
+    <bindings>
+    <binding method="massDistribution" function="Node_Component_Dark_Core_Standard_Mass_Distribution" bindsTo="component"/>
+    <binding method="massBaryonic"     function="Node_Component_Dark_Core_Standard_Mass_Baryonic"     bindsTo="component"/>
    </bindings>
-   <functions>objects.nodes.components.dark_core.standard.bound_functions.inc</functions>
+     <functions>objects.nodes.components.dark_core.standard.bound_functions.inc</functions>
   </component>
   !!]
 
@@ -142,8 +134,7 @@ module Node_Component_Dark_Core_Standard
   class(stellarPopulationPropertiesClass), pointer :: stellarPopulationProperties_
   class(starFormationHistoryClass       ), pointer :: starFormationHistory_
   class(mergerMassMovementsClass        ), pointer :: mergerMassMovements_
-  class(galacticStructureClass          ), pointer :: galacticStructure_
-  !$omp threadprivate(darkMatterHaloScale_,stellarPopulationProperties_,starFormationHistory_,mergerMassMovements_,galacticStructure_)
+  !$omp threadprivate(darkMatterHaloScale_,stellarPopulationProperties_,starFormationHistory_,mergerMassMovements_)
 
   ! Internal count of abundances.
   integer                                     :: abundancesCount
@@ -220,13 +211,15 @@ contains
     !!{
       Initializes the standard dark core component module for each thread.
     !!}
-    use :: Events_Hooks                          , only : dependencyDirectionAfter         , dependencyRegEx     , openMPThreadBindingAtLevel, &
+    use :: Events_Hooks                          , only : dependencyDirectionAfter , dependencyRegEx     , openMPThreadBindingAtLevel, &
           &                                               satelliteMergerEvent
     use :: Error                                 , only : Error_Report
     use :: Galacticus_Nodes                      , only : defaultDarkCoreComponent
-    use :: Input_Parameters                      , only : inputParameter                   , inputParameters
-    use :: Mass_Distributions                    , only : massDistributionSymmetrySpherical
-    use :: Node_Component_Dark_Core_Standard_Data, only : massDistributionDarkCore                    
+    use :: Input_Parameters                      , only : inputParameter           , inputParameters
+    use :: Mass_Distributions                    , only : massDistributionSpherical, kinematicsDistributionLocal
+    use :: Node_Component_Dark_Core_Standard_Data, only : massDistributionStellar_ , massDistributionGas_       , kinematicDistribution_  
+    use :: Galactic_Structure_Options            , only : componentTypeDarkCore    , massTypeStellar            , massTypeGaseous
+                  
     implicit none
     type            (inputParameters), intent(inout) :: parameters
     type            (dependencyRegEx), dimension(1)  :: dependencies
@@ -243,16 +236,39 @@ contains
        <objectBuilder class="stellarPopulationProperties"                                    name="stellarPopulationProperties_" source="subParameters"                    />
        <objectBuilder class="starFormationHistory"                                           name="starFormationHistory_"        source="subParameters"                    />
        <objectBuilder class="mergerMassMovements"                                            name="mergerMassMovements_"         source="subParameters"                    />
-       <objectBuilder class="galacticStructure"                                              name="galacticStructure_"           source="subParameters"                    />
-       <objectBuilder class="massDistribution"      parameterName="massDistributionDarkCore" name="massDistributionDarkCore"     source="subParameters" threadPrivate="yes" >
+       <objectBuilder class="massDistribution"      parameterName="massDistributionDarkCore" name="massDistributionStellar_"     source="subParameters" threadPrivate="yes" >
         <default>
-         <massDistributionDarkCore value="hernquist">
+         <massDistributionDarkCore value="betaProfile">
+          <beta value="5.0d0/3.0d0"/>
           <dimensionless value="true"/>
          </massDistributionDarkCore>
         </default>
        </objectBuilder>
        !!]
-       if (.not.massDistributionDarkCore%isDimensionless()) call Error_Report('dark core mass distribution must be dimensionless'//{introspection:location})
+       ! Validate the Dark Core mass distribution
+       select type(massDistributionStellar_)
+       class is (massDistributionSpherical)
+        ! The dark core distribution must have spherical symmetry.
+        class default
+          call Error_Report('only spherically symmetric mass distributions are allowed'//{introspection:location})
+        end select
+        if (.not.massDistributionStellar_%isDimensionless()) call Error_Report('dark core mass distribution must be dimensionless'//{introspection:location})
+        ! Duplicate the dimensionless mass distribution to use for the gas component, and set component and mass typee in both.
+        !$omp critical(DarkCoreStandardDeepCopy)
+        allocate(massDistributionGas_,mold=massDistributionStellar_)
+        !![
+        <deepCopyReset variables="massDistributionStellar_" />
+        <deepCopy source="massDistributionStellar_" destination="massDistributionGas_"/>
+        <deepCopyFinalize variables="massDistributionGas_"/>
+        !!]
+        !$omp end critical(DarkCoreStandardDeepCopy)
+        call massDistributionStellar_%setTypes(componentTypeDarkCore,massTypeStellar)
+        call massDistributionGas_    %setTypes(componentTypeDarkCore,massTypeGaseous)
+        ! Construct the kinematic distribution
+        allocate(kinematicDistribution_)
+        !![
+        <referenceConstruct object="kinematicDistribution_" constructor="kinematicsDistributionLocal(alpha=1.0d0/sqrt(2.0d0))"/>
+        !!]
     end if
     return
   end subroutine Node_Component_Dark_Core_Standard_Thread_Initialize
@@ -268,7 +284,7 @@ contains
     !!}
     use :: Events_Hooks                          , only : satelliteMergerEvent
     use :: Galacticus_Nodes                      , only : defaultDarkCoreComponent
-    use :: Node_Component_Dark_Core_Standard_Data, only : massDistributionDarkCore
+    use :: Node_Component_Dark_Core_Standard_Data, only : massDistributionStellar_, massDistributionGas_, kinematicDistribution_
     implicit none
 
     if (defaultDarkCoreComponent%standardIsActive()) then
@@ -278,33 +294,13 @@ contains
        <objectDestructor name="stellarPopulationProperties_" />
        <objectDestructor name="starFormationHistory_"        />
        <objectDestructor name="mergerMassMovements_"         />
-       <objectDestructor name="galacticStructure_"           />
-       <objectDestructor name="massDistributionDarkCore"     />
-       !!]
+       <objectDestructor name="massDistributionStellar_"     />
+       <objectDestructor name="massDistributionGas_"         />
+       <objectDestructor name="kinematicDistribution_"       />
+      !!]
     end if
     return
   end subroutine Node_Component_Dark_Core_Standard_Thread_Uninitialize
-
-  !![
-  <calculationResetTask>
-    <unitName>Node_Component_Dark_Core_Standard_Calculation_Reset</unitName>
-  </calculationResetTask>
-  !!]
-  subroutine Node_Component_Dark_Core_Standard_Calculation_Reset(node,uniqueID)
-    !!{
-    Reset standard dark core structure calculations.
-    !!}
-    use :: Galacticus_Nodes                      , only : treeNode
-    use :: Kind_Numbers                          , only : kind_int8
-    use :: Node_Component_Dark_Core_Standard_Data, only : Node_Component_Dark_Core_Standard_Reset
-    implicit none
-    type   (treeNode ), intent(inout) :: node
-    integer(kind_int8), intent(in   ) :: uniqueID
-    !$GLC attributes unused :: node
-
-    call Node_Component_Dark_Core_Standard_Reset(uniqueID)
-    return
-  end subroutine Node_Component_Dark_Core_Standard_Calculation_Reset
 
   !![
   <preEvolveTask>
@@ -408,7 +404,7 @@ contains
           end if
           !$omp end critical (Standard_Dark_Core_Post_Evolve_Check)
           ! Get the specific angular momentum of the dark core material
-          massDarkCore= darkCore%massGas       () &
+          massDarkCore= darkCore%massGas    () &
                &       +darkCore%massStellar()
           if (massDarkCore == 0.0d0) then
              specificAngularMomentum=0.0d0
@@ -418,8 +414,8 @@ contains
              if (specificAngularMomentum < 0.0d0) specificAngularMomentum=darkCore%radius()*darkCore%velocity()
           end if
           ! Reset the gas, abundances and angular momentum of the dark core.
-          call darkCore%        massGasSet(                                    0.0d0)
-          call darkCore%  abundancesGasSet(                           zeroAbundances)
+          call darkCore%        massGasSet(                                         0.0d0)
+          call darkCore%  abundancesGasSet(                                zeroAbundances)
           call darkCore%angularMomentumSet(specificAngularMomentum*darkCore%massStellar())
           ! Indicate that ODE evolution should continue after this state change.
           if (status == GSL_Success) status=GSL_Continue
@@ -428,8 +424,8 @@ contains
        if (darkCore%massStellar() < 0.0d0) then
           ! Check if this exceeds the maximum previously recorded error.
           fractionalError=   abs(darkCore%massStellar()) &
-               &          /(                                &
-               &             abs(darkCore%massGas       ()) &
+               &          /(                             &
+               &             abs(darkCore%massGas    ()) &
                &            +abs(darkCore%massStellar()) &
                &           )
           !$omp critical (Standard_Dark_Core_Post_Evolve_Check)
@@ -456,7 +452,7 @@ contains
           end if
           !$omp end critical (Standard_Dark_Core_Post_Evolve_Check)
           ! Get the specific angular momentum of the dark core material
-          massDarkCore= darkCore%massGas       () &
+          massDarkCore= darkCore%massGas    () &
                   &    +darkCore%massStellar()
           if (massDarkCore == 0.0d0) then
              specificAngularMomentum=0.0d0
@@ -467,45 +463,19 @@ contains
              if (specificAngularMomentum < 0.0d0) specificAngularMomentum=darkCore%radius()*darkCore%velocity()
           end if
           ! Reset the stellar, abundances and angular momentum of the dark core.
-          call darkCore%   massStellarSet(                                     0.0d0)
+          call darkCore%   massStellarSet(                                        0.0d0)
           call darkCore%  angularMomentumSet(specificAngularMomentum*darkCore%massGas())
           ! Indicate that ODE evolution should continue after this state change.
           if (status == GSL_Success) status=GSL_Continue
        end if
        ! Trap negative angular momentum.
        if (darkCore%angularMomentum() < 0.0d0) then
-          spin  => node%spin ()
-          basic => node%basic()
-          if (darkCore%massStellar()+darkCore%massGas () <=0.0d0) then
-             call darkCore%angularMomentumSet(0.0d0)
+          ! Estimate a reasonable specific angular momentum.
+          specificAngularMomentum=+darkCore%radius     ()*darkCore%velocity()
+          massDarkCore           =+darkCore%massStellar() &
+            &                     +darkCore%massGas    ()
 
-          else if (.not.darkCoreNegativeAngularMomentumAllowed) then
-             if  (                                     &
-                  &    abs(darkCore%angularMomentum()) &
-                  &   /(                               &
-                  &        darkCore%massStellar ()  &
-                  &     +  darkCore%massGas        ()  &
-                  &    )                          &
-                  &   <                           &
-                  &    angularMomentumTolerance   &
-                  &   *spin    %angularMomentum() &
-                  &   /basic   %mass           () &
-                  & ) then
-                call darkCore%angularMomentumSet(0.0d0)
-             else
-                message='negative angular momentum in dark core with positive mass'
-                write (valueString,'(e12.6)') darkCore  %angularMomentum()
-                message=message//char(10)//' -> angular momentum       = '//trim(valueString)
-                write (valueString,'(e12.6)') darkCore  %massStellar ()
-                message=message//char(10)//' -> stellar mass           = '//trim(valueString)
-                write (valueString,'(e12.6)') darkCore  %massGas        ()
-                message=message//char(10)//' -> gas mass               = '//trim(valueString)
-                write (valueString,'(e12.6)') +spin %angularMomentum() &
-                     &                        /basic%mass           ()
-                message=message//char(10)//' -> angular momentum scale = '//trim(valueString)
-                call Error_Report(message//{introspection:location})
-             end if
-          end if
+          call darkCore%angularMomentumSet(specificAngularMomentum*massDarkCore)
           ! Indicate that ODE evolution should continue after this state change.
           if (status == GSL_Success) status=GSL_Continue
        end if
@@ -598,7 +568,8 @@ contains
     darkCore => node%darkCore()
     ! Check if an standard dark core component exists.
     select type (darkCore)
-    class is (nodeComponentDarkCoreStandard)
+      class is (nodeComponentDarkCoreStandard)
+      !Do nothing
     end select
     return
   end subroutine Node_Component_Dark_Core_Standard_Inactive
@@ -685,9 +656,9 @@ contains
     !!{
     Write the tablulation state to file.
     !!}
-    use            :: Display                               , only : displayMessage                    , verbosityLevelInfo
-    use, intrinsic :: ISO_C_Binding                         , only : c_ptr                             , c_size_t
-    use            :: Node_Component_Dark_Core_Standard_Data, only : massDistributionDarkCore
+    use            :: Display                               , only : displayMessage          , verbosityLevelInfo
+    use, intrinsic :: ISO_C_Binding                         , only : c_ptr                   , c_size_t
+    use            :: Node_Component_Dark_Core_Standard_Data, only : massDistributionStellar_, massDistributionGas_, kinematicDistribution_
     implicit none
     integer          , intent(in   ) :: stateFile
     integer(c_size_t), intent(in   ) :: stateOperationID
@@ -695,10 +666,7 @@ contains
 
     call displayMessage('Storing state for: componentDarkCore -> standard',verbosity=verbosityLevelInfo)
     !![
-    <stateStore variables="massDistributionDarkCore darkMatterHaloScale_ mergerMassMovements_ "/>
-    <workaround type="gfortran" PR="92836" url="https:&#x2F;&#x2F;gcc.gnu.org&#x2F;bugzilla&#x2F;show_bug.cgi=92836">
-     <description>Internal file I/O in gfortran can be non-thread safe.</description>
-    </workaround>
+    <stateStore variables="massDistributionStellar_ massDistributionGas_ kinematicDistribution_ stellarPopulationProperties_ darkMatterHaloScale_ starFormationHistory_ mergerMassMovements_"/>
     !!]
     return
   end subroutine Node_Component_Dark_Core_Standard_State_Store
@@ -714,18 +682,15 @@ contains
     !!}
     use            :: Display                               , only : displayMessage          , verbosityLevelInfo
     use, intrinsic :: ISO_C_Binding                         , only : c_ptr                   , c_size_t
-    use            :: Node_Component_Dark_Core_Standard_Data, only : massDistributionDarkCore
+    use            :: Node_Component_Dark_Core_Standard_Data, only : massDistributionStellar_, massDistributionGas_, kinematicDistribution_
     implicit none
     integer          , intent(in   ) :: stateFile
     integer(c_size_t), intent(in   ) :: stateOperationID
     type   (c_ptr   ), intent(in   ) :: gslStateFile
 
     call displayMessage('Retrieving state for: componentDarkCore -> standard',verbosity=verbosityLevelInfo)
-    !![
-    <stateRestore variables="massDistributionDarkCore darkMatterHaloScale_ mergerMassMovements_"/>
-    <workaround type="gfortran" PR="92836" url="https:&#x2F;&#x2F;gcc.gnu.org&#x2F;bugzilla&#x2F;show_bug.cgi=92836">
-     <description>Internal file I/O in gfortran can be non-thread safe.</description>
-    </workaround>
+   !![
+    <stateRestore variables="massDistributionStellar_ massDistributionGas_ kinematicDistribution_ stellarPopulationProperties_ darkMatterHaloScale_ starFormationHistory_ mergerMassMovements_"/>
     !!]
     return
   end subroutine Node_Component_Dark_Core_Standard_State_Retrieve

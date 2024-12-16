@@ -21,7 +21,7 @@
   Implements a node operator class that performs star formation in nuclear star cluster.
   !!}
 
-  use :: Galactic_Structure , only : galacticStructureClass
+  use :: Mass_Distributions, only : massDistributionClass, kinematicsDistributionClass
 
   !![
   <nodeOperator name="nodeOperatordarkCoreMassEvolution">
@@ -33,7 +33,6 @@
      A node operator class that performs the black hole evolution in dark cores.
      !!}
      private
-     class(galacticStructureClass), pointer :: galacticStructure_ => null()
      double precision                       :: efficiency         , massLower         , &
        &                                       massTransition     , massUpper         , &
        &                                       exponent           , massCharacteristic, &
@@ -50,6 +49,10 @@
      module procedure darkCoreMassEvolutionConstructorParameters
      module procedure darkCoreMassEvolutionConstructorInternal
   end interface nodeOperatordarkCoreMassEvolution
+
+  class (massDistributionClass ), pointer :: massDistribution_, massDistributionStellarNSC_ 
+  !$omp threadprivate(massDistribution_,massDistributionStellarNSC_)
+
   
 contains
 
@@ -61,7 +64,6 @@ contains
     implicit none
     type (nodeOperatordarkCoreMassEvolution)                :: self
     type (inputParameters                  ), intent(inout) :: parameters
-    class(galacticStructureClass           ), pointer       :: galacticStructure_
     double precision                                        :: efficiency         , massLower         , &
        &                                                       massTransition     , massUpper         , &
        &                                                       exponent           , massCharacteristic, &
@@ -109,29 +111,26 @@ contains
     <description>The exponent of the power law part of the Chabrier 2001 IMF.</description>
     <source>parameters</source>
   </inputParameter>
-    <objectBuilder class="galacticStructure"         name="galacticStructure_"         source="parameters"/>
     !!]
-    self=nodeOperatordarkCoreMassEvolution(efficiency,massLower,massTransition,massUpper,exponent,massCharacteristic,sigma,galacticStructure_)
+    self=nodeOperatordarkCoreMassEvolution(efficiency,massLower,massTransition,massUpper,exponent,massCharacteristic,sigma)
     !![
     <inputParametersValidate source="parameters"/>
-    <objectDestructor name="galacticStructure_"/>
     !!]
     return
   end function darkCoreMassEvolutionConstructorParameters
 
-  function darkCoreMassEvolutionConstructorInternal(efficiency,massLower,massTransition,massUpper,exponent,massCharacteristic,sigma,galacticStructure_) result(self)
+  function darkCoreMassEvolutionConstructorInternal(efficiency,massLower,massTransition,massUpper,exponent,massCharacteristic,sigma) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily darkCoreMassEvolutionDarkCore} node operator class.
     !!}
     implicit none
     type   (nodeOperatordarkCoreMassEvolution)                        :: self
-    class  (galacticStructureClass           ), intent(in   ), target :: galacticStructure_
     double precision                          , intent(in   )         :: efficiency        , massLower         , &
           &                                                              massTransition    , massUpper         , &
           &                                                              exponent          , massCharacteristic, &
           &                                                              sigma  
     !![
-    <constructorAssign variables="efficiency,massLower,massTransition,massUpper,exponent,massCharacteristic,sigma,*galacticStructure_"/>
+    <constructorAssign variables="efficiency,massLower,massTransition,massUpper,exponent,massCharacteristic,sigma"/>
     !!]
     return
   end function darkCoreMassEvolutionConstructorInternal
@@ -142,10 +141,6 @@ contains
     !!}
     implicit none
     type (nodeOperatordarkCoreMassEvolution), intent(inout) :: self
-
-    !![
-    <objectDestructor name="self%galacticStructure_"/>
-    !!]
     return
   end subroutine darkCoreMassEvolutionDestructor
   
@@ -153,8 +148,8 @@ contains
     !!{
     Perform mass of the dark core.
     !!}
-    use :: Galacticus_Nodes                          , only : interruptTask   , nodeComponentNSC, nodeComponentDarkCore, nodeComponentDarkCoreStandard, &
-          &                                                   propertyInactive, treeNode
+    use :: Galacticus_Nodes                          , only : interruptTask                  , nodeComponentNSC, nodeComponentDarkCore, nodeComponentDarkCoreStandard, &
+          &                                                   propertyInactive               , treeNode
     use :: Galactic_Structure_Options                , only : componentTypeNSC               , massTypeStellar
     use :: Numerical_Constants_Astronomical          , only : Mpc_per_km_per_s_To_Gyr
     use :: Stellar_Populations_Initial_Mass_Functions, only : initialMassFunctionChabrier2001
@@ -175,7 +170,7 @@ contains
       &                                                                            gamma                    , meanMass            , &
       &                                                                            crossTimescale           , relaxTimescale      , &
       &                                                                            massInInitialMassFunction, dynFrictionTimescale, &
-      &                                                                            massDarkCoreRate,
+      &                                                                            massDarkCoreRate 
     
     if (propertyInactive(propertyType)) return
 
@@ -200,13 +195,17 @@ contains
         return
       end if
 
-      velocity =  self%galacticStructure_%velocityRotation   (                                  &
-          &                                                     node                          , &
-          &                                                     radius                        , &
-          &                                                     componentType=componentTypeNSC, &
-          &                                                     massType     =massTypeStellar   &
-          &                                                  )                                  &
-          &     *(1+q)
+      massDistributionStellarNSC_ => node%massDistribution(componentType=componentTypeNSC, massType=massTypeStellar)
+      velocity = massDistributionStellarNSC_%rotationCurve(radius*1.0e-6)*(1+q)
+    
+
+      !velocity =  self%galacticStructure_%velocityRotation   (                                  &
+      !    &                                                     node                          , &
+      !    &                                                     radius                        , &
+      !    &                                                     componentType=componentTypeNSC, &
+      !    &                                                     massType     =massTypeStellar   &
+      !    &                                                  )                                  &
+      !    &     *(1+q)
 
       initialMassFunction =initialMassFunctionChabrier2001(                                                 &
           &                                                     massLower         =self%massLower         , &

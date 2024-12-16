@@ -25,48 +25,11 @@ module Node_Component_Dark_Core_Standard_Data
   !!{
   Stores data for the standard dark core node component.
   !!}
-  use :: Kind_Numbers      , only : kind_int8
-  use :: Mass_Distributions, only : massDistributionClass
+  use :: Mass_Distributions, only : massDistributionClass,  kinematicsDistributionLocal
   implicit none
   public
-  ! Record of unique ID of node which we last computed results for.
-  integer         (kind=kind_int8  )          :: lastUniqueID                    =-1
-  !$omp threadprivate(lastUniqueID)
-
-  ! Records of previously computed and stored quantities.
-  logical                                     :: surfaceDensityCentralGasComputed  , surfaceDensityCentralStellarComputed, &
-       &                                         surfaceDensityCentralTotalComputed
-
-  !$omp threadprivate(surfaceDensityCentralGasComputed, surfaceDensityCentralStellarComputed, surfaceDensityCentralTotalComputed)
-  
-  double precision                            :: surfaceDensityCentralGas    , surfaceDensityCentralStellar, &
-      &                                          surfaceDensityCentralTotal
-  !$omp threadprivate(surfaceDensityCentralGas,  surfaceDensityCentralStellar, surfaceDensityCentralTotal)
- 
-  logical                                     :: radiusScaleDarkCoreComputed
-  !$omp threadprivate(radiusScaleDarkCoreComputed)
-  double precision                            :: radiusScaleDarkCore
-  !$omp threadprivate(radiusScaleDarkCore)
-
   ! The mass distribution object.
-  class           (massDistributionClass      ), pointer :: massDistributionDarkCore
-  !$omp threadprivate(massDistributionDarkCore)
-
-contains
-
-  subroutine Node_Component_Dark_Core_Standard_Reset(uniqueID)
-    !!{
-    Reset calculations for the standard dark core component.
-    !!}
-    implicit none
-    integer(kind=kind_int8), intent(in   ) :: uniqueID
-
-    radiusScaleDarkCoreComputed         =.false.
-    surfaceDensityCentralGasComputed    =.false.
-    surfaceDensityCentralStellarComputed=.false.
-    surfaceDensityCentralTotalComputed  =.false.
-    lastUniqueID                        =uniqueID
-    return
-  end subroutine Node_Component_Dark_Core_Standard_Reset
-
+  class(massDistributionClass      ), pointer :: massDistributionStellar_, massDistributionGas_
+  type (kinematicsDistributionLocal), pointer :: kinematicDistribution_
+  !$omp threadprivate(massDistributionStellar_,massDistributionGas_,kinematicDistribution_)
 end module Node_Component_Dark_Core_Standard_Data
