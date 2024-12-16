@@ -1,4 +1,4 @@
-!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+ !! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
 !!           2019, 2020, 2021, 2022, 2023, 2024
 !!    Andrew Benson <abenson@carnegiescience.edu>
 !!
@@ -91,6 +91,13 @@ module Node_Component_NSC_Standard
       <rank>0</rank>
       <attributes isSettable="true" isGettable="true" isEvolvable="false" />
       <output unitsInSI="massSolar" comment="Mass of BH seed created in the standard nuclear star cluster."/>
+    </property>
+    <property>
+      <name>massBHs</name>
+      <type>double</type>
+      <rank>0</rank>
+      <attributes isSettable="true" isGettable="true" isEvolvable="true"/>
+      <output unitsInSI="massSolar" comment="Mass of the BHs formed due to stellar evolution in the standard Nuclear Star Cluster."/>
     </property>
     <property>
       <name>fractionMassRetained</name>
@@ -268,7 +275,6 @@ contains
          <description>Specifies whether or not nuclear star cluster stellar luminosities are inactive properties (i.e. do not appear in any ODE being solved).</description>
          <source>subParameters</source>
        </inputParameter>
-
        !!]
     end if
     return
@@ -323,7 +329,7 @@ contains
        class is (massDistributionSpherical)
           ! The NSC mass distribution must have spherical symmetry. So, this is acceptable.
        class default 
-          call Error_Report('only spehrically symmetric mass distributions are allowed'//{introspection:location})
+          call Error_Report('only spherically symmetric mass distributions are allowed'//{introspection:location})
        end select
        if (.not.massDistributionStellar_%isDimensionless()) call Error_Report('Nuclear star cluster mass distribution must be dimensionless'//{introspection:location})
        ! Duplicate the dimensionless mass distribution to use for the gas component, and set component and mass type in both.
@@ -572,7 +578,7 @@ contains
           end if
           !$omp end critical (Standard_NSC_Post_Evolve_Check)
           ! Get the specific angular momentum of the nuclear star cluster material
-          massNSC= NSC%massGas    () &
+          massNSC=  NSC%massGas    () &
                &   +NSC%massStellar()
           if (massNSC == 0.0d0) then
              specificAngularMomentum=0.0d0
@@ -757,7 +763,7 @@ contains
        ! Get spheroid component.
        spheroid  => node%spheroid()
        ! Set scale for angular momentum.
-       angularMomentum=+abs(NSC    %angularMomentum()) &
+       angularMomentum=+abs(NSC     %angularMomentum()) &
             &          +abs(spheroid%angularMomentum())
        call NSC%angularMomentumScale(max(angularMomentum,angularMomentumMinimum))
        ! Set scale for masses.
@@ -1217,6 +1223,7 @@ contains
        call NSC%           massSeedSet(                  0.0d0)
        call NSC%           CollapseSet(                .false.)
        call NSC%       CriticalMassSet(                  0.0d0)
+       call NSC%            massBHsSet(                  0.0d0)
     end if
     end select
     return

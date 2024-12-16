@@ -40,10 +40,10 @@
      logical                                                      :: includeRadii
      type   (varying_string          ), allocatable, dimension(:) :: radiusSpecifiers
      type   (radiusSpecifier         ), allocatable, dimension(:) :: radii
-
      logical                                                      :: darkMatterScaleRadiusIsNeeded          , diskIsNeeded        , &
           &                                                          spheroidIsNeeded                       , virialRadiusIsNeeded, &
-          &                                                          NSCIsNeeded                            , satelliteIsNeeded
+          &                                                          NSCIsNeeded                            , satelliteIsNeeded   , &
+          &                                                          darkCoreIsNeeded 
      double precision                                             :: fractionDarkMatter
    contains
      final     ::                       massProfileDestructor
@@ -130,6 +130,7 @@ contains
          &                                          self%diskIsNeeded                 , &
          &                                          self%spheroidIsNeeded             , &
          &                                          self%NSCIsNeeded                  , &
+         &                                          self%darkCoreisNeeded             , &
          &                                          self%satelliteIsNeeded            , &
          &                                          self%virialRadiusIsNeeded         , &
          &                                          self%darkMatterScaleRadiusIsNeeded  &
@@ -188,13 +189,14 @@ contains
     Implement a {\normalfont \ttfamily massProfile} property extractor.
     !!}
 
+
     use :: Galactic_Structure_Options          , only : componentTypeAll               , massTypeGalactic            , massTypeStellar                     , massTypeDark
     use :: Galactic_Structure_Radii_Definitions, only : radiusTypeDarkMatterScaleRadius, radiusTypeDiskHalfMassRadius, radiusTypeDiskRadius                , radiusTypeGalacticLightFraction, &
          &                                              radiusTypeGalacticMassFraction , radiusTypeRadius            , radiusTypeSpheroidHalfMassRadius    , radiusTypeSpheroidRadius       , &
          &                                              radiusTypeStellarMassFraction  , radiusTypeVirialRadius      , radiusTypeSatelliteBoundMassFraction, radiusTypeNSCRadius            , &
-         &                                              radiusTypeNSCHalfMassRadius 
+         &                                              radiusTypeNSCHalfMassRadius    , radiusTypeDarkCoreRadius    , radiusTypeDarkCoreHalfMassRadius
     use :: Galacticus_Nodes                    , only : nodeComponentDarkMatterProfile , nodeComponentDisk           , nodeComponentSpheroid               , nodeComponentNSC               , & 
-         &                                              nodeComponentSatellite         , treeNode
+         &                                              nodeComponentSatellite         , nodeComponentDarkCore       , treeNode
     use :: Mass_Distributions                  , only : massDistributionClass
     use :: Error                               , only : Error_Report
     implicit none
@@ -206,6 +208,7 @@ contains
     class           (nodeComponentDisk               ), pointer                     :: disk
     class           (nodeComponentSpheroid           ), pointer                     :: spheroid
     class           (nodeComponentNSC                ), pointer                     :: NSC
+    class           (nodeComponentDarkCore           ), pointer                     :: darkCore
     class           (nodeComponentDarkMatterProfile  ), pointer                     :: darkMatterProfile
     class           (nodeComponentSatellite          ), pointer                     :: satellite
     class           (massDistributionClass           ), pointer                     :: massDistribution_
@@ -220,6 +223,7 @@ contains
     if (self%                 diskIsNeeded) disk              =>                                        node%disk             ()
     if (self%             spheroidIsNeeded) spheroid          =>                                        node%spheroid         ()
     if (self%                  NSCIsNeeded) NSC               =>                                        node%NSC              ()
+    if (self%             darkCoreisNeeded) darkCore          =>                                        node%darkCore         ()
     if (self%            satelliteIsNeeded) satellite         =>                                        node%satellite        ()
     if (self%darkMatterScaleRadiusIsNeeded) darkMatterProfile =>                                        node%darkMatterProfile()
     do i=1,self%radiiCount
@@ -235,14 +239,18 @@ contains
           radius=+radius*disk             %        radius()
        case   (radiusTypeSpheroidRadius        %ID)
           radius=+radius*spheroid         %        radius()
-       case  (radiusTypeNSCRadius             %ID)
+       case   (radiusTypeNSCRadius             %ID)
           radius=+radius*NSC              %        radius()
+       case   (radiusTypeDarkCoreRadius        %ID)
+          radius=+radius*darkCore         %        radius()
        case   (radiusTypeDiskHalfMassRadius    %ID)
           radius=+radius*disk             %halfMassRadius()
        case   (radiusTypeSpheroidHalfMassRadius%ID)
           radius=+radius*spheroid         %halfMassRadius()
        case   (radiusTypeNSCHalfMassRadius     %ID)
           radius=+radius*NSC              %halfMassRadius()
+       case   (radiusTypeDarkCoreHalfMassRadius%ID)
+          radius=+radius*darkCore         %halfMassRadius()
        case   (radiusTypeSatelliteBoundMassFraction%ID)
           mass              =  +satellite        %boundMass          (                                                &
                &                                                     )                                                &

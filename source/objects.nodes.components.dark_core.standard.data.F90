@@ -18,31 +18,18 @@
 !!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
 
 !!{
-Contains a module which provides a class that implements tidal stripping.
+Contains a module which stores data for the standard dark core node component.
 !!}
 
-module Tidal_Stripping_Mass_Loss_Rate
+module Node_Component_Dark_Core_Standard_Data
   !!{
-  Provides a class that implements calculations of tidal stripping.
+  Stores data for the standard dark core node component.
   !!}
-  use :: Galacticus_Nodes, only : nodeComponent
-  private
-
-  !![
-  <functionClass>
-   <name>tidalStripping</name>
-   <descriptiveName>Tidal stripping</descriptiveName>
-   <description>
-    Class providing models of tidal stripping.
-   </description>
-   <default>simple</default>
-   <method name="rateMassLoss" >
-    <description>Returns the rate of mass loss (in $M_\odot$~Gyr$^{-1}$) due to tidal stripping of {\normalfont \ttfamily component}.</description>
-    <type>double precision</type>
-    <pass>yes</pass>
-    <argument>class(nodeComponent), intent(inout) :: component</argument>
-   </method>
-  </functionClass>
-  !!]
-
-end module Tidal_Stripping_Mass_Loss_Rate
+  use :: Mass_Distributions, only : massDistributionClass,  kinematicsDistributionLocal
+  implicit none
+  public
+  ! The mass distribution object.
+  class(massDistributionClass      ), pointer :: massDistributionStellar_, massDistributionGas_
+  type (kinematicsDistributionLocal), pointer :: kinematicDistribution_
+  !$omp threadprivate(massDistributionStellar_,massDistributionGas_,kinematicDistribution_)
+end module Node_Component_Dark_Core_Standard_Data
