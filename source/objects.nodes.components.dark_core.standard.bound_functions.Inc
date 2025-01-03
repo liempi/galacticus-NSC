@@ -18,61 +18,64 @@
 !!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
 
 !!{
-Contains custom functions for the standard nuclear star cluster component.
+Contains custom functions for the standard dark core component.
 !!}
 
-double precision function Node_Component_NSC_Standard_Radius(self) result(radius)
+double precision function Node_Component_Dark_Core_Standard_Velocity(self)
    !!{
-   Return the radius of the standard nuclear star cluster.
-   !!}
-   use :: Node_Component_NSC_Standard_Data, only : radiusNorm
-   implicit none
-   class(nodeComponentNSCStandard), intent(inout) :: self
-   double precision                               :: massNSC
-
-   massNSC  = self%massGas()+self%massStellar()
-   !The radius is returned in Mpc
-   if (massNSC > 0.0d0) then
-      radius = radiusNorm* sqrt(massNSC/1.0d6)
-   else 
-      radius = 0.0d0
-   end if 
-   return
-end function Node_Component_NSC_Standard_Radius
-
-double precision function Node_Component_NSC_Standard_Velocity(self)
-   !!{
-   Return the circular velocity of the standard nuclear star cluster.
+   Return the circular velocity of the standard dark Core.
    !!}
    use :: Numerical_Constants_Astronomical, only : gravitationalConstantGalacticus
    implicit none
-   class(nodeComponentNSCStandard), intent(inout) :: self
-   double precision                               :: radiusNSC, massNSC
+   class(nodeComponentDarkCoreStandard), intent(inout) :: self
+   double precision                                    :: radiusDarkCore, massDarkCore
 
-   radiusNSC= self%radius()
-   massNSC  = self%massGas()+self%massStellar()
+   radiusDarkCore= self%radius()
+
+   massDarkCore  = self%massGas()+self%massStellar()
    !Units corrected, G in galacticus is in units of Mpc M⊙⁻¹km²s⁻².
    !The velocity is returned in km/s units
-   if (massNSC > 0.0d0 .and. radiusNSC >0.0d0) then
-      Node_Component_NSC_Standard_Velocity = sqrt(gravitationalConstantGalacticus*massNSC/radiusNSC)
+   if (massDarkCore > 0.0d0 .and. radiusDarkCore >0.0d0) then
+      Node_Component_Dark_Core_Standard_Velocity = sqrt(gravitationalConstantGalacticus*massDarkCore/radiusDarkCore)
    else 
-      Node_Component_NSC_Standard_Velocity = 0.0d0
+      Node_Component_Dark_Core_Standard_Velocity = 0.0
    end if 
    return
-end function Node_Component_NSC_Standard_Velocity
+end function Node_Component_Dark_Core_Standard_Velocity
 
-function Node_Component_NSC_Standard_Mass_Distribution(self,componentType,massType,weightBy,weightIndex) result(massDistribution_)
+double precision function Node_Component_Dark_Core_Standard_Angular_Momentum(self)
+   !!{
+   Return the specific angular momentum of the standard dark core at a given radius.
+   !!}
+   implicit none
+   class (nodeComponentDarkCoreStandard), intent(inout) :: self
+   double precision                                     :: dynamicalMassDarkCore, velocityDarkCore
+   
+   !Get the velocity and the dunamical mass of the dark core.
+   velocityDarkCore      = self%velocity()
+   dynamicalMassDarkCore = self%massGas ()+self%massStellar()
+
+   if (dynamicalMassDarkCore > 0.0d0) then
+       Node_Component_Dark_Core_Standard_Angular_Momentum = dynamicalMassDarkCore * velocityDarkCore
+   else
+       Node_Component_Dark_Core_Standard_Angular_Momentum = 0.0d0
+   end if
+   return
+end function Node_Component_Dark_Core_Standard_Angular_Momentum
+
+function Node_Component_Dark_Core_Standard_Mass_Distribution(self,componentType,massType,weightBy,weightIndex) result(massDistribution_)
   !!{
   Return the mass distribution for the standard nuclear star cluster component.
   !!}
-  use :: Mass_Distributions              , only : massDistributionClass    , massDistributionSphericalScaler, massDistributionComposite   , massDistributionList   , &
-        &                                         massDistributionSpherical, massDistributionMatches_
-  use :: Node_Component_NSC_Standard_Data, only : massDistributionStellar_ , massDistributionGas_           , kinematicDistribution_
-  use :: Galactic_Structure_Options      , only : componentTypeNSC         , massTypeStellar                , massTypeGaseous             , enumerationWeightByType, &
-       &                                          weightByMass             , weightByLuminosity             , enumerationComponentTypeType, enumerationMassTypeType  
+  use :: Mass_Distributions                    , only : massDistributionClass    , massDistributionSphericalScaler, massDistributionComposite   , massDistributionList   , &
+        &                                               massDistributionSpherical, massDistributionMatches_
+  use :: Error                                 , only : Error_Report
+  use :: Node_Component_Dark_Core_Standard_Data, only : massDistributionStellar_ , massDistributionGas_           , kinematicDistribution_
+  use :: Galactic_Structure_Options            , only : componentTypeDarkCore    , massTypeStellar                , massTypeGaseous             , enumerationWeightByType, &
+       &                                                weightByMass             , weightByLuminosity             , enumerationComponentTypeType, enumerationMassTypeType
   implicit none
   class           (massDistributionClass          ), pointer                 :: massDistribution_
-  class           (nodeComponentNSCStandard       ), intent(inout)           :: self
+  class           (nodeComponentDarkCoreStandard  ), intent(inout)           :: self
   type            (enumerationComponentTypeType   ), intent(in   ), optional :: componentType
   type            (enumerationMassTypeType        ), intent(in   ), optional :: massType
   type            (enumerationWeightByType        ), intent(in   ), optional :: weightBy
@@ -90,16 +93,14 @@ function Node_Component_NSC_Standard_Mass_Distribution(self,componentType,massTy
   !!]
   
   ! Determine which components of the spheroid to include.
-  includeGas  =massDistributionMatches_(componentTypeNSC,massTypeGaseous,componentType,massType) .and.  weightBy_ == weightByMass
-  includeStars=massDistributionMatches_(componentTypeNSC,massTypeStellar,componentType,massType) .and. (weightBy_ == weightByMass .or. weightBy_ == weightByLuminosity)  
+  includeGas  =massDistributionMatches_(componentTypeDarkCore,massTypeGaseous,componentType,massType) .and.  weightBy_ == weightByMass
+  includeStars=massDistributionMatches_(componentTypeDarkCore,massTypeStellar,componentType,massType) .and. (weightBy_ == weightByMass .or. weightBy_ == weightByLuminosity)  
   ! Get properties of the mass distribution and ensure they are physical.
   if      (weightBy_ == weightByMass      ) then
      massStellar       =  max (0.0d0,self        %massStellar        (           ))
      massGas           =  max (0.0d0,self        %massGas            (           ))
   else if (weightBy_ == weightByLuminosity) then
-     luminosities      =             self        %luminositiesStellar(           )
-     massStellar       =  max (0.0d0,luminosities%luminosity         (weightIndex))
-     massGas           =       0.0d0    
+     call Error_Report('Dark core mass distribution can not be weighted by Luminosity'//{introspection:location})
   else
      massDistribution_ => null()
      return
@@ -158,48 +159,29 @@ function Node_Component_NSC_Standard_Mass_Distribution(self,componentType,massTy
      end if
   end if
   return
-end function Node_Component_NSC_Standard_Mass_Distribution
+end function Node_Component_Dark_Core_Standard_Mass_Distribution
 
-double precision function Node_Component_NSC_Standard_Mass_Baryonic(self) result(massBaryonic)
+double precision function Node_Component_Dark_Core_Standard_Mass_Baryonic(self) result(massBaryonic)
   !!{
-  Return the baryonic mass for the standard spheroid component.
+  Return the baryonic mass for the standard dark core component.
   !!}
   implicit none
-  class(nodeComponentNSCStandard), intent(inout) :: self
+  class(nodeComponentDarkCoreStandard), intent(inout) :: self
 
   massBaryonic=+max(0.0d0,self%massStellar()) &
        &       +max(0.0d0,self%massGas    ())
   return
-end function Node_Component_NSC_Standard_Mass_Baryonic
+end function Node_Component_Dark_Core_Standard_Mass_Baryonic
 
-double precision function Node_Component_NSC_Standard_Angular_Momentum(self)
-   !!{
-   Return the specific angular momentum of the standard nuclear star cluster at a given radius.
-   !!}
-   implicit none
-   class (nodeComponentNSCStandard), intent(inout) :: self
-   double precision                                :: dynamicalMassNSC, velocityNSC
-   !Get the velocity and the dunamical mass of the nuclear star cluster.
-   velocityNSC      = self%velocity()
-   dynamicalMassNSC = self%massGas ()+self%massStellar()
-
-   if (dynamicalMassNSC > 0.0d0) then
-       Node_Component_NSC_Standard_Angular_Momentum = dynamicalMassNSC * velocityNSC
-   else
-       Node_Component_NSC_Standard_Angular_Momentum = 0.0d0
-   end if
-   return
-end function Node_Component_NSC_Standard_Angular_Momentum
-
-double precision function Node_Component_NSC_Standard_Half_Mass_Radius(self) result(radiusHalfMass)
+double precision function Node_Component_Dark_Core_Standard_Half_Mass_Radius(self) result(radiusHalfMass)
   !!{
   Return the half-mass radius of the standard nuclear star cluster.
   !!}
-  use :: Error                           , only : Error_Report
-  use :: Mass_Distributions              , only : massDistributionSpherical
-  use :: Node_Component_NSC_Standard_Data, only : massDistributionStellar_
+  use :: Error                                 , only : Error_Report
+  use :: Mass_Distributions                    , only : massDistributionSpherical
+  use :: Node_Component_Dark_Core_Standard_Data, only : massDistributionStellar_
   implicit none
-  class(nodeComponentNSCStandard), intent(inout) :: self
+  class(nodeComponentDarkCoreStandard), intent(inout) :: self
 
  select type (massDistributionStellar_)
   class is (massDistributionSpherical)
@@ -207,7 +189,7 @@ double precision function Node_Component_NSC_Standard_Half_Mass_Radius(self) res
           &         *self                    %radius        ()
   class default
      radiusHalfMass=0.0d0
-     call Error_Report('nuclear star cluster mass distribution is not spherically-symmetric'//{introspection:location})
+     call Error_Report('Dark Core mass distribution is not spherically-symmetric'//{introspection:location})
   end select
   return
-end function Node_Component_NSC_Standard_Half_Mass_Radius
+end function Node_Component_Dark_Core_Standard_Half_Mass_Radius
