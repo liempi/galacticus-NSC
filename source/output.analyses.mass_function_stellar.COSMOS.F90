@@ -18,7 +18,11 @@
 !!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
 
 !!{
+<<<<<<< HEAD
 Contains a module which implements a stellar mass function output analysis class for the COSMOS survey of .
+=======
+Contains a module which implements a stellar mass function output analysis class for the COSMOS survey of \cite{muzzin_evolution_2013}.
+>>>>>>> 086e3aa7281a2b0086f0d67ccb7b021925e796e5
 !!}
 
 
@@ -88,7 +92,6 @@ contains
     double precision                                                                       :: covarianceBinomialMassHaloMinimum, covarianceBinomialMassHaloMaximum   , &
          &                                                                                    randomErrorMinimum               , randomErrorMaximum                  , &
          &                                                                                    sizeSourceLensing
-
     ! Check and read parameters.
     if (parameters%isPresent(    'randomErrorPolynomialCoefficient')) then
        allocate(    randomErrorPolynomialCoefficient(parameters%count(    'randomErrorPolynomialCoefficient')))
