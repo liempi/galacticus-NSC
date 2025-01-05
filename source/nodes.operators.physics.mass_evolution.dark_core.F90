@@ -196,7 +196,7 @@ contains
       end if
 
       massDistributionStellarNSC_ => node%massDistribution(componentType=componentTypeNSC, massType=massTypeStellar)
-      velocity = massDistributionStellarNSC_%rotationCurve(radius*1.0e-6)*(1+q)
+      velocity = massDistributionStellarNSC_%rotationCurve(radius)*(1+q)
     
       initialMassFunction =initialMassFunctionChabrier2001(                                                 &
           &                                                     massLower         =self%massLower         , &
