@@ -228,7 +228,7 @@ contains
               &        /velocity
       ! Let's compute the relaxing time
        relaxTimescale        = 0.138*(((1+q)**4)/(log(N*gamma)))*crossTimescale 
-       dynFrictionTimescale  = 0.333*(meanMass/self%massLower)  *relaxTimescale
+       dynFrictionTimescale  = 0.333*(meanMass/self%massUpper)  *relaxTimescale
        end if
 
       if (dynFrictionTimescale > 0.0d0) then 
