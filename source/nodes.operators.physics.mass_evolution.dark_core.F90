@@ -198,15 +198,6 @@ contains
       massDistributionStellarNSC_ => node%massDistribution(componentType=componentTypeNSC, massType=massTypeStellar)
       velocity = massDistributionStellarNSC_%rotationCurve(radius*1.0e-6)*(1+q)
     
-
-      !velocity =  self%galacticStructure_%velocityRotation   (                                  &
-      !    &                                                     node                          , &
-      !    &                                                     radius                        , &
-      !    &                                                     componentType=componentTypeNSC, &
-      !    &                                                     massType     =massTypeStellar   &
-      !    &                                                  )                                  &
-      !    &     *(1+q)
-
       initialMassFunction =initialMassFunctionChabrier2001(                                                 &
           &                                                     massLower         =self%massLower         , &
           &                                                     massTransition    =self%massTransition    , &
@@ -224,7 +215,7 @@ contains
           &                                       massLower         =self%massLower, &
           &                                       massUpper         =self%massUpper   )
       N        = C*N_un
-      meanMass = massInInitialMassFunction/N_un
+      meanMass = massStellar/N_un
     
       if (velocity <= 0.0d0) then
         dynFrictionTimescale =0.0d0
