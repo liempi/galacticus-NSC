@@ -344,7 +344,7 @@ contains
     use :: Display                       , only : displayMessage          , verbosityLevelWarn
     use :: Error                         , only : Error_Report
     use :: Galacticus_Nodes              , only : defaultDarkCoreComponent, nodeComponentDarkCore , nodeComponentDarkCoreStandard, &
-          &                                       nodeComponentSpin       , nodeComponentBasic    , treeNode
+          &                                       treeNode
     use :: Interface_GSL                 , only : GSL_Success             , GSL_Continue
     use :: ISO_Varying_String            , only : assignment(=)           , operator(//)          , varying_string
     use :: String_Handling               , only : operator(//)
@@ -352,8 +352,6 @@ contains
     type            (treeNode             ), intent(inout), pointer :: node
     integer                                , intent(inout)          :: status
     class           (nodeComponentDarkCore)               , pointer :: darkCore
-    class           (nodeComponentBasic   )               , pointer :: basic
-    class           (nodeComponentSpin    )               , pointer :: spin
     double precision                       , parameter              :: angularMomentumTolerance=1.0d-2
     double precision                       , save                   :: fractionalErrorMaximum  =0.0d+0
     double precision                                                :: massDarkCore                   , fractionalError, &
@@ -487,7 +485,7 @@ contains
     !!{
     Create properties in an standard dark core component.
     !!}
-    use :: Galacticus_Nodes, only : nodeComponentBasic, nodeComponentDarkCore, treeNode
+    use :: Galacticus_Nodes, only : nodeComponentDarkCore, treeNode
     use :: Histories       , only : history
     implicit none
     type   (treeNode             ), intent(inout), target  :: node
