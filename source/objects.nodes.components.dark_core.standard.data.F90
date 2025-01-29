@@ -29,7 +29,7 @@ module Node_Component_Dark_Core_Standard_Data
   implicit none
   public
   ! The mass distribution object.
-  class(massDistributionClass      ), pointer :: massDistributionStellar_, massDistributionGas_
+  class(massDistributionClass      ), pointer :: massDistributionStellar_
   type (kinematicsDistributionLocal), pointer :: kinematicDistribution_
-  !$omp threadprivate(massDistributionStellar_,massDistributionGas_,kinematicDistribution_)
+  !$omp threadprivate(massDistributionStellar_,kinematicDistribution_)
 end module Node_Component_Dark_Core_Standard_Data

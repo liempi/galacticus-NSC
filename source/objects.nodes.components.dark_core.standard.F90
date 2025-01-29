@@ -64,28 +64,6 @@ module Node_Component_Dark_Core_Standard
       <attributes isSettable="true" isGettable="true" isEvolvable="true" />
     </property>
     <property>
-      <name>massGas</name>
-      <type>double</type>
-      <rank>0</rank>
-      <attributes isSettable="true" isGettable="true" isEvolvable="true" createIfNeeded="true" makeGeneric="false" />
-      <output unitsInSI="massSolar" comment="Mass of gas in the standard dark core."/>
-    </property>
-    <property>
-      <name>abundancesGas</name>
-      <type>abundances</type>
-      <rank>0</rank>
-      <attributes isSettable="true" isGettable="true" isEvolvable="true" createIfNeeded="true" makeGeneric="false" />
-      <output unitsInSI="massSolar" comment="Mass of metals in the gas phase of the standard dark core."/>
-    </property>
-    <property>
-      <name>angularMomentum</name>
-      <type>double</type>
-      <rank>0</rank>
-      <attributes isSettable="true" isGettable="true" isEvolvable="true" createIfNeeded="true" makeGeneric="false" />
-      <output unitsInSI="massSolar*megaParsec*kilo" comment="Angular momentum of the standard dark core."/>
-      <getFunction>Node_Component_Dark_Core_Standard_Angular_Momentum</getFunction>
-    </property>
-    <property>
       <name>radius</name>
       <type>double</type>
       <rank>0</rank>
@@ -136,16 +114,8 @@ module Node_Component_Dark_Core_Standard
   class(mergerMassMovementsClass        ), pointer :: mergerMassMovements_
   !$omp threadprivate(darkMatterHaloScale_,stellarPopulationProperties_,starFormationHistory_,mergerMassMovements_)
 
-  ! Internal count of abundances.
-  integer                                     :: abundancesCount
-
   ! Parameters controlling the physical implementation.
   double precision                            :: toleranceAbsoluteMass      , toleranceRelativeMetallicity          
-  logical                                     :: DarkCoreNegativeAngularMomentumAllowed
-
-  ! The largest and smallest angular momentum, in units of that of a circular orbit at the virial radius, considered to be physically plausible for a dark core.
-  double precision, parameter                 :: angularMomentumMaximum                    =1.0d+1
-  double precision, parameter                 :: angularMomentumMinimum                    =1.0d-6
 
   ! A threadprivate object used to track to which thread events are attached.
   integer :: thread
@@ -162,7 +132,6 @@ contains
     !!{
     Initializes the tree node standard dark core methods module.
     !!}
-    use :: Abundances_Structure                  , only : Abundances_Property_Count
     use :: Error                                 , only : Error_Report
     use :: Galacticus_Nodes                      , only : defaultDarkCoreComponent , nodeComponentDarkCoreStandard
     use :: Input_Parameters                      , only : inputParameter           , inputParameters
@@ -171,9 +140,6 @@ contains
     type(inputParameters              )                :: subParameters
 
     if (defaultDarkCoreComponent%standardIsActive()) then
-       ! Get number of abundance properties.
-       abundancesCount  =Abundances_Property_Count            ()
-
        ! Find our parameters.
        subParameters=parameters%subParameters('componentDarkCore')
        
@@ -189,12 +155,6 @@ contains
          <name>toleranceRelativeMetallicity</name>
          <defaultValue>1.0d-4</defaultValue>
          <description>The metallicity tolerance for ODE solution.</description>
-         <source>subParameters</source>
-       </inputParameter>
-       <inputParameter>
-         <name>DarkCoreNegativeAngularMomentumAllowed</name>
-         <defaultValue>.true.</defaultValue>
-         <description>Specifies whether or not negative angular momentum is allowed for the dark core.</description>
          <source>subParameters</source>
        </inputParameter>
        !!]
@@ -217,8 +177,8 @@ contains
     use :: Galacticus_Nodes                      , only : defaultDarkCoreComponent
     use :: Input_Parameters                      , only : inputParameter           , inputParameters
     use :: Mass_Distributions                    , only : massDistributionSpherical, kinematicsDistributionLocal
-    use :: Node_Component_Dark_Core_Standard_Data, only : massDistributionStellar_ , massDistributionGas_       , kinematicDistribution_  
-    use :: Galactic_Structure_Options            , only : componentTypeDarkCore    , massTypeStellar            , massTypeGaseous
+    use :: Node_Component_Dark_Core_Standard_Data, only : massDistributionStellar_ , kinematicDistribution_  
+    use :: Galactic_Structure_Options            , only : componentTypeDarkCore    , massTypeStellar            
                   
     implicit none
     type            (inputParameters), intent(inout) :: parameters
@@ -253,17 +213,7 @@ contains
           call Error_Report('only spherically symmetric mass distributions are allowed'//{introspection:location})
         end select
         if (.not.massDistributionStellar_%isDimensionless()) call Error_Report('dark core mass distribution must be dimensionless'//{introspection:location})
-        ! Duplicate the dimensionless mass distribution to use for the gas component, and set component and mass typee in both.
-        !$omp critical(DarkCoreStandardDeepCopy)
-        allocate(massDistributionGas_,mold=massDistributionStellar_)
-        !![
-        <deepCopyReset variables="massDistributionStellar_" />
-        <deepCopy source="massDistributionStellar_" destination="massDistributionGas_"/>
-        <deepCopyFinalize variables="massDistributionGas_"/>
-        !!]
-        !$omp end critical(DarkCoreStandardDeepCopy)
         call massDistributionStellar_%setTypes(componentTypeDarkCore,massTypeStellar)
-        call massDistributionGas_    %setTypes(componentTypeDarkCore,massTypeGaseous)
         ! Construct the kinematic distribution
         allocate(kinematicDistribution_)
         !![
@@ -284,7 +234,7 @@ contains
     !!}
     use :: Events_Hooks                          , only : satelliteMergerEvent
     use :: Galacticus_Nodes                      , only : defaultDarkCoreComponent
-    use :: Node_Component_Dark_Core_Standard_Data, only : massDistributionStellar_, massDistributionGas_, kinematicDistribution_
+    use :: Node_Component_Dark_Core_Standard_Data, only : massDistributionStellar_, kinematicDistribution_
     implicit none
 
     if (defaultDarkCoreComponent%standardIsActive()) then
@@ -295,7 +245,6 @@ contains
        <objectDestructor name="starFormationHistory_"        />
        <objectDestructor name="mergerMassMovements_"         />
        <objectDestructor name="massDistributionStellar_"     />
-       <objectDestructor name="massDistributionGas_"         />
        <objectDestructor name="kinematicDistribution_"       />
       !!]
     end if
@@ -338,27 +287,16 @@ contains
   !!]
   subroutine Node_Component_Dark_Core_Standard_Post_Step(node,status)
     !!{
-    Trim histories attached to the dark core.
+    Do processing of the node required after evolution.
     !!}
-    use :: Abundances_Structure          , only : abs                     , zeroAbundances
-    use :: Display                       , only : displayMessage          , verbosityLevelWarn
     use :: Error                         , only : Error_Report
     use :: Galacticus_Nodes              , only : defaultDarkCoreComponent, nodeComponentDarkCore , nodeComponentDarkCoreStandard, &
           &                                       treeNode
     use :: Interface_GSL                 , only : GSL_Success             , GSL_Continue
-    use :: ISO_Varying_String            , only : assignment(=)           , operator(//)          , varying_string
-    use :: String_Handling               , only : operator(//)
     implicit none
     type            (treeNode             ), intent(inout), pointer :: node
     integer                                , intent(inout)          :: status
     class           (nodeComponentDarkCore)               , pointer :: darkCore
-    double precision                       , parameter              :: angularMomentumTolerance=1.0d-2
-    double precision                       , save                   :: fractionalErrorMaximum  =0.0d+0
-    double precision                                                :: massDarkCore                   , fractionalError, &
-         &                                                             specificAngularMomentum
-    character       (len=20               )                         :: valueString
-    type            (varying_string       ), save                   :: message
-    !$omp threadprivate(message)
 
     ! Return immediately if this class is not in use.
     if (.not.defaultDarkCoreComponent%standardIsActive()) return
@@ -368,112 +306,12 @@ contains
     select type (darkCore)
     class is (nodeComponentDarkCoreStandard)
        ! Note that "status" is not set to failure as these changes in state of the dark core should not change any calculation of
-       ! differential evolution rates as a negative gas/stellar mass was unphysical anyway.
-       !
-       ! Trap negative gas masses.
-       if (darkCore%massGas() < 0.0d0) then
-          ! Check if this exceeds the maximum previously recorded error.
-          fractionalError=   abs(darkCore%massGas       ()) &
-               &          /(                                &
-               &             abs(darkCore%massGas       ()) &
-               &            +abs(darkCore%massStellar()) &
-               &           )
-          !$omp critical (Standard_Dark_Core_Post_Evolve_Check)
-          if (fractionalError > fractionalErrorMaximum) then
-             ! Report a warning.
-             message='Warning: dark core has negative gas mass (fractional error exceeds any previously reported):'//char(10)
-             message=message//'  Node index        = '//node%index() //char(10)
-             write (valueString,'(e12.6)') darkCore%massGas       ()
-             message=message//'  dark core gas mass     = '//trim(valueString)//char(10)
-             write (valueString,'(e12.6)') darkCore%massStellar()
-             message=message//'  dark core stellar mass = '//trim(valueString)//char(10)
-             write (valueString,'(e12.6)') fractionalError
-             message=message//'  Error measure     = '//trim(valueString)//char(10)
-             if (fractionalErrorMaximum == 0.0d0) then
-                ! This is the first time this warning has been issued, so give some extra information.
-                message=message//'  Gas mass will be reset to zero (in future cases also).'//char(10)
-                message=message//'  Future cases will be reported only when they exceed the previous maximum error measure.'//char(10)
-                message=message//'  Negative masses are due to numerically inaccuracy in the ODE solutions.'//char(10)
-                message=message//'  If significant, consider using a higher tolerance in the ODE solver.'
-             end if
-             call displayMessage(message,verbosityLevelWarn)
-             ! Store the new maximum fractional error.
-             fractionalErrorMaximum=fractionalError
-          end if
-          !$omp end critical (Standard_Dark_Core_Post_Evolve_Check)
-          ! Get the specific angular momentum of the dark core material
-          massDarkCore= darkCore%massGas    () &
-               &       +darkCore%massStellar()
-          if (massDarkCore == 0.0d0) then
-             specificAngularMomentum=0.0d0
-             call darkCore%        massStellarSet(                  0.0d0)
-          else
-             specificAngularMomentum=darkCore%angularMomentum()/massDarkCore
-             if (specificAngularMomentum < 0.0d0) specificAngularMomentum=darkCore%radius()*darkCore%velocity()
-          end if
-          ! Reset the gas, abundances and angular momentum of the dark core.
-          call darkCore%        massGasSet(                                         0.0d0)
-          call darkCore%  abundancesGasSet(                                zeroAbundances)
-          call darkCore%angularMomentumSet(specificAngularMomentum*darkCore%massStellar())
-          ! Indicate that ODE evolution should continue after this state change.
-          if (status == GSL_Success) status=GSL_Continue
-       end if
+       ! differential evolution rates as a negative stellar mass was unphysical anyway.
        ! Trap negative stellar masses.
        if (darkCore%massStellar() < 0.0d0) then
-          ! Check if this exceeds the maximum previously recorded error.
-          fractionalError=   abs(darkCore%massStellar()) &
-               &          /(                             &
-               &             abs(darkCore%massGas    ()) &
-               &            +abs(darkCore%massStellar()) &
-               &           )
-          !$omp critical (Standard_Dark_Core_Post_Evolve_Check)
-          if (fractionalError > fractionalErrorMaximum) then
-             ! Report a warning.
-             message='Warning: dark core has negative stellar mass (fractional error exceeds any previously reported):'//char(10)
-             message=message//'  Node index        = '//node%index() //char(10)
-             write (valueString,'(e12.6)') darkCore%massGas       ()
-             message=message//'  dark core gas mass     = '//trim(valueString)//char(10)
-             write (valueString,'(e12.6)') darkCore%massStellar()
-             message=message//'  dark core black holes mass = '//trim(valueString)//char(10)
-             write (valueString,'(e12.6)') fractionalError
-             message=message//'  Error measure     = '//trim(valueString)//char(10)
-             if (fractionalErrorMaximum == 0.0d0) then
-                ! This is the first time this warning has been issued, so give some extra information.
-                message=message//'  Stellar mass will be reset to zero (in future cases also).'//char(10)
-                message=message//'  Future cases will be reported only when they exceed the previous maximum error measure.'//char(10)
-                message=message//'  Negative masses are due to numerically inaccuracy in the ODE solutions.'//char(10)
-                message=message//'  If significant, consider using a higher tolerance in the ODE solver.'
-             end if
-             call displayMessage(message,verbosityLevelWarn)
-             ! Store the new maximum fractional error.
-             fractionalErrorMaximum=fractionalError
-          end if
-          !$omp end critical (Standard_Dark_Core_Post_Evolve_Check)
-          ! Get the specific angular momentum of the dark core material
-          massDarkCore= darkCore%massGas    () &
-                  &    +darkCore%massStellar()
-          if (massDarkCore == 0.0d0) then
-             specificAngularMomentum=0.0d0
-             call darkCore%      massGasSet(         0.0d0)
-             call darkCore%abundancesGasSet(zeroAbundances)
-          else
-             specificAngularMomentum=darkCore%angularMomentum()/massDarkCore
-             if (specificAngularMomentum < 0.0d0) specificAngularMomentum=darkCore%radius()*darkCore%velocity()
-          end if
-          ! Reset the stellar, abundances and angular momentum of the dark core.
-          call darkCore%   massStellarSet(                                        0.0d0)
-          call darkCore%  angularMomentumSet(specificAngularMomentum*darkCore%massGas())
-          ! Indicate that ODE evolution should continue after this state change.
-          if (status == GSL_Success) status=GSL_Continue
-       end if
-       ! Trap negative angular momentum.
-       if (darkCore%angularMomentum() < 0.0d0) then
-          ! Estimate a reasonable specific angular momentum.
-          specificAngularMomentum=+darkCore%radius     ()*darkCore%velocity()
-          massDarkCore           =+darkCore%massStellar() &
-            &                     +darkCore%massGas    ()
-
-          call darkCore%angularMomentumSet(specificAngularMomentum*massDarkCore)
+          call darkCore%massStellarSet(0.0d0)
+          call darkCore%radiusSet     (0.0d0)  
+          call darkCore%velocitySet   (0.0d0)    
           ! Indicate that ODE evolution should continue after this state change.
           if (status == GSL_Success) status=GSL_Continue
        end if
@@ -511,16 +349,14 @@ contains
     !!{
     Set scales for properties of {\normalfont \ttfamily node}.
     !!}
-    use :: Abundances_Structure          , only : abs                     , abundances           , max                          , operator(*), &
-          &                                       unitAbundances
-    use :: Galacticus_Nodes              , only : defaultDarkCoreComponent, nodeComponentDarkCore, nodeComponentDarkCoreStandard, treeNode
+    use :: Galacticus_Nodes              , only : defaultDarkCoreComponent, nodeComponentDarkCore, nodeComponentDarkCoreStandard, nodeComponentNSC, &
+          &                                       treeNode
     implicit none
     type            (treeNode              ), intent(inout), pointer :: node
     class           (nodeComponentDarkCore )               , pointer :: darkCore
+    class           (nodeComponentNSC      )               , pointer :: NSC 
     double precision                        , parameter              :: massMinimum                   =1.0d0
-    double precision                        , parameter              :: angularMomentumMinimum        =1.0d-1
     double precision                        , parameter              :: fractionTolerance             =1.0d-4
-    type            (abundances            )                         :: abundancesScale
 
     ! Check if we are the default method.
     if (.not.defaultDarkCoreComponent%standardIsActive()) return
@@ -529,21 +365,12 @@ contains
     ! Check if an standard dark core component exists.
     select type (darkCore)
     class is (nodeComponentDarkCoreStandard)
+       NSC => node%NSC()
 
-       call darkCore%angularMomentumScale  (angularMomentumMinimum)                                        
-       call darkCore%massGasScale          (massMinimum           )
-       call darkCore%massStellarScale      (massMinimum           )
+       call darkCore%massStellarScale      (max(1.0d-3*NSC%massStellar(), massMinimum))
 
        ! Set the scale for the retained stellar mass fraction.
        call darkCore%fractionMassRetainedScale(fractionTolerance*darkCore%fractionMassRetained())
-       ! Set scales for abundances if necessary.
-       if (abundancesCount > 0) then
-          ! Set scale for abundances.
-          abundancesScale= massMinimum *unitAbundances
-          ! Set scale for gas abundances.
-          call darkCore%abundancesGasScale    (abundancesScale)
-          ! Set scale for stellar abundances.
-       end if
     end select
     return
   end subroutine Node_Component_Dark_Core_Standard_Scale_Set
@@ -576,7 +403,6 @@ contains
     !!{
     Transfer any standard dark core associated with {\normalfont \ttfamily node} to its host halo.
     !!}
-    use :: Abundances_Structure            , only : zeroAbundances
     use :: Error                           , only : Error_Report
     use :: Galacticus_Nodes                , only : nodeComponentDarkCore    , nodeComponentDarkCoreStandard   , nodeComponentSpheroid           , &
          &                                          nodeComponentDisk        , treeNode
@@ -618,9 +444,6 @@ contains
        case default
           call Error_Report('unrecognized movesTo descriptor'//{introspection:location})
        end select
-       call darkCore%      massGasSet(         0.0d0)
-       call darkCore%abundancesGasSet(zeroAbundances)
-
 
        ! Move the stellar (black hole) property of the standard dark core to the host.  Here we assume that the Dark Core is dissolved,
        ! without adding the mass to the spheroid/disk stellar mass component.
@@ -639,7 +462,6 @@ contains
           call Error_Report('unrecognized movesTo descriptor'//{introspection:location})
        end select
        call darkCore%        massStellarSet(                  0.0d0)
-       call darkCore%    angularMomentumSet(                  0.0d0)
        call darkCore%             radiusSet(                  0.0d0)
     end select
     return
@@ -656,7 +478,7 @@ contains
     !!}
     use            :: Display                               , only : displayMessage          , verbosityLevelInfo
     use, intrinsic :: ISO_C_Binding                         , only : c_ptr                   , c_size_t
-    use            :: Node_Component_Dark_Core_Standard_Data, only : massDistributionStellar_, massDistributionGas_, kinematicDistribution_
+    use            :: Node_Component_Dark_Core_Standard_Data, only : massDistributionStellar_, kinematicDistribution_
     implicit none
     integer          , intent(in   ) :: stateFile
     integer(c_size_t), intent(in   ) :: stateOperationID
@@ -664,7 +486,7 @@ contains
 
     call displayMessage('Storing state for: componentDarkCore -> standard',verbosity=verbosityLevelInfo)
     !![
-    <stateStore variables="massDistributionStellar_ massDistributionGas_ kinematicDistribution_ stellarPopulationProperties_ darkMatterHaloScale_ starFormationHistory_ mergerMassMovements_"/>
+    <stateStore variables="massDistributionStellar_ kinematicDistribution_ stellarPopulationProperties_ darkMatterHaloScale_ starFormationHistory_ mergerMassMovements_"/>
     !!]
     return
   end subroutine Node_Component_Dark_Core_Standard_State_Store
@@ -680,7 +502,7 @@ contains
     !!}
     use            :: Display                               , only : displayMessage          , verbosityLevelInfo
     use, intrinsic :: ISO_C_Binding                         , only : c_ptr                   , c_size_t
-    use            :: Node_Component_Dark_Core_Standard_Data, only : massDistributionStellar_, massDistributionGas_, kinematicDistribution_
+    use            :: Node_Component_Dark_Core_Standard_Data, only : massDistributionStellar_, kinematicDistribution_
     implicit none
     integer          , intent(in   ) :: stateFile
     integer(c_size_t), intent(in   ) :: stateOperationID
@@ -688,7 +510,7 @@ contains
 
     call displayMessage('Retrieving state for: componentDarkCore -> standard',verbosity=verbosityLevelInfo)
    !![
-    <stateRestore variables="massDistributionStellar_ massDistributionGas_ kinematicDistribution_ stellarPopulationProperties_ darkMatterHaloScale_ starFormationHistory_ mergerMassMovements_"/>
+    <stateRestore variables="massDistributionStellar_ kinematicDistribution_ stellarPopulationProperties_ darkMatterHaloScale_ starFormationHistory_ mergerMassMovements_"/>
     !!]
     return
   end subroutine Node_Component_Dark_Core_Standard_State_Retrieve

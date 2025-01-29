@@ -92,7 +92,7 @@ contains
   
   subroutine darkCoreRadiusDifferentialEvolutionSolveAnalytics(self,node,time)
       !!{
-        Compute the nuclear star cluster gas mass rate change.
+        Set the radius of the dark core.
       !!}
     use :: Galacticus_Nodes , only : nodeComponentNSC             , nodeComponentDarkCore, nodeComponentNSCStandard, &
                 &                    nodeComponentDarkCoreStandard, treeNode

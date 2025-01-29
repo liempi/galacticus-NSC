@@ -31,8 +31,8 @@ double precision function Node_Component_Dark_Core_Standard_Velocity(self)
    double precision                                    :: radiusDarkCore, massDarkCore
 
    radiusDarkCore= self%radius()
+   massDarkCore  = self%massStellar()
 
-   massDarkCore  = self%massGas()+self%massStellar()
    !Units corrected, G in galacticus is in units of Mpc M⊙⁻¹km²s⁻².
    !The velocity is returned in km/s units
    if (massDarkCore > 0.0d0 .and. radiusDarkCore >0.0d0) then
@@ -49,14 +49,14 @@ double precision function Node_Component_Dark_Core_Standard_Angular_Momentum(sel
    !!}
    implicit none
    class (nodeComponentDarkCoreStandard), intent(inout) :: self
-   double precision                                     :: dynamicalMassDarkCore, velocityDarkCore
+   double precision                                     :: massDarkCore, velocityDarkCore
    
    !Get the velocity and the dunamical mass of the dark core.
    velocityDarkCore      = self%velocity()
-   dynamicalMassDarkCore = self%massGas ()+self%massStellar()
+   massDarkCore = self%massStellar()
 
-   if (dynamicalMassDarkCore > 0.0d0) then
-       Node_Component_Dark_Core_Standard_Angular_Momentum = dynamicalMassDarkCore * velocityDarkCore
+   if (massDarkCore > 0.0d0) then
+       Node_Component_Dark_Core_Standard_Angular_Momentum = massDarkCore * velocityDarkCore
    else
        Node_Component_Dark_Core_Standard_Angular_Momentum = 0.0d0
    end if
@@ -70,7 +70,7 @@ function Node_Component_Dark_Core_Standard_Mass_Distribution(self,componentType,
   use :: Mass_Distributions                    , only : massDistributionClass    , massDistributionSphericalScaler, massDistributionComposite   , massDistributionList   , &
         &                                               massDistributionSpherical, massDistributionMatches_
   use :: Error                                 , only : Error_Report
-  use :: Node_Component_Dark_Core_Standard_Data, only : massDistributionStellar_ , massDistributionGas_           , kinematicDistribution_
+  use :: Node_Component_Dark_Core_Standard_Data, only : massDistributionStellar_ , kinematicDistribution_
   use :: Galactic_Structure_Options            , only : componentTypeDarkCore    , massTypeStellar                , massTypeGaseous             , enumerationWeightByType, &
        &                                                weightByMass             , weightByLuminosity             , enumerationComponentTypeType, enumerationMassTypeType
   implicit none
@@ -80,25 +80,20 @@ function Node_Component_Dark_Core_Standard_Mass_Distribution(self,componentType,
   type            (enumerationMassTypeType        ), intent(in   ), optional :: massType
   type            (enumerationWeightByType        ), intent(in   ), optional :: weightBy
   integer                                          , intent(in   ), optional :: weightIndex
-  type            (massDistributionSphericalScaler), pointer                 :: massDistributionStellar   , massDistributionGas
-  type            (massDistributionComposite      ), pointer                 :: massDistributionTotal
-  type            (massDistributionList           ), pointer                 :: massDistributionComponents
+  type            (massDistributionSphericalScaler), pointer                 :: massDistributionStellar   
   type            (stellarLuminosities            ), save                    :: luminosities
   !$omp threadprivate(luminosities)
-  double precision                                                           :: massStellar               , massGas            , &
-       &                                                                        radiusScale
-  logical                                                                    :: includeGas                , includeStars
+  double precision                                                           :: massStellar               , radiusScale
+  logical                                                                    :: includeStars
   !![
   <optionalArgument name="weightBy" defaultsTo="weightByMass" />
   !!]
   
   ! Determine which components of the spheroid to include.
-  includeGas  =massDistributionMatches_(componentTypeDarkCore,massTypeGaseous,componentType,massType) .and.  weightBy_ == weightByMass
   includeStars=massDistributionMatches_(componentTypeDarkCore,massTypeStellar,componentType,massType) .and. (weightBy_ == weightByMass .or. weightBy_ == weightByLuminosity)  
   ! Get properties of the mass distribution and ensure they are physical.
   if      (weightBy_ == weightByMass      ) then
      massStellar       =  max (0.0d0,self        %massStellar        (           ))
-     massGas           =  max (0.0d0,self        %massGas            (           ))
   else if (weightBy_ == weightByLuminosity) then
      call Error_Report('Dark core mass distribution can not be weighted by Luminosity'//{introspection:location})
   else
@@ -107,13 +102,12 @@ function Node_Component_Dark_Core_Standard_Mass_Distribution(self,componentType,
   end if
   ! Determine which components to build.
   radiusScale=self%radius()
-  if (radiusScale <= 0.0d0 .or. .not.(includeGas .or. includeStars)) then
+  if (radiusScale <= 0.0d0 .or. .not.includeStars) then
      ! Disk has non-positive size, or no components matched. Return a null distribution.
      massDistribution_ => null()
   else
      ! Build the individual distributions.
      massDistributionStellar => null()
-     massDistributionGas     => null()
      if (includeStars) then
         allocate(massDistributionStellar)
         select type (massDistributionStellar_)
@@ -124,38 +118,10 @@ function Node_Component_Dark_Core_Standard_Mass_Distribution(self,componentType,
         end select
         call massDistributionStellar%setKinematicsDistribution(kinematicDistribution_)
      end if
-     if (includeGas  ) then
-        allocate(massDistributionGas  )
-        select type (massDistributionGas_    )
-        class is (massDistributionSpherical)
-           !![
-           <referenceConstruct object="massDistributionGas"     constructor="massDistributionSphericalScaler(factorScalingLength=radiusScale,factorScalingMass=massGas    ,massDistribution_=massDistributionGas_      )"/>
-           !!]
-        end select
-        call massDistributionGas    %setKinematicsDistribution(kinematicDistribution_)
-     end if
      ! Combine the distributions as necessary.
-     if      (includeStars .and. includeGas) then
-        ! Wrap the dimensionless mass distribution inside scaler classes to allow us to re-scale it to any spheroid system, and then composite those.
-        allocate(massDistributionTotal          )
-        allocate(massDistributionComponents     )
-        allocate(massDistributionComponents%next)
-        massDistributionComponents     %massDistribution_ => massDistributionStellar
-        massDistributionComponents%next%massDistribution_ => massDistributionGas
-        !![
-        <referenceConstruct object="massDistributionTotal" constructor="massDistributionComposite(massDistributionComponents)"/>
-        <objectDestructor name="massDistributionStellar"/>
-        <objectDestructor name="massDistributionGas"    />
-        !!]
-        nullify(massDistributionComponents)
-        ! Return a pointer to the spheroid mass distribution.
-        massDistribution_ => massDistributionTotal
-     else if (includeStars                 ) then
+     if (includeStars) then
         ! Return just the stellar component.
         massDistribution_ => massDistributionStellar
-     else if (                   includeGas) then
-        ! Return just the gas component.
-        massDistribution_ => massDistributionGas
      end if
   end if
   return
@@ -168,8 +134,7 @@ double precision function Node_Component_Dark_Core_Standard_Mass_Baryonic(self) 
   implicit none
   class(nodeComponentDarkCoreStandard), intent(inout) :: self
 
-  massBaryonic=+max(0.0d0,self%massStellar()) &
-       &       +max(0.0d0,self%massGas    ())
+  massBaryonic=+max(0.0d0,self%massStellar())
   return
 end function Node_Component_Dark_Core_Standard_Mass_Baryonic
 

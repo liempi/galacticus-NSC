@@ -796,7 +796,6 @@ contains
         betaProfileRadiusHalfMass=+radiusHalfMassToScaleRadius &
          &                        *self%coreRadius
     else
-        PRINT *, self%beta
         call Error_Report('half-mass radius available just for β=5/3'//{introspection:location})
     end if 
     return

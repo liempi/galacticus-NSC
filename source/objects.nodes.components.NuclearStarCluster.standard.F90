@@ -1,4 +1,4 @@
- !! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
 !!           2019, 2020, 2021, 2022, 2023, 2024
 !!    Andrew Benson <abenson@carnegiescience.edu>
 !!
@@ -737,7 +737,7 @@ contains
     use :: Abundances_Structure          , only : abs                   , abundances      , max                     , operator(*)            , &
           &                                       unitAbundances
     use :: Galacticus_Nodes              , only : defaultNSCComponent   , nodeComponentNSC, nodeComponentNSCStandard, nodeComponentSpheroid  , &
-          &                                       nodeComponentBlackHole, treeNode
+          &                                       treeNode
     use :: Histories                     , only : history
     use :: Stellar_Luminosities_Structure, only : abs                   , max             , stellarLuminosities     , unitStellarLuminosities
     implicit none
@@ -767,17 +767,19 @@ contains
             &          +abs(spheroid%angularMomentum())
        call NSC%angularMomentumScale(max(angularMomentum,angularMomentumMinimum))
        ! Set scale for masses.
-       !! The scale here (and for other quantities below) combines the mass of nuclear star cluster and spheroid.
-       ! mass     =    max(     scaleMassRelative*spheroid%massStellar(),  &
-       !     &              max(                       NSC%massStellar(),  &
-       !     &                  massMinimum                                &
-       !     &                 )                                           &
-       !     &             ) 
-       mass = massMinimum                                              
+       ! The scale here (and for other quantities below) combines the mass of nuclear star cluster and spheroid.
+       mass     =    max(            1.0d-3*spheroid%massStellar(),  &
+           &              max(                   NSC%massStellar(),  &
+           &                  massMinimum                            &
+           &                 )                                       &
+           &             ) 
+       !mass = massMinimum                                              
 
        call NSC%massGasScale          (mass)
        call NSC%massStellarScale      (mass)
+       call NSC%massBHsScale          (mass)
        call NSC%massStellarFormedScale(mass)
+
        ! Set the scale for the retained stellar mass fraction.
        call NSC%fractionMassRetainedScale(fractionTolerance*NSC%fractionMassRetained())
        ! Set scales for abundances if necessary.

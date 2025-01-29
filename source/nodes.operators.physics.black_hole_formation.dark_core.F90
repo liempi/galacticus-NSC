@@ -134,12 +134,6 @@ contains
     if (rateBlackHoleFormation <= 0.0d0) return
 
     select type (darkCore)
-    type is (nodeComponentDarkCore)
-      if (rateBlackHoleFormation > 0.0d0 .and. NSC%massStellar() > 0.0d0) then
-        interrupt=.true.
-        functionInterrupt => DarkCoreCreate
-      end if
-      return
     class is (nodeComponentDarkCoreStandard)
       call NSC% massStellarRate(-rateBlackHoleFormation)
       call NSC%     massBHsRate(+rateBlackHoleFormation)
@@ -155,18 +149,3 @@ contains
     end select
     return
   end subroutine blackHoleFormationDifferentialEvolution
-
-  subroutine DarkCoreCreate(node,timeEnd)
-  !!{
-    Creates the dark ocre via interrupt.
-  !!}
-    use :: Galacticus_Nodes, only : interruptTask   , nodeComponentDarkCore, nodeComponentDarkCoreStandard, &
-          &                         propertyInactive, treeNode
-    implicit none
-    type (treeNode             ), intent(inout), target  :: node
-    double precision            , intent(in   ), optional:: timeEnd
-    class(nodeComponentDarkCore),                pointer :: darkCore
-    !$GLC attributes unused :: timeEnd
-    darkCore => node%darkCore(autoCreate=.true.)
-    return 
-  end subroutine DarkCoreCreate
