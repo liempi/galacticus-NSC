@@ -1,5 +1,5 @@
 !! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
-!!           2019, 2020, 2021, 2022, 2023, 2024
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025
 !!    Andrew Benson <abenson@carnegiescience.edu>
 !!
 !! This file is part of Galacticus.
@@ -64,6 +64,7 @@ contains
     class           (outputTimesClass                                   ), pointer                     :: outputTimes_
     class           (starFormationRateDisksClass                        ), pointer                     :: starFormationRateDisks_
     class           (starFormationRateSpheroidsClass                    ), pointer                     :: starFormationRateSpheroids_
+    class           (starFormationRateNSCsClass                         ), pointer                     :: starFormationRateNSCs_
     class           (gravitationalLensingClass                          ), pointer                     :: gravitationalLensing_
     double precision                                                     , allocatable  , dimension(:) :: randomErrorPolynomialCoefficient , systematicErrorPolynomialCoefficient
     integer                                                                                            :: covarianceBinomialBinsPerDecade
@@ -144,9 +145,10 @@ contains
     <objectBuilder class="gravitationalLensing"       name="gravitationalLensing_"       source="parameters"/>
     <objectBuilder class="starFormationRateDisks"     name="starFormationRateDisks_"     source="parameters"/>
     <objectBuilder class="starFormationRateSpheroids" name="starFormationRateSpheroids_" source="parameters"/>
+    <objectBuilder class="starFormationRateNSCs"      name="starFormationRateNSCs_"      source="parameters"/>
     !!]
     ! Build the object.
-    self=outputAnalysisStarFormationRateFunctionRobotham2011(cosmologyFunctions_,gravitationalLensing_,outputTimes_,starFormationRateDisks_,starFormationRateSpheroids_,randomErrorMinimum,randomErrorMaximum,randomErrorPolynomialCoefficient,systematicErrorPolynomialCoefficient,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum,sizeSourceLensing)
+    self=outputAnalysisStarFormationRateFunctionRobotham2011(cosmologyFunctions_,gravitationalLensing_,outputTimes_,starFormationRateDisks_,starFormationRateSpheroids_,starFormationRateNSCs_,randomErrorMinimum,randomErrorMaximum,randomErrorPolynomialCoefficient,systematicErrorPolynomialCoefficient,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum,sizeSourceLensing)
     !![
     <inputParametersValidate source="parameters"/>
     <objectDestructor name="cosmologyFunctions_"        />
@@ -154,11 +156,12 @@ contains
     <objectDestructor name="gravitationalLensing_"      />
     <objectDestructor name="starFormationRateDisks_"    />
     <objectDestructor name="starFormationRateSpheroids_"/>
+    <objectDestructor name="starFormationRateNSCs_"/>
     !!]
     return
   end function starFormationRateFunctionRobotham2011ConstructorParameters
 
-  function starFormationRateFunctionRobotham2011ConstructorInternal(cosmologyFunctions_,gravitationalLensing_,outputTimes_,starFormationRateDisks_,starFormationRateSpheroids_,randomErrorMinimum,randomErrorMaximum,randomErrorPolynomialCoefficient,systematicErrorPolynomialCoefficient,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum,sizeSourceLensing) result (self)
+  function starFormationRateFunctionRobotham2011ConstructorInternal(cosmologyFunctions_,gravitationalLensing_,outputTimes_,starFormationRateDisks_,starFormationRateSpheroids_,starFormationRateNSCs_,randomErrorMinimum,randomErrorMaximum,randomErrorPolynomialCoefficient,systematicErrorPolynomialCoefficient,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum,sizeSourceLensing) result (self)
     !!{
     Constructor for the ``StarFormationRateFunctionRobotham2011'' output analysis class for internal use.
     !!}
@@ -177,6 +180,7 @@ contains
     class           (gravitationalLensingClass                          ), intent(in   ), target       :: gravitationalLensing_
     class           (starFormationRateDisksClass                        ), intent(in   ), target       :: starFormationRateDisks_
     class           (starFormationRateSpheroidsClass                    ), intent(in   ), target       :: starFormationRateSpheroids_
+    class           (starFormationRateNSCsClass                         ), intent(in   ), target       :: starFormationRateNSCs_
     double precision                                                     , intent(in   )               :: randomErrorMinimum                                          , randomErrorMaximum                  , &
          &                                                                                                sizeSourceLensing
     double precision                                                     , intent(in   ), dimension(:) :: randomErrorPolynomialCoefficient                            , systematicErrorPolynomialCoefficient
@@ -292,6 +296,7 @@ contains
          &                                         outputTimes_                                                                                                                  , &
          &                                         starFormationRateDisks_                                                                                                       , &
          &                                         starFormationRateSpheroids_                                                                                                   , &
+         &                                         starFormationRateNSCs_                                                                                                        , &
          &                                         covarianceBinomialBinsPerDecade                                                                                               , &
          &                                         covarianceBinomialMassHaloMinimum                                                                                             , &
          &                                         covarianceBinomialMassHaloMaximum                                                                                               &

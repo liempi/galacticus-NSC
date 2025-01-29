@@ -21,7 +21,7 @@
 Contains a module which provides a class that implements rates of star formation in nuclear star cluster.
 !!}
 
-module Star_Formation_Rates_NSC
+module Star_Formation_Rates_NSCs
   !!{
   Provides a class that implements calculations of rates of formation in nuclear star cluster.
   !!}
@@ -30,7 +30,7 @@ module Star_Formation_Rates_NSC
 
   !![
   <functionClass>
-   <name>starFormationRateNSC</name>
+   <name>starFormationRateNSCs</name>
    <descriptiveName>Rates for star formation in nuclear star cluster.</descriptiveName>
    <description>Class providing models of rates of star formation in nuclear star cluster.</description>
    <default>krumholz2009</default>
@@ -44,4 +44,4 @@ module Star_Formation_Rates_NSC
   </functionClass>
   !!]
 
-end module Star_Formation_Rates_NSC
+end module Star_Formation_Rates_NSCs

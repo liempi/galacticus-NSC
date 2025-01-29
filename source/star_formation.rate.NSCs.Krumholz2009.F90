@@ -23,7 +23,7 @@
   use :: Abundances_Structure, only : abundances
 
   !![
-  <starFormationRateNSC name="starFormationRateNSCKrumholz2009">
+  <starFormationRateNSCs name="starFormationRateNSCsKrumholz2009">
    <description>
     A star formation rate implementing the model of \citep{Antonini_2015} for galactic NSCs. This model
     uses the \citep{krumholz_star_2009} star formation rule, with minor modifications.
@@ -54,9 +54,9 @@
     \end{equation}
     with $\Sigma_\mathrm{th}=85M_\odot\,\box{pc}^{-2}$
    </description>
-  </starFormationRateNSC>
+  </starFormationRateNSCs>
   !!]
-  type, extends(starFormationRateNSCClass) :: starFormationRateNSCKrumholz2009
+  type, extends(starFormationRateNSCsClass) :: starFormationRateNSCsKrumholz2009
      !!{
      Implementation of the \cite{krumholz_star_2009} star formation rate surface density law for galactic NSCs.
      !!}
@@ -65,15 +65,15 @@
           &                 s                         , chi                            
      contains
      procedure :: rate                  => krumholz2009Rate
-  end type starFormationRateNSCKrumholz2009
+  end type starFormationRateNSCsKrumholz2009
 
-  interface starFormationRateNSCKrumholz2009
+  interface starFormationRateNSCsKrumholz2009
      !!{
      Constructors for the {\normalfont \ttfamily krumholz2009} star formation surface density rate in NSCs class.
      !!}
      module procedure krumholz2009ConstructorParameters
      module procedure krumholz2009ConstructorInternal
-  end interface starFormationRateNSCKrumholz2009
+  end interface starFormationRateNSCsKrumholz2009
     
 contains
 
@@ -83,9 +83,9 @@ contains
     !!}
     use :: Input_Parameters, only : inputParameter, inputParameters
     implicit none
-    type            (starFormationRateNSCKrumholz2009)                :: self
-    type            (inputParameters                 ), intent(inout) :: parameters
-    double precision                                                  :: frequencyStarFormation         
+    type            (starFormationRateNSCsKrumholz2009)                :: self
+    type            (inputParameters                  ), intent(inout) :: parameters
+    double precision                                                   :: frequencyStarFormation         
 
     !![
     <inputParameter>
@@ -96,7 +96,7 @@ contains
       <source>parameters</source>
     </inputParameter>
     !!]
-    self=starFormationRateNSCKrumholz2009(frequencyStarFormation)
+    self=starFormationRateNSCsKrumholz2009(frequencyStarFormation)
     !![
     <inputParametersValidate source="parameters"/>
     !!]
@@ -108,7 +108,7 @@ contains
     Internal constructor for the {\normalfont \ttfamily krumholz2009} star formation surface density rate from NSCs class.
     !!}
     implicit none
-    type            (starFormationRateNSCKrumholz2009)                 :: self
+    type            (starFormationRateNSCsKrumholz2009)                 :: self
     double precision                                  , intent(in   )  :: frequencyStarFormation
     !![
     <constructorAssign variables="frequencyStarFormation"/>
@@ -125,14 +125,14 @@ contains
     use :: Galacticus_Nodes    , only : nodeComponentNSC                , treeNode
     use :: Abundances_Structure, only : metallicityTypeLinearByMassSolar
     implicit none
-    class           (starFormationRateNSCKrumholz2009), intent(inout), target :: self
-    type            (treeNode                        ), intent(inout)         :: node
-    class           (nodeComponentNSC                ), pointer               :: NSC
-    type            (abundances                      ), save                  :: abundancesFuel
-    double precision                                                          :: molecularGasFraction, radiusNSC   , &
-         &                                                                       massGasNSC          , timescale_SF                       
-    double precision                                  , parameter             :: Sigma_th = 85.0d0                   !M⊙ pc⁻²
-    double precision                                                          :: surfaceDensityGasNSC, Sigma_1
+    class           (starFormationRateNSCsKrumholz2009), intent(inout), target :: self
+    type            (treeNode                         ), intent(inout)         :: node
+    class           (nodeComponentNSC                 ), pointer               :: NSC
+    type            (abundances                       ), save                  :: abundancesFuel
+    double precision                                                           :: molecularGasFraction, radiusNSC   , &
+         &                                                                        massGasNSC          , timescale_SF                       
+    double precision                                   , parameter             :: Sigma_th = 85.0d0                   !M⊙ pc⁻²
+    double precision                                                           :: surfaceDensityGasNSC, Sigma_1
                         
     !$omp threadprivate(abundancesFuel)
 
