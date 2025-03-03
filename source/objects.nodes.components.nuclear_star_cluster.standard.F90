@@ -72,13 +72,13 @@ module Node_Component_NSC_Standard
       <attributes isSettable="true" isGettable="true" isEvolvable="true" />
     </property>
     <property>
-    <property>
       <name>massBHs</name>
       <type>double</type>
       <rank>0</rank>
       <attributes isSettable="true" isGettable="true" isEvolvable="true"/>
       <output unitsInSI="massSolar" comment="Mass of the BHs formed due to stellar evolution in the standard Nuclear Star Cluster."/>
     </property>
+    <property>
       <name>abundancesStellar</name>
       <type>abundances</type>
       <rank>0</rank>
@@ -756,8 +756,8 @@ contains
             &             ) 
        call nuclearStarCluster%massGasScale          (mass)
        call nuclearStarCluster%massStellarScale      (mass)
-       call NSC%massBHsScale          (mass)
-       call NSC%massStellarFormedScale(mass)
+       call nuclearStarCluster%massBHsScale          (mass)
+       call nuclearStarCluster%massStellarFormedScale(mass)
        ! Set scales for abundances if necessary.
        if (abundancesCount > 0) then
           ! Set scale for abundances.

@@ -21,7 +21,7 @@
   Implements a node operator class that performs black hole formation in nuclear star cluster.
   !!}
 
-  use :: Star_Formation_Rates_NSC , only : starFormationRateNSCClass
+  use :: Star_Formation_Rates_Nuclear_Star_Clusters, only : starFormationRateNuclearStarClustersClass
   !![
   <nodeOperator name="nodeOperatorBlackHoleFormationNSC">
    <description>A node operator class that performs black hole formation.</description>
@@ -32,8 +32,8 @@
      A node operator class that performs the black hole evolution in dark cores.
      !!}
      private
-     class(starFormationRateNSCClass), pointer :: starFormationRateNSC_ => null()
-     double precision                          :: efficiency
+     class  (starFormationRateNuclearStarClustersClass), pointer :: starFormationRateNuclearStarClusters_ => null()
+     double precision                                            :: efficiency
 
    contains
      final     ::                                        blackHoleFormationDestructor
@@ -56,10 +56,10 @@ contains
     !!}
     use :: Input_Parameters, only : inputParameters
     implicit none
-    type (nodeOperatorBlackHoleFormationNSC)                :: self
-    type (inputParameters               ), intent(inout) :: parameters
-    class(starFormationRateNSCClass     ), pointer       :: starFormationRateNSC_
-    double precision                                     :: efficiency
+    type (nodeOperatorBlackHoleFormationNSC          )                :: self
+    type (inputParameters                            ), intent(inout) :: parameters
+    class  (starFormationRateNuclearStarClustersClass), pointer       :: starFormationRateNuclearStarClusters_
+    double precision                                                  :: efficiency
     !![
     <inputParameter>
     <name>efficiency</name>
@@ -67,27 +67,27 @@ contains
     <description> Free parameter regulating the black hole formation rate</description>
     <source>parameters</source>
     </inputParameter>
-    <objectBuilder class="starFormationRateNSC"      name="starFormationRateNSC_"  source="parameters"/>
+    <objectBuilder class="starFormationRateNuclearStarClusters" name="starFormationRateNuclearStarClusters_" source="parameters"/>
     !!]
-    self=nodeOperatorBlackHoleFormationNSC(efficiency, starFormationRateNSC_)
+    self=nodeOperatorBlackHoleFormationNSC(efficiency, starFormationRateNuclearStarClusters_)
     !![
     <inputParametersValidate source="parameters"/>
-    <objectDestructor name="starFormationRateNSC_"/>
+    <objectDestructor name="starFormationRateNuclearStarClusters_"/>
     !!]
     return
   end function blackHoleFormationConstructorParameters
 
-  function blackHoleFormationConstructorInternal(efficiency,starFormationRateNSC_) result(self)
+  function blackHoleFormationConstructorInternal(efficiency,starFormationRateNuclearStarClusters_) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily blackHoleFormationDarkCore} node operator class.
     !!}
     implicit none
-    type   (nodeOperatorBlackHoleFormationNSC)                        :: self
-    class  (starFormationRateNSCClass     ), intent(in   ), target :: starFormationRateNSC_
-    double precision                       , intent(in   ), target :: efficiency
+    type   (nodeOperatorBlackHoleFormationNSC        )                        :: self
+    class  (starFormationRateNuclearStarClustersClass), intent(in   ), target :: starFormationRateNuclearStarClusters_
+    double precision                                  , intent(in   ), target :: efficiency
     !![
     <constructorAssign variables="efficiency"/>
-    <constructorAssign variables="*starFormationRateNSC_"/>
+    <constructorAssign variables="*starFormationRateNuclearStarClusters_"/>
     !!]
     return
   end function blackHoleFormationConstructorInternal
@@ -100,7 +100,7 @@ contains
     type (nodeOperatorBlackHoleFormationNSC), intent(inout) :: self
 
     !![
-    <objectDestructor name="self%starFormationRateNSC_"/>
+    <objectDestructor name="self%starFormationRateNuclearStarClusters_"/>
     !!]
     return
   end subroutine blackHoleFormationDestructor
@@ -114,14 +114,14 @@ contains
     use :: Histories                     , only :  operator(*), history
     implicit none
     class           (nodeOperatorBlackHoleFormationNSC), intent(inout), target  :: self
-    type            (treeNode                      ), intent(inout), target  :: node
-    logical                                         , intent(inout)          :: interrupt
-    procedure       (interruptTask                 ), intent(inout), pointer :: functionInterrupt
-    integer                                         , intent(in   )          :: propertyType
-    class           (nodeComponentNSC              )               , pointer :: NSC
-    class           (nodeComponentDarkCore         )               , pointer :: darkCore
-    double precision                                                         :: rateBlackHoleFormation
-    type            (history                       )                         :: historyTransferRate
+    type            (treeNode                         ), intent(inout), target  :: node
+    logical                                            , intent(inout)          :: interrupt
+    procedure       (interruptTask                    ), intent(inout), pointer :: functionInterrupt
+    integer                                            , intent(in   )          :: propertyType
+    class           (nodeComponentNSC                 )               , pointer :: NSC
+    class           (nodeComponentDarkCore            )               , pointer :: darkCore
+    double precision                                                            :: rateBlackHoleFormation
+    type            (history                          )                         :: historyTransferRate
     
     if (propertyInactive(propertyType)) return
 
@@ -129,7 +129,7 @@ contains
     darkCore => node%darkCore()
     NSC      => node%NSC     ()
 
-    rateBlackHoleFormation = self%efficiency*self%starFormationRateNSC_%rate(node) 
+    rateBlackHoleFormation = self%efficiency*self%starFormationRateNuclearStarClusters_%rate(node) 
 
     if (rateBlackHoleFormation <= 0.0d0) return
 

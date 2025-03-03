@@ -90,8 +90,8 @@ contains
     !!}
     use :: Galacticus_Nodes                          , only : interruptTask                  , nodeComponentDarkCore  , nodeComponentNSC, nodeComponentDarkCoreStandard, &
           &                                                   propertyInactive               , treeNode
-    use :: Galactic_Structure_Options                , only : componentTypeNSC               , massTypeStellar
-    use :: Numerical_Constants_Astronomical          , only : gravitationalConstantGalacticus, Mpc_per_km_per_s_To_Gyr
+    use :: Galactic_Structure_Options                , only : componentTypeNuclearStarCluster, massTypeStellar
+    use :: Numerical_Constants_Astronomical          , only : gravitationalConstant_internal , MpcPerKmPerSToGyr
     !use :: Stellar_Populations_Initial_Mass_Functions, only : initialMassFunctionChabrier2001
 
     implicit none
@@ -132,7 +132,7 @@ contains
   
       !massDistributionStellarNSC_ => node%massDistribution(componentType=componentTypeNSC, massType=massTypeStellar)
       !velocity = massDistributionStellarNSC_%rotationCurve(1.0e6*radius)*(1+q)
-      velocity = sqrt(gravitationalConstantGalacticus*massStellar/radius)*(1+q)
+      velocity = sqrt(gravitationalConstant_internal*massStellar/radius)*(1+q)
 
       !initialMassFunction = initialMassFunctionChabrier2001(                                                 &
       !    &                                                     massLower         =self%massLower          , &
@@ -157,7 +157,7 @@ contains
       if (velocity <= 0.0d0) return
 
       ! Get the Crossing time in Gyr.
-      crossTimescale=+Mpc_per_km_per_s_To_Gyr &
+      crossTimescale=+MpcPerKmPerSToGyr &
             &        *radius                  &
             &        /velocity
       ! Let's compute the relaxing time

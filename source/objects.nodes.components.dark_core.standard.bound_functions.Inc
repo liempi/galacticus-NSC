@@ -25,7 +25,7 @@ double precision function Node_Component_Dark_Core_Standard_Velocity(self)
    !!{
    Return the circular velocity of the standard dark Core.
    !!}
-   use :: Numerical_Constants_Astronomical, only : gravitationalConstantGalacticus
+   use :: Numerical_Constants_Astronomical, only : gravitationalConstant_internal
    implicit none
    class(nodeComponentDarkCoreStandard), intent(inout) :: self
    double precision                                    :: radiusDarkCore, massDarkCore
@@ -36,7 +36,7 @@ double precision function Node_Component_Dark_Core_Standard_Velocity(self)
    !Units corrected, G in galacticus is in units of Mpc M⊙⁻¹km²s⁻².
    !The velocity is returned in km/s units
    if (massDarkCore > 0.0d0 .and. radiusDarkCore >0.0d0) then
-      Node_Component_Dark_Core_Standard_Velocity = sqrt(gravitationalConstantGalacticus*massDarkCore/radiusDarkCore)
+      Node_Component_Dark_Core_Standard_Velocity = sqrt(gravitationalConstant_internal*massDarkCore/radiusDarkCore)
    else 
       Node_Component_Dark_Core_Standard_Velocity = 0.0
    end if 
@@ -52,8 +52,8 @@ double precision function Node_Component_Dark_Core_Standard_Angular_Momentum(sel
    double precision                                     :: massDarkCore, velocityDarkCore
    
    !Get the velocity and the dunamical mass of the dark core.
-   velocityDarkCore      = self%velocity()
-   massDarkCore = self%massStellar()
+   velocityDarkCore = self%velocity()
+   massDarkCore     = self%massStellar()
 
    if (massDarkCore > 0.0d0) then
        Node_Component_Dark_Core_Standard_Angular_Momentum = massDarkCore * velocityDarkCore

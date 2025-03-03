@@ -291,26 +291,26 @@ contains
           ! Nothing to do.
        case   (radiusTypeVirialRadius                    %ID)
           radius=+radius*radiusVirial
-       case   (radiusTypeDarkMatterScaleRadius %ID)
+       case   (radiusTypeDarkMatterScaleRadius           %ID)
           radius=+radius*darkMatterProfile  %         scale()
-       case   (radiusTypeDiskRadius            %ID)
+       case   (radiusTypeDiskRadius                      %ID)
           radius=+radius*disk               %        radius()
-       case   (radiusTypeSpheroidRadius        %ID)
+       case   (radiusTypeSpheroidRadius                  %ID)
           radius=+radius*spheroid           %        radius()
-       case   (radiusTypeNSCRadius             %ID)
-          radius=+radius*NuclearStarCluster %        radius()
-       case   (radiusTypeDarkCoreRadius        %ID)
+       case   (radiusTypeNuclearStarClusterRadius        %ID)
+          radius=+radius*nuclearStarCluster %        radius()
+       case   (radiusTypeDarkCoreRadius                  %ID)
           radius=+radius*darkCore           %        radius()
-       case   (radiusTypeDiskHalfMassRadius    %ID)
+       case   (radiusTypeDiskHalfMassRadius              %ID)
           radius=+radius*disk               %halfMassRadius()
-       case   (radiusTypeSpheroidHalfMassRadius%ID)
+       case   (radiusTypeSpheroidHalfMassRadius          %ID)
           radius=+radius*spheroid           %halfMassRadius()
-       case   (radiusTypeNuclearStarClusterHalfMassRadius %ID)
-          radius=+radius*NSC                %halfMassRadius()
-       case   (radiusTypeDarkCoreHalfMassRadius%ID)
+       case   (radiusTypeNuclearStarClusterHalfMassRadius%ID)
+          radius=+radius*nuclearStarCluster %halfMassRadius()
+       case   (radiusTypeDarkCoreHalfMassRadius          %ID)
           radius=+radius*darkCore           %halfMassRadius()
-       case   (radiusTypeGalacticMassFraction  %ID,  &
-            &  radiusTypeGalacticLightFraction %ID)
+       case   (radiusTypeGalacticMassFraction            %ID,  &
+            &  radiusTypeGalacticLightFraction           %ID)
           massDistribution_ =>  node             %massDistribution   (                                                &
                &                                                      massType      =              massTypeStellar ,  &
                &                                                      componentType =              componentTypeAll,  &
