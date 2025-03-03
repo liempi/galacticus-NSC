@@ -53,7 +53,7 @@
      type   (radiusSpecifier                        ), allocatable, dimension(:) :: radii
      logical                                                                     :: darkMatterScaleRadiusIsNeeded          , diskIsNeeded        , &
           &                                                                         spheroidIsNeeded                       , virialRadiusIsNeeded, &
-          &                                                                         NSCIsNeeded                            , satelliteIsNeeded   , &
+          &                                                                         nuclearStarClusterIsNeeded             , satelliteIsNeeded   , &
           &                                                                         darkCoreIsNeeded
      type   (varying_string                         )                            :: label
    contains
@@ -167,7 +167,7 @@ contains
          &                                          self%radii                        , &
          &                                          self%diskIsNeeded                 , &
          &                                          self%spheroidIsNeeded             , &
-         &                                          self%NSCIsNeeded                  , &
+         &                                          self%nuclearStarClusterIsNeeded   , &
          &                                          self%darkCoreIsNeeded             , &
          &                                          self%satelliteIsNeeded            , &
          &                                          self%virialRadiusIsNeeded         , &
@@ -236,14 +236,15 @@ contains
     use :: Abundances_Structure                , only : abundances
     use :: Chemical_Abundances_Structure       , only : chemicalAbundances
     use :: Chemical_Reaction_Rates_Utilities   , only : Chemicals_Mass_To_Fraction_Conversion
-    use :: Galactic_Structure_Options          , only : componentTypeAll                     , componentTypeHotHalo            , massTypeGaseous                 , massTypeGalactic               , &
+    use :: Galactic_Structure_Options          , only : componentTypeAll                     , componentTypeHotHalo            , massTypeGaseous                   , massTypeGalactic                          , &
          &                                              massTypeStellar
-    use :: Galactic_Structure_Radii_Definitions, only : radiusTypeDarkMatterScaleRadius      , radiusTypeDiskHalfMassRadius    , radiusTypeDiskRadius            , radiusTypeGalacticLightFraction, &
-         &                                              radiusTypeGalacticMassFraction       , radiusTypeRadius                , radiusTypeSpheroidHalfMassRadius, radiusTypeSpheroidRadius       , &
-         &                                              radiusTypeStellarMassFraction        , radiusTypeVirialRadius          , radiusTypeNSCRadius             , radiusTypeNSCHalfMassRadius    , &
+    use :: Galactic_Structure_Radii_Definitions, only : radiusTypeDarkMatterScaleRadius      , radiusTypeDiskHalfMassRadius    , radiusTypeDiskRadius              , radiusTypeGalacticLightFraction           , &
+         &                                              radiusTypeGalacticMassFraction       , radiusTypeRadius                , radiusTypeSpheroidHalfMassRadius  , radiusTypeSpheroidRadius                  , &
+         &                                              radiusTypeStellarMassFraction        , radiusTypeVirialRadius          , radiusTypeNuclearStarClusterRadius, radiusTypeNuclearStarClusterHalfMassRadius, &
          &                                              radiusTypeDarkCoreRadius             , radiusTypeDarkCoreHalfMassRadius
-    use :: Galacticus_Nodes                    , only : nodeComponentDarkMatterProfile       , nodeComponentDisk               , nodeComponentSpheroid           , treeNode                       , &
-         &                                              nodeComponentBasic                   , nodeComponentHotHalo            , nodeComponentNSC                , nodeComponentDarkCore
+    
+    use :: Galacticus_Nodes                    , only : nodeComponentDarkMatterProfile       , nodeComponentDisk           , nodeComponentSpheroid             , treeNode                                  , &
+         &                                              nodeComponentBasic                   , nodeComponentHotHalo        , nodeComponentNSC                  , nodeComponentDarkCore
     use :: Mass_Distributions                  , only : massDistributionClass                , kinematicsDistributionClass
     use :: Coordinates                         , only : coordinateSpherical                  , assignment(=)
     use :: Numerical_Constants_Astronomical    , only : massSolar                            , megaParsec
@@ -260,7 +261,7 @@ contains
     class           (nodeComponentHotHalo                   )                , pointer     :: hotHalo
     class           (nodeComponentDisk                      )                , pointer     :: disk
     class           (nodeComponentSpheroid                  )                , pointer     :: spheroid
-    class           (nodeComponentNSC                       )                , pointer     :: NSC
+    class           (nodeComponentNSC                       )                , pointer     :: nuclearStarCluster
     class           (nodeComponentDarkCore                  )                , pointer     :: darkCore
     class           (nodeComponentDarkMatterProfile         )                , pointer     :: darkMatterProfile
     class           (massDistributionClass                  )                , pointer     :: massDistribution_
@@ -275,38 +276,39 @@ contains
     !$GLC attributes unused :: time, instance
 
     allocate(cgmCoolingFunctionExtract(self%radiiCount,self%elementCount_))
-    radiusVirial                                              =  0.0d0
-    if (self%         virialRadiusIsNeeded) radiusVirial      =  self%darkMatterHaloScale_%radiusVirial(node                    )
-    if (self%                 diskIsNeeded) disk              =>                                        node%disk             ()
-    if (self%             spheroidIsNeeded) spheroid          =>                                        node%spheroid         ()
-    if (self%                  NSCIsNeeded) NSC               =>                                        node%NSC              ()
-    if (self%             darkCoreIsNeeded) darkCore          =>                                        node%darkCore         ()
-    if (self%darkMatterScaleRadiusIsNeeded) darkMatterProfile =>                                        node%darkMatterProfile()
+    radiusVirial                                               =  0.0d0
+    if (self%         virialRadiusIsNeeded) radiusVirial       =  self%darkMatterHaloScale_%radiusVirial(node                    )
+    if (self%                 diskIsNeeded) disk               =>                                        node%disk             ()
+    if (self%             spheroidIsNeeded) spheroid           =>                                        node%spheroid         ()
+    if (self%   nuclearStarClusterIsNeeded) nuclearStarCluster =>                                        node%NSC              ()
+    if (self%             darkCoreIsNeeded) darkCore           =>                                        node%darkCore         ()
+    if (self%darkMatterScaleRadiusIsNeeded) darkMatterProfile  =>                                        node%darkMatterProfile()
+
     do i=1,self%radiiCount
        radius=self%radii(i)%value
        select case (self%radii(i)%type%ID)
-       case   (radiusTypeRadius                %ID)
+       case   (radiusTypeRadius                          %ID)
           ! Nothing to do.
-       case   (radiusTypeVirialRadius          %ID)
+       case   (radiusTypeVirialRadius                    %ID)
           radius=+radius*radiusVirial
        case   (radiusTypeDarkMatterScaleRadius %ID)
-          radius=+radius*darkMatterProfile%         scale()
+          radius=+radius*darkMatterProfile  %         scale()
        case   (radiusTypeDiskRadius            %ID)
-          radius=+radius*disk             %        radius()
+          radius=+radius*disk               %        radius()
        case   (radiusTypeSpheroidRadius        %ID)
-          radius=+radius*spheroid         %        radius()
+          radius=+radius*spheroid           %        radius()
        case   (radiusTypeNSCRadius             %ID)
-          radius=+radius*NSC              %        radius()
+          radius=+radius*NuclearStarCluster %        radius()
        case   (radiusTypeDarkCoreRadius        %ID)
-          radius=+radius*darkCore         %        radius()
+          radius=+radius*darkCore           %        radius()
        case   (radiusTypeDiskHalfMassRadius    %ID)
-          radius=+radius*disk             %halfMassRadius()
+          radius=+radius*disk               %halfMassRadius()
        case   (radiusTypeSpheroidHalfMassRadius%ID)
-          radius=+radius*spheroid         %halfMassRadius()
-       case   (radiusTypeNSCHalfMassRadius     %ID)
-          radius=+radius*NSC              %halfMassRadius()
+          radius=+radius*spheroid           %halfMassRadius()
+       case   (radiusTypeNuclearStarClusterHalfMassRadius %ID)
+          radius=+radius*NSC                %halfMassRadius()
        case   (radiusTypeDarkCoreHalfMassRadius%ID)
-          radius=+radius*darkCore         %halfMassRadius()
+          radius=+radius*darkCore           %halfMassRadius()
        case   (radiusTypeGalacticMassFraction  %ID,  &
             &  radiusTypeGalacticLightFraction %ID)
           massDistribution_ =>  node             %massDistribution   (                                                &

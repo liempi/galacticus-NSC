@@ -40,8 +40,9 @@
      type   (radiusSpecifier         ), allocatable, dimension(:) :: radii
      logical                                                      :: darkMatterScaleRadiusIsNeeded          , diskIsNeeded        , &
           &                                                          spheroidIsNeeded                       , virialRadiusIsNeeded, &
-          &                                                          NSCIsNeeded                            , darkCoreIsNeeded    , &
+          &                                                          nuclearStarClusterIsNeeded             , darkCoreIsNeeded    , &
           &                                                          satelliteIsNeeded
+
    contains
      final     ::                       densityProfileDestructor
      procedure :: columnDescriptions => densityProfileColumnDescriptions
@@ -123,7 +124,7 @@ contains
          &                                          self%radii                        , &
          &                                          self%diskIsNeeded                 , &
          &                                          self%spheroidIsNeeded             , &
-         &                                          self%NSCIsNeeded                  , &
+         &                                          self%nuclearStarClusterIsNeeded   , &
          &                                          self%darkCoreIsNeeded             , &
          &                                          self%satelliteIsNeeded            , &
          &                                          self%virialRadiusIsNeeded         , &
@@ -177,12 +178,11 @@ contains
     Implement a {\normalfont \ttfamily densityProfile} property extractor.
     !!}
     use :: Galactic_Structure_Options          , only : componentTypeAll               , massTypeGalactic                , massTypeStellar
-    use :: Galactic_Structure_Radii_Definitions, only : radiusTypeDarkMatterScaleRadius, radiusTypeDiskHalfMassRadius    , radiusTypeDiskRadius            , radiusTypeGalacticLightFraction, &
-          &                                             radiusTypeGalacticMassFraction , radiusTypeRadius                , radiusTypeSpheroidHalfMassRadius, radiusTypeSpheroidRadius       , &
-          &                                             radiusTypeStellarMassFraction  , radiusTypeVirialRadius          , radiusTypeNSCHalfMassRadius     , radiusTypeNSCRadius            , &
+    use :: Galactic_Structure_Radii_Definitions, only : radiusTypeDarkMatterScaleRadius, radiusTypeDiskHalfMassRadius    , radiusTypeDiskRadius                      , radiusTypeGalacticLightFraction   , &
+          &                                             radiusTypeGalacticMassFraction , radiusTypeRadius                , radiusTypeSpheroidHalfMassRadius          , radiusTypeSpheroidRadius          , &
+          &                                             radiusTypeStellarMassFraction  , radiusTypeVirialRadius          , radiusTypeNuclearStarClusterHalfMassRadius, radiusTypeNuclearStarClusterRadius, &
           &                                             radiusTypeDarkCoreRadius       , radiusTypeDarkCoreHalfMassRadius
-
-    use :: Galacticus_Nodes                    , only : nodeComponentDarkMatterProfile , nodeComponentDisk           , nodeComponentSpheroid           , nodeComponentNSC               , &
+    use :: Galacticus_Nodes                    , only : nodeComponentDarkMatterProfile , nodeComponentDisk               , nodeComponentSpheroid                     , nodeComponentNSC                  , &
          &                                              nodeComponentDarkCore          , treeNode
     use :: Mass_Distributions                  , only : massDistributionClass
     use :: Coordinates                         , only : coordinateSpherical            , assignment(=)
@@ -196,7 +196,7 @@ contains
     type            (multiCounter                       ), intent(inout) , optional    :: instance
     class           (nodeComponentDisk                  ), pointer                     :: disk
     class           (nodeComponentSpheroid              ), pointer                     :: spheroid
-    class           (nodeComponentNSC                   ), pointer                     :: NSC
+    class           (nodeComponentNSC                   ), pointer                     :: nuclearStarCluster
     class           (nodeComponentDarkCore              ), pointer                     :: darkCore
     class           (nodeComponentDarkMatterProfile     ), pointer                     :: darkMatterProfile
     class           (massDistributionClass              ), pointer                     :: massDistribution_
@@ -206,40 +206,41 @@ contains
     !$GLC attributes unused :: time, instance
 
     allocate(densityProfileExtract(self%radiiCount,self%elementCount_))
-    radiusVirial                                              =  0.0d0
-    if (self%         virialRadiusIsNeeded) radiusVirial      =  self%darkMatterHaloScale_%radiusVirial(node                    )
-    if (self%                 diskIsNeeded) disk              =>                                        node%disk             ()
-    if (self%             spheroidIsNeeded) spheroid          =>                                        node%spheroid         ()
-    if (self%                  NSCIsNeeded) NSC               =>                                        node%NSC              ()
-    if (self%             darkCoreIsNeeded) darkCore          =>                                        node%darkCore         ()
-    if (self%darkMatterScaleRadiusIsNeeded) darkMatterProfile =>                                        node%darkMatterProfile()
+    radiusVirial                                               =  0.0d0
+    if (self%         virialRadiusIsNeeded) radiusVirial       =  self%darkMatterHaloScale_%radiusVirial(node                    )
+    if (self%                 diskIsNeeded) disk               =>                                        node%disk             ()
+    if (self%             spheroidIsNeeded) spheroid           =>                                        node%spheroid         ()
+    if (self%   nuclearStarClusterIsNeeded) nuclearStarCluster =>                                        node%NSC              ()
+    if (self%             darkCoreIsNeeded) darkCore           =>                                        node%darkCore         ()
+    if (self%darkMatterScaleRadiusIsNeeded) darkMatterProfile  =>                                        node%darkMatterProfile()
+
     do i=1,self%radiiCount
        radius=self%radii(i)%value
        select case (self%radii(i)%type%ID)
-       case   (radiusTypeRadius                %ID)
+       case   (radiusTypeRadius                          %ID)
           ! Nothing to do.
-       case   (radiusTypeVirialRadius          %ID)
+       case   (radiusTypeVirialRadius                    %ID)
           radius=+radius*radiusVirial
-       case   (radiusTypeDarkMatterScaleRadius %ID)
-          radius=+radius*darkMatterProfile%         scale()
-       case   (radiusTypeDiskRadius            %ID)
-          radius=+radius*disk             %        radius()
-       case   (radiusTypeSpheroidRadius        %ID)
-          radius=+radius*spheroid         %        radius()
-       case   (radiusTypeNSCRadius             %ID)
-          radius=+radius*NSC              %        radius()
-       case   (radiusTypeDarkCoreRadius        %ID)
-          radius=+radius*darkCore         %        radius()
-       case   (radiusTypeDiskHalfMassRadius    %ID)
+       case   (radiusTypeDarkMatterScaleRadius           %ID)
+          radius=+radius*darkMatterProfile %         scale()
+       case   (radiusTypeDiskRadius                      %ID)
+          radius=+radius*disk              %        radius()
+       case   (radiusTypeSpheroidRadius                  %ID)
+          radius=+radius*spheroid          %        radius()
+       case   (radiusTypeNuclearStarClusterRadius        %ID)
+          radius=+radius*nuclearStarCluster%        radius()
+       case   (radiusTypeDarkCoreRadius                  %ID)
+          radius=+radius*darkCore          %        radius()
+       case   (radiusTypeDiskHalfMassRadius              %ID)
           radius=+radius*disk             %halfMassRadius()
-       case   (radiusTypeSpheroidHalfMassRadius%ID)
+       case   (radiusTypeSpheroidHalfMassRadius          %ID)
           radius=+radius*spheroid         %halfMassRadius()
-       case   (radiusTypeNSCHalfMassRadius     %ID)
-          radius=+radius*NSC              %halfMassRadius()
+       case   (radiusTypeNuclearStarClusterHalfMassRadius%ID)
+          radius=+radius*nuclearStarCluster%halfMassRadius()
        case   (radiusTypeDarkCoreHalfMassRadius%ID)
           radius=+radius*darkCore         %halfMassRadius()
-       case   (radiusTypeGalacticMassFraction  %ID,  &
-            &  radiusTypeGalacticLightFraction %ID)
+       case   (radiusTypeGalacticMassFraction            %ID,  &
+            &  radiusTypeGalacticLightFraction           %ID)
           massDistribution_ =>  node             %massDistribution   (                                                &
                &                                                      massType      =              massTypeStellar ,  &
                &                                                      componentType =              componentTypeAll,  &

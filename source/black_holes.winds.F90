@@ -1,5 +1,5 @@
 !! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
-!!           2019, 2020, 2021, 2022, 2023, 2024
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025
 !!    Andrew Benson <abenson@carnegiescience.edu>
 !!
 !! This file is part of Galacticus.
@@ -18,30 +18,32 @@
 !!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
 
 !!{
-Contains a module which provides a class that implements rates of star formation in nuclear star cluster.
+Contains a module which implements a class for black hole winds.
 !!}
 
-module Star_Formation_Rates_NSCs
+module Black_Hole_Winds
   !!{
-  Provides a class that implements calculations of rates of formation in nuclear star cluster.
+  Implements a class for black hole winds.
   !!}
-  use :: Galacticus_Nodes, only : treeNode
+  use :: Galacticus_Nodes, only : nodeComponentBlackHole
+  implicit none
   private
 
   !![
   <functionClass>
-   <name>starFormationRateNSCs</name>
-   <descriptiveName>Rates for star formation in nuclear star cluster.</descriptiveName>
-   <description>Class providing models of rates of star formation in nuclear star cluster.</description>
-   <default>krumholz2009</default>
-   <method name="rate" >
-    <description>Returns the rate (in units of $\mathrm{M}_\odot$ Gyr$^{-1}$) for star formation in the nuclear star cluster component of {\normalfont \ttfamily node}.</description>
+   <name>blackHoleWind</name>
+   <descriptiveName>Black Hole Winds</descriptiveName>
+   <description>
+    Class providing models of black hole winds.
+   </description>
+   <default>ciotti2009</default>
+   <method name="power" >
+    <description>Computes the power in the wind that couples to the surrounding galaxy.</description>
     <type>double precision</type>
     <pass>yes</pass>
-    <selfTarget>yes</selfTarget>
-    <argument>type(treeNode)  , intent(inout) :: node</argument>
+    <argument>class(nodeComponentBlackHole), intent(inout) :: blackHole</argument>
    </method>
   </functionClass>
   !!]
 
-end module Star_Formation_Rates_NSCs
+end module Black_Hole_Winds
