@@ -72,11 +72,18 @@ module Node_Component_NSC_Standard
       <attributes isSettable="true" isGettable="true" isEvolvable="true" />
     </property>
     <property>
-      <name>massBHs</name>
+      <name>massStellarBlackHoles</name>
       <type>double</type>
       <rank>0</rank>
       <attributes isSettable="true" isGettable="true" isEvolvable="true"/>
-      <output unitsInSI="massSolar" comment="Mass of the BHs formed due to stellar evolution in the standard Nuclear Star Cluster."/>
+      <output unitsInSI="massSolar" comment="Mass of the stellar black holes formed due to stellar evolution in the standard Nuclear Star Cluster."/>
+    </property>
+    <property>
+      <name>massDarkCore</name>
+      <type>double</type>
+      <rank>0</rank>
+      <attributes isSettable="true" isGettable="true" isEvolvable="true"/>
+      <output unitsInSI="massSolar" comment="Mass of the stellar mass black holes migrated into the center of the nuclear star cluster."/>
     </property>
     <property>
       <name>abundancesStellar</name>
@@ -744,8 +751,8 @@ contains
        ! Get spheroid component.
        spheroid  => node%spheroid()
        ! Set scale for angular momentum.
-       angularMomentum=+abs(nuclearStarCluster    %angularMomentum()) &
-            &          +abs(spheroid%angularMomentum())
+       angularMomentum=+abs(nuclearStarCluster%angularMomentum()) &
+            &          +abs(spheroid          %angularMomentum())
        call nuclearStarCluster%angularMomentumScale(max(angularMomentum,angularMomentumMinimum))
        ! Set scale for masses.
        ! The scale here (and for other quantities below) combines the mass of nuclear star cluster and spheroid.
@@ -754,10 +761,10 @@ contains
             &                  massMinimum                                         &
             &                 )                                                    &
             &             ) 
-       call nuclearStarCluster%massGasScale          (mass)
-       call nuclearStarCluster%massStellarScale      (mass)
-       call nuclearStarCluster%massBHsScale          (mass)
-       call nuclearStarCluster%massStellarFormedScale(mass)
+       call nuclearStarCluster%massGasScale              (mass)
+       call nuclearStarCluster%massStellarScale          (mass)
+       call nuclearStarCluster%massStellarBlackHolesScale(mass)
+       call nuclearStarCluster%massStellarFormedScale    (mass)
        ! Set scales for abundances if necessary.
        if (abundancesCount > 0) then
           ! Set scale for abundances.
@@ -1193,12 +1200,13 @@ contains
           case default
              call Error_Report('unrecognized movesTo descriptor'//{introspection:location})
           end select
-          call nuclearStarCluster%        massStellarSet(                  0.0d0)
-          call nuclearStarCluster%  abundancesStellarSet(         zeroAbundances)
-          call nuclearStarCluster%luminositiesStellarSet(zeroStellarLuminosities)
-          call nuclearStarCluster%    angularMomentumSet(                  0.0d0)
-          call nuclearStarCluster%            massBHsSet(                  0.0d0)
-          call nuclearStarCluster%        isCollapsedSet(                .false.)
+          call nuclearStarCluster%          massStellarSet(                  0.0d0)
+          call nuclearStarCluster%    abundancesStellarSet(         zeroAbundances)
+          call nuclearStarCluster%  luminositiesStellarSet(zeroStellarLuminosities)
+          call nuclearStarCluster%      angularMomentumSet(                  0.0d0)
+          call nuclearStarCluster%massStellarBlackHolesSet(                  0.0d0)
+          call nuclearStarCluster%         massDarkCoreSet(                  0.0d0)
+          call nuclearStarCluster%          isCollapsedSet(                .false.)
        end if
     end select
     return

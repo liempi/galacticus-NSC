@@ -36,8 +36,11 @@
      where $\epsilon=${\normalfont \ttfamily [efficiency]} is an efficiency free parameter.
      !!}
      private
-     double precision :: efficiency       
+     integer          :: darkCoreRadiusID      
+     double precision :: efficiency
    contains
+     procedure :: differentialEvolutionScales         => darkCoreDifferentialEvolutionScales
+     procedure :: differentialEvolutionInactives      => darkCoreDifferentialEvolutionInactives
      procedure :: differentialEvolutionSolveAnalytics => darkCoreRadiusDifferentialEvolutionSolveAnalytics
   end type nodeOperatorDarkCoreRadius
   
@@ -66,7 +69,7 @@ contains
       <name>efficiency</name>
       <source>parameters</source>
       <defaultValue>0.1d0</defaultValue>
-      <description>The assumed value with Dark Core radius scales with the NSC radius.</description>
+      <description>The assumed value with dark Core radius scales with the nuclear star cluster radius.</description>
     </inputParameter>
     !!]
     self=nodeOperatorDarkCoreRadius(efficiency)
@@ -86,41 +89,77 @@ contains
     double precision                            , intent(in   )  :: efficiency
     !![
     <constructorAssign variables="efficiency"/>
+    <addMetaProperty component="NSC" name="darkCoreRadius" id="self%darkCoreRadiusID" isEvolvable="no" isCreator="yes"/>
     !!]
     return
   end function darkCoreRadiusConstructorInternal
+  
+  subroutine darkCoreDifferentialEvolutionInactives(self,node)
+    !!{
+    Mark radius as inactive for ODE solving.    
+    !!}
+    use :: Galacticus_Nodes, only : nodeComponentNSC
+    implicit none
+    class(nodeOperatorDarkCoreRadius), intent(inout) :: self
+    type (treeNode                  ), intent(inout) :: node
+    class(nodeComponentNSC          ), pointer       :: nuclearStarCluster
+    
+    ! Get nuclear star cluster component.
+    nuclearStarCluster => node%NSC     ()
+    ! Mark as inactive.
+    select type (nuclearStarCluster)
+    type is (nodeComponentNSC     )
+        ! Nuclear star cluster does not yet exist - nothing to do here.
+    class default
+       call nuclearStarCluster%floatRank0MetaPropertyInactive(self%darkCoreRadiusID)
+    end select
+    return
+  end subroutine darkCoreDifferentialEvolutionInactives
+    
+  subroutine darkCoreDifferentialEvolutionScales(self,node)
+    !!{
+    Set absolute ODE solver scale for the dark core radius.
+    !!}
+    use :: Galacticus_Nodes, only : nodeComponentNSC
+    implicit none
+    class           (nodeOperatorDarkCoreRadius), intent(inout) :: self
+    type            (treeNode                  ), intent(inout) :: node
+    class           (nodeComponentNSC          ), pointer       :: nuclearStarCluster
+    double precision                            , parameter     :: radiusMinimum           =1.0d-10, scaleRelative=1.0d-6
+    double precision                                            :: nuclearStarClusterRadius
+    
+    ! Get the nuclear star cluster components.
+    nuclearStarCluster =>  node%NSC        ()
+    ! Set scale for masses.
+    nuclearStarClusterRadius = nuclearStarCluster%radius()        
+    ! Set scales
+    select type (nuclearStarCluster)
+    type is (nodeComponentNSC     )
+       ! Nuclear star cluster does not yet exist - nothing to do here.
+    class default
+       call nuclearStarCluster%floatRank0MetaPropertyScale(self%darkCoreRadiusID,max(radiusMinimum,scaleRelative*nuclearStarClusterRadius))
+    end select
+    return
+  end subroutine darkCoreDifferentialEvolutionScales
   
   subroutine darkCoreRadiusDifferentialEvolutionSolveAnalytics(self,node,time)
       !!{
         Set the radius of the dark core.
       !!}
-    use :: Galacticus_Nodes , only : nodeComponentNSC             , nodeComponentDarkCore, nodeComponentNSCStandard, &
-                &                    nodeComponentDarkCoreStandard, treeNode
+    use :: Galacticus_Nodes , only : nodeComponentNSC, nodeComponentNSCStandard, treeNode
     implicit none
     class(nodeOperatorDarkCoreRadius), intent(inout)         :: self
     type (treeNode                  ), intent(inout)         :: node
     double precision                 , intent(in   )         :: time
-    class (nodeComponentNSC         ),                pointer:: NSC
-    class (nodeComponentDarkCore    ),                pointer:: darkCore
-    double precision                                         :: radiusNSC, radiusDarkCore
+    class (nodeComponentNSC         ),                pointer:: nuclearStarCluster
+    double precision                                         :: nuclearStarClusterRadius, darkCoreRadius
     !$GLC attributes unused :: time
 
-    NSC      =>  node%     NSC()
-    darkCore =>  node%darkCore()
-
-    radiusNSC = NSC%radius()
-    if (radiusNSC > 0.0d0) then
-      !Check if the Dark Core component has already initialized.
-      select type (darkCore)
-        type is (nodeComponentDarkCore)
-          !Null Dark Core class. Do nothing.
-          return
-        class default 
-          !default class, compute the dark core radius and set.
-          radiusDarkCore = self%efficiency * radiusNSC
-          call darkCore%radiusSet(radiusDarkCore)
-          return
-      end select
+    nuclearStarCluster       => node              %   NSC()
+    nuclearStarClusterRadius =  nuclearStarCluster%radius()
+    if (nuclearStarClusterRadius> 0.0d0) then
+      darkCoreRadius = self%efficiency*nuclearStarClusterRadius
+      call nuclearStarCluster%floatRank0MetaPropertySet(self%darkCoreRadiusID, darkCoreRadius)
     end if 
     return
   end subroutine darkCoreRadiusDifferentialEvolutionSolveAnalytics

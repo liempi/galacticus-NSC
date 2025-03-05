@@ -42,11 +42,9 @@ module Galactic_Structure_Radii_Definitions
    <entry label="darkMatterScaleRadius"            description="Radii are specified in units of the dark matter profile scale radius"                       />
    <entry label="diskRadius"                       description="Radii are specified in units of the disk scale radius"                                      />
    <entry label="nuclearStarClusterRadius"         description="Radii are specified in units of the \gls{nsc} scale radius"                                 />
-   <entry label="darkCoreRadius"                   description="Radii are specified in units of the dark core scale radius"                                 />
    <entry label="spheroidRadius"                   description="Radii are specified in units of the spheroid scale radius"                                  />
    <entry label="diskHalfMassRadius"               description="Radii are specified in units of the disk half-mass radius"                                  />
    <entry label="nuclearStarClusterHalfMassRadius" description="Radii are specified in units of the \gls{nsc} half-mass radius"                             />
-   <entry label="darkCoreHalfMassRadius"           description="Radii are specified in units of the dark core half-mass radius"                             />
    <entry label="spheroidHalfMassRadius"           description="Radii are specified in units of the spheroid half-mass radius"                              />
    <entry label="satelliteBoundMassFraction"       description="Radii are specified in units of the radius enclosing a fraction of the satellite bound mass"/>
    <entry label="galacticMassFraction"             description="Radii are specified in units of the radius enclosing a fraction of the galactic mass"       />
@@ -85,7 +83,7 @@ module Galactic_Structure_Radii_Definitions
 
 contains
 
-  subroutine Galactic_Structure_Radii_Definition_Decode(descriptors,specifiers,diskRequired,spheroidRequired,nuclearStarClusterRequired,darkCoreRequired,satelliteRequired,radiusVirialRequired,radiusScaleRequired)
+  subroutine Galactic_Structure_Radii_Definition_Decode(descriptors,specifiers,diskRequired,spheroidRequired,nuclearStarClusterRequired,satelliteRequired,radiusVirialRequired,radiusScaleRequired)
     !!{
     Decode a set of radii descriptors and return the corresponding specifiers.
     !!}
@@ -93,7 +91,7 @@ contains
           &                                       enumerationComponentTypeDescribe , enumerationMassTypeDescribe, weightIndexNull
     use :: Error                         , only : Component_List                   , Error_Report               , errorStatusSuccess
     use :: Galacticus_Nodes              , only : defaultDarkMatterProfileComponent, defaultDiskComponent       , defaultSpheroidComponent, defaultNSCComponent, &
-          &                                       defaultDarkCoreComponent         , treeNode
+          &                                       treeNode
     use :: ISO_Varying_String            , only : char                             , extract                    , operator(==)            , assignment(=)      , &
           &                                       operator(//)
     use :: Stellar_Luminosities_Structure, only : unitStellarLuminosities
@@ -103,8 +101,7 @@ contains
     type     (radiusSpecifier), intent(inout), dimension(:), allocatable :: specifiers
     logical                   , intent(  out)                            :: diskRequired              , spheroidRequired    , &
          &                                                                  nuclearStarClusterRequired, radiusVirialRequired, &
-         &                                                                  radiusScaleRequired       , satelliteRequired   , &
-         &                                                                  darkCoreRequired
+         &                                                                  radiusScaleRequired       , satelliteRequired
     type     (varying_string  )              , dimension(5)              :: radiusDefinition
     type     (varying_string  )              , dimension(3)              :: fractionDefinition
     type     (varying_string  )              , dimension(2)              :: weightingDefinition
@@ -116,7 +113,6 @@ contains
     diskRequired              =.false.
     spheroidRequired          =.false.
     nuclearStarClusterRequired=.false.
-    darkCoreRequired          =.false.
     satelliteRequired         =.false.
     radiusVirialRequired      =.false.
     radiusScaleRequired       =.false.
@@ -198,20 +194,6 @@ contains
                &                       )                                                                             // &
                &       {introspection:location}                                                                         &
                &                             )
-        case ('darkCoreRadius'           )
-          specifiers(i)%type=radiusTypeDarkCoreRadius
-          darkCoreRequired                 =.true.
-          if (.not.defaultDarkCoreComponent        %radiusIsGettable        ())                                         &
-               & call Error_Report                                                                                      &
-               &(                                                                                                       &
-               &                              'dark core radius is not gettable.'//                                     &
-               &        Component_List(                                                                                 &
-               &                       'DarkCore'                                                                   ,   &
-               &                        defaultDarkCoreComponent%        radiusAttributeMatch(requireGettable=.true.)   &
-               &                       )                                                                             // &
-               &       {introspection:location}                                                                         &
-               &                             )
-
        case ('diskHalfMassRadius'              )
           specifiers(i)%type=radiusTypeDiskHalfMassRadius
           diskRequired                 =.true.
@@ -248,19 +230,6 @@ contains
                &        Component_List(                                                                                 &
                &                       'NSC'                                                                         ,  &
                &                        defaultNSCComponent     %halfMassRadiusAttributeMatch(requireGettable=.true.)   &
-               &                       )                                                                             // &
-               &       {introspection:location}                                                                         &
-               &                             )
-        case ('DarkCoreHalfMassRadius')
-          specifiers(i)%type=radiusTypeDarkCoreHalfMassRadius
-          darkCoreRequired   =.true.
-          if (.not.defaultDarkCoreComponent    %halfMassRadiusIsGettable())                                             &
-               & call Error_Report                                                                                      &
-               &(                                                                                                       &
-               &                              'dark core half-mass radius is not gettable.'//                           &
-               &        Component_List(                                                                                 &
-               &                       'NSC'                                                                         ,  &
-               &                        defaultDarkCoreComponent%halfMassRadiusAttributeMatch(requireGettable=.true.)   &
                &                       )                                                                             // &
                &       {introspection:location}                                                                         &
                &                             )
