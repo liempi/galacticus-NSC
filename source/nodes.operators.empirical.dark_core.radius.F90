@@ -39,7 +39,6 @@
      integer          :: darkCoreRadiusID      
      double precision :: efficiency
    contains
-     procedure :: differentialEvolutionScales         => darkCoreDifferentialEvolutionScales
      procedure :: differentialEvolutionInactives      => darkCoreDifferentialEvolutionInactives
      procedure :: differentialEvolutionSolveAnalytics => darkCoreRadiusDifferentialEvolutionSolveAnalytics
   end type nodeOperatorDarkCoreRadius
@@ -115,32 +114,6 @@ contains
     end select
     return
   end subroutine darkCoreDifferentialEvolutionInactives
-    
-  subroutine darkCoreDifferentialEvolutionScales(self,node)
-    !!{
-    Set absolute ODE solver scale for the dark core radius.
-    !!}
-    use :: Galacticus_Nodes, only : nodeComponentNSC
-    implicit none
-    class           (nodeOperatorDarkCoreRadius), intent(inout) :: self
-    type            (treeNode                  ), intent(inout) :: node
-    class           (nodeComponentNSC          ), pointer       :: nuclearStarCluster
-    double precision                            , parameter     :: radiusMinimum           =1.0d-10, scaleRelative=1.0d-6
-    double precision                                            :: nuclearStarClusterRadius
-    
-    ! Get the nuclear star cluster components.
-    nuclearStarCluster =>  node%NSC        ()
-    ! Set scale for masses.
-    nuclearStarClusterRadius = nuclearStarCluster%radius()        
-    ! Set scales
-    select type (nuclearStarCluster)
-    type is (nodeComponentNSC     )
-       ! Nuclear star cluster does not yet exist - nothing to do here.
-    class default
-       call nuclearStarCluster%floatRank0MetaPropertyScale(self%darkCoreRadiusID,max(radiusMinimum,scaleRelative*nuclearStarClusterRadius))
-    end select
-    return
-  end subroutine darkCoreDifferentialEvolutionScales
   
   subroutine darkCoreRadiusDifferentialEvolutionSolveAnalytics(self,node,time)
       !!{
