@@ -40,6 +40,7 @@ module Black_Hole_Seeds
     <decodeFunction>yes</decodeFunction>
     <entry label="undetermined"       />
     <entry label="starClusterCollapse"/>
+    <entry label="darkCoreCollapse"   />
   </enumeration>
   !!]
   
