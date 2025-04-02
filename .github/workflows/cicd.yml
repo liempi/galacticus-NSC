@@ -333,7 +333,7 @@ jobs:
           tags: ghcr.io/galacticusorg/galacticus:latest
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            REPO=${{ github.repository }}
+            REPO=${{ github.event.pull_request.head.repo.full_name || github.repository }}
             BRANCH=${{ github.head_ref || github.ref_name }}          
   ### Documentation
   Build-Documentation-Linux:
@@ -353,7 +353,8 @@ jobs:
         run: |
           cd $GALACTICUS_EXEC_PATH
           git config --global --add safe.directory $GALACTICUS_EXEC_PATH
-          ./scripts/doc/Build_Documentation.sh -f yes -p 2
+          ./scripts/doc/Build_Documentation.sh -f yes -p 2 2>&1 | tee docBuild.log
+          grep -vqzi 'warning: missing method descriptions in class' docBuild.log || (echo "FAIL: issing method description warnings found in docBuild.log" && false)
       - name: Upload docs
         uses: actions/upload-artifact@v4
         with:
