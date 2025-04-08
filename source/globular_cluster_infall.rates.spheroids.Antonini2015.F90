@@ -205,12 +205,10 @@ contains
         implicit none
         double precision                     , intent(in  ) :: radius
         type            (coordinateSpherical)               :: coordinates
-        double precision                                    :: density
 
         coordinates    = [radius,0.0d0,0.0d0]
         ! Get stellar density.
-        density        = massDistributionStellar_%density(coordinates)
-        radialIntegrand= density*radius
+        radialIntegrand = massDistributionStellar_%density(coordinates)
         return 
       end function radialIntegrand 
 

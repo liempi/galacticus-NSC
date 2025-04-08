@@ -37,8 +37,10 @@
      integer                                               :: globularClusterStellarMassDiskID
      double precision                                      :: fraction 
    contains
-     final     ::                          globularClusterInfallDisksDestructor
-     procedure :: differentialEvolution => globularClusterInfallDisksDifferentialEvolution
+     final     ::                                   globularClusterInfallDisksDestructor
+     procedure :: differentialEvolutionScales    => globularClusterInfallDisksDifferentialEvolutionScales
+     procedure :: differentialEvolutionInactives => globularClusterInfallDisksDifferentialEvolutionInactives
+     procedure :: differentialEvolution          => globularClusterInfallDisksDifferentialEvolution
   end type nodeOperatorglobularClusterInfallDisks
   
   interface nodeOperatorglobularClusterInfallDisks
@@ -109,6 +111,50 @@ contains
     return
   end subroutine globularClusterInfallDisksDestructor
   
+  subroutine globularClusterInfallDisksDifferentialEvolutionInactives(self,node)
+    !!{
+    Mark disk as inactive for ODE solving.    
+    !!}
+    use :: Galacticus_Nodes, only : nodeComponentDisk
+    implicit none
+    class(nodeOperatorglobularClusterInfallDisks), intent(inout) :: self
+    type (treeNode                              ), intent(inout) :: node
+    class(nodeComponentDisk                     ), pointer       :: disk
+    
+    ! Get disk component.
+    disk => node%disk()
+    ! Mark as inactive.
+    select type (disk)
+    type is (nodeComponentDisk)
+       ! Disk does not yet exist - nothing to do here.
+    class default
+       call disk%floatRank0MetaPropertyInactive(self%globularClusterStellarMassDiskID)
+    end select
+    return
+  end subroutine globularClusterInfallDisksDifferentialEvolutionInactives
+
+
+  subroutine globularClusterInfallDisksDifferentialEvolutionScales(self,node)
+    !!{
+    Set absolute ODE solver scale for the energy radiated from the hot halo due to cooling following the model of \cite{benson_galaxy_2010-1}.
+    !!}
+    use :: Galacticus_Nodes, only : nodeComponentDisk
+    implicit none
+    class           (nodeOperatorglobularClusterInfallDisks), intent(inout) :: self
+    type            (treeNode                              ), intent(inout) :: node
+    double precision                                        , parameter     :: scaleRelative=+1.0d-6
+    class           (nodeComponentDisk                     ), pointer       :: disk
+   
+    disk => node%disk()
+    
+    select type (disk)
+    type is (nodeComponentDisk)
+    class default
+        call disk%floatRank0MetaPropertyScale(self%globularClusterStellarMassDiskID,max(1.0d0,disk%massStellar()*scaleRelative))
+    end select
+    return
+  end subroutine globularClusterInfallDisksDifferentialEvolutionScales
+
   subroutine globularClusterInfallDisksDifferentialEvolution(self,node,interrupt,functionInterrupt,propertyType)
     !!{
     Perform globular cluster dissolution in a disk.
