@@ -167,14 +167,13 @@ contains
           ! Generic type - interrupt and create a black hole if velocity dispersion is greater than the threshold.
           if ( self%velocityThreshold <= velocityDispersionDarkCore) then
             call nuclearStarCluster%floatRank0MetaPropertySet(self%redshiftBlackHoleSeedFormationID,self%cosmologyFunctions_%redshiftFromExpansionFactor   (self%cosmologyFunctions_%expansionFactor(time)))
-            mass   =+self              %massEfficiency &
-                 &  *nuclearStarCluster%massDarkCore()
+            mass   = max(                                                        &
+              &          +self%massEfficiency*nuclearStarCluster%massDarkCore(), & 
+              &          +8.0d0                                                  & 
+              &         )
             ! Adjust black hole stellar mass of the nuclear star cluster
-            call nuclearStarCluster%massDarkCoreSet(                                  &
-                 &                                   nuclearStarCluster%massDarkCore() &
-                 &                                  -mass                              &
-                 &                                 )
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%blackHoleSeedMassID,mass)            
+            call nuclearStarCluster%massDarkCoreSet          (+nuclearStarCluster%massDarkCore()  -mass)
+            call nuclearStarCluster%floatRank0MetaPropertySet(+self%blackHoleSeedMassID         , +mass)            
           else
             mass   =+0.0d0
           end if 

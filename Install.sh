@@ -8,5 +8,5 @@ if [[ "${ver}" -eq 13 ]]; then
 fi
 export GALACTICUS_CFLAGS="-I/usr/local/include -I/opt/local/include"
 export GALACTICUS_CPPFLAGS="-I/usr/local/include -I/opt/local/include"
-make -j8 GALACTICUS_BUILD_OPTION=MPI Galacticus.exe
+make -j4 Galacticus.exe
 
