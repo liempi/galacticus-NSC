@@ -18,11 +18,7 @@
 !!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
 
 !!{
-<<<<<<< HEAD
 Contains a module which implements a stellar mass function output analysis class for the COSMOS survey of .
-=======
-Contains a module which implements a stellar mass function output analysis class for the COSMOS survey of \cite{muzzin_evolution_2013}.
->>>>>>> 086e3aa7281a2b0086f0d67ccb7b021925e796e5
 !!}
 
 
@@ -244,7 +240,7 @@ contains
 
     fileName     ='Stellar_Mass_Function_Cosmos_2023_z5.00_7.00.hdf5'
     massThreshold=2.0d8
-    description  =description//"$z=5$--7$"
+    description  =description//"$z=5-7$"
   
     ! Build a filter which select galaxies with stellar mass above a threshold.
     allocate(galacticFilter_)
