@@ -28,7 +28,7 @@ Contains a module which implements an AGN bolometric luminosity property extract
    <description>An AGN bolometric luminosity property extractor class.</description>
   </nodePropertyExtractor>
   !!]
-  type, extends(nodePropertyExtractorList) :: nodePropertyExtractorAGNBolometricLuminosity
+  type, extends(nodePropertyExtractorScalar) :: nodePropertyExtractorAGNBolometricLuminosity
      !!{
      An AGNBolometricLuminosity property extractor class.
      !!}
@@ -36,25 +36,24 @@ Contains a module which implements an AGN bolometric luminosity property extract
      class(blackHoleAccretionRateClass), pointer :: blackHoleAccretionRate_ => null()
      class(accretionDisksClass        ), pointer :: accretionDisks_         => null()
    contains
-     final     ::                 AGNBolometricLuminosityDestructor
-     procedure :: elementCount => AGNBolometricLuminosityElementCount
-     procedure :: extract      => AGNBolometricLuminosityExtract
-     procedure :: names        => AGNBolometricLuminosityNames
-     procedure :: descriptions => AGNBolometricLuminosityDescriptions
-     procedure :: unitsInSI    => AGNBolometricLuminosityUnitsInSI
+     final     ::                agnBolometricLuminosityDestructor
+     procedure :: extract     => agnBolometricLuminosityExtract
+     procedure :: name        => agnBolometricLuminosityName
+     procedure :: description => agnBolometricLuminosityDescription
+     procedure :: unitsInSI   => agnBolometricLuminosityUnitsInSI
   end type nodePropertyExtractorAGNBolometricLuminosity
 
   interface nodePropertyExtractorAGNBolometricLuminosity
      !!{
      Constructors for the ``AGNBolometricLuminosity'' output analysis class.
      !!}
-     module procedure AGNBolometricLuminosityConstructorParameters
-     module procedure AGNBolometricLuminosityConstructorInternal
+     module procedure agnBolometricLuminosityConstructorParameters
+     module procedure agnBolometricLuminosityConstructorInternal
   end interface nodePropertyExtractorAGNBolometricLuminosity
 
 contains
 
-  function AGNBolometricLuminosityConstructorParameters(parameters) result(self)
+  function agnBolometricLuminosityConstructorParameters(parameters) result(self)
     !!{
     Constructor for the {\normalfont \ttfamily AGNBolometricLuminosity} property extractor class which takes a parameter set as input.
     !!}
@@ -76,9 +75,9 @@ contains
     <objectDestructor name="accretionDisks_"/>
     !!]
     return
-  end function AGNBolometricLuminosityConstructorParameters
+  end function agnBolometricLuminosityConstructorParameters
 
-  function AGNBolometricLuminosityConstructorInternal(blackHoleAccretionRate_,accretionDisks_) result(self)
+  function agnBolometricLuminosityConstructorInternal(blackHoleAccretionRate_,accretionDisks_) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily AGNBolometricLuminosity} property extractor class.
     !!}
@@ -91,9 +90,9 @@ contains
     !!]
 
     return
-  end function AGNBolometricLuminosityConstructorInternal
+  end function agnBolometricLuminosityConstructorInternal
 
-  subroutine AGNBolometricLuminosityDestructor(self)
+  subroutine agnBolometricLuminosityDestructor(self)
     !!{
     Destructor for the {\normalfont \ttfamily AGNBolometricLuminosity} property extractor class.
     !!}
@@ -104,97 +103,76 @@ contains
     <objectDestructor name="self%accretionDisks_"/>
     !!]
     return
-  end subroutine AGNBolometricLuminosityDestructor
+  end subroutine agnBolometricLuminosityDestructor
 
-  integer function AGNBolometricLuminosityElementCount(self)
+  double precision function agnBolometricLuminosityExtract(self,node,instance)
     !!{
-    Return a count of the number of properties extracted.
-    !!}
-    implicit none
-    class(nodePropertyExtractorAGNBolometricLuminosity), intent(inout) :: self
-
-    AGNBolometricLuminosityElementCount=1
-    return
-  end function AGNBolometricLuminosityElementCount
-
-  function AGNBolometricLuminosityExtract(self,node,instance) result(AGNBolometricLuminosity)
-    !!{
-    Implement an ICM X-ray properties extractor.
+    Implement an AGN bolometric luminosity extractor.
     !!}
     use :: Galacticus_Nodes                , only : nodeComponentBlackHole
     use :: Numerical_Constants_Astronomical, only : gigaYear              , luminositySolar, massSolar
     use :: Numerical_Constants_Physical    , only : speedLight
     implicit none
-    double precision                                              , dimension(:,:), allocatable :: AGNBolometricLuminosity
-    class           (nodePropertyExtractorAGNBolometricLuminosity), intent(inout)               :: self
-    type            (treeNode                                    ), intent(inout)               :: node
-    type            (multiCounter                                ), intent(inout) , optional    :: instance
-    class           (nodeComponentBlackHole                      )                , pointer     :: blackHole
-    double precision                                                                            :: rateAccretionSpheroid  , rateAccretionHotHalo           , &
-         &                                                                                         rateAccretion          , rateAccretionNuclearStarCluster, &
-         &                                                                                         efficiencyRadiative
-    integer                                                                                     :: i                      , countBlackHoles
+    class           (nodePropertyExtractorAGNBolometricLuminosity), intent(inout), target   :: self
+    type            (treeNode                                    ), intent(inout), target   :: node
+    type            (multiCounter                                ), intent(inout), optional :: instance
+    class           (nodeComponentBlackHole                      )               , pointer  :: blackHole
+    double precision                                                                        :: rateAccretionSpheroid, rateAccretionHotHalo           , &
+         &                                                                                     rateAccretion        , rateAccretionNuclearStarCluster, &
+         &                                                                                     efficiencyRadiative
     !$GLC attributes unused :: instance
     
-    countBlackHoles=node%blackHoleCount()
-    allocate(AGNBolometricLuminosity(countBlackHoles,1))
-    do i=1,countBlackHoles
-       blackHole                   => node%blackHole(instance=i)
-       call self%blackHoleAccretionRate_%rateAccretion(blackHole,rateAccretionSpheroid,rateAccretionHotHalo,rateAccretionNuclearStarCluster)
-       rateAccretion               = +                    rateAccretionSpheroid                                                         &
-            &                        +                    rateAccretionHotHalo                                                          &
-            &                        +                    rateAccretionNuclearStarCluster
-       efficiencyRadiative         = self%accretionDisks_%efficiencyRadiative  (blackHole,rateAccretion                               )
-       AGNBolometricLuminosity(i,1)= +efficiencyRadiative    &
-            &                        *rateAccretion          &
-            &                        *massSolar              &
-            &                        *speedLight         **2 &
-            &                        /gigaYear               &
-            &                        /luminositySolar
-    end do
+    blackHole                      => node%blackHole()
+    call self%blackHoleAccretionRate_%rateAccretion(blackHole,rateAccretionSpheroid,rateAccretionHotHalo,rateAccretionNuclearStarCluster)
+    rateAccretion                  = +                    rateAccretionSpheroid                                                         &
+         &                           +                    rateAccretionHotHalo                                                          &
+         &                           +                    rateAccretionNuclearStarCluster
+    efficiencyRadiative            = self%accretionDisks_%efficiencyRadiative  (blackHole,rateAccretion                               )
+    agnBolometricLuminosityExtract = +efficiencyRadiative    &
+          &                          *rateAccretion          &
+          &                          *massSolar              &
+          &                          *speedLight         **2 &
+          &                          /gigaYear               &
+          &                          /luminositySolar
     return
-  end function AGNBolometricLuminosityExtract
+  end function agnBolometricLuminosityExtract
 
-  subroutine AGNBolometricLuminosityNames(self,names)
+  function agnBolometricLuminosityName(self)
     !!{
     Return the names of the {\normalfont \ttfamily AGNBolometricLuminosity} properties.
     !!}
     implicit none
-    class(nodePropertyExtractorAGNBolometricLuminosity), intent(inout)                             :: self
-    type (varying_string                              ), intent(inout), dimension(:) , allocatable :: names
+    type (varying_string                              )                :: agnBolometricLuminosityName
+    class(nodePropertyExtractorAGNBolometricLuminosity), intent(inout) :: self
     !$GLC attributes unused :: self
     
-    allocate(names(1))
-    names(1)=var_str('AGNBolometricLuminosity')
+    agnBolometricLuminosityName=var_str('AGNBolometricLuminosity')
     return
-  end subroutine AGNBolometricLuminosityNames
+  end function agnBolometricLuminosityName
 
-  subroutine AGNBolometricLuminosityDescriptions(self,descriptions)
+  function agnBolometricLuminosityDescription(self)
     !!{
     Return descriptions of the {\normalfont \ttfamily AGNBolometricLuminosity} properties.
     !!}
     implicit none
-    class(nodePropertyExtractorAGNBolometricLuminosity), intent(inout)                             :: self
-    type (varying_string                              ), intent(inout), dimension(:) , allocatable :: descriptions
+    type (varying_string                              )                :: agnBolometricLuminosityDescription
+    class(nodePropertyExtractorAGNBolometricLuminosity), intent(inout) :: self
     !$GLC attributes unused :: self
     
-    allocate(descriptions(1))
-    descriptions(1)=var_str('AGN luminosity of the ICM [ergs/s]')
+    agnBolometricLuminosityDescription=var_str('AGN bolometric luminosity [ergs/s]')
     return
-  end subroutine AGNBolometricLuminosityDescriptions
+  end function agnBolometricLuminosityDescription
 
-  function AGNBolometricLuminosityUnitsInSI(self) result(unitsInSI)
+  double precision function agnBolometricLuminosityUnitsInSI(self)
     !!{
     Return the units of the {\normalfont \ttfamily AGNBolometricLuminosity} properties in the SI system.
     !!}
     use :: Numerical_Constants_Units, only : ergs
     implicit none
-    double precision                                              , dimension(:) , allocatable :: unitsInSI
-    class           (nodePropertyExtractorAGNBolometricLuminosity), intent(inout)              :: self
+    class           (nodePropertyExtractorAGNBolometricLuminosity), intent(inout) :: self
     !$GLC attributes unused :: self
     
-    allocate(unitsInSI(1))
-    unitsInSI(1)=ergs
+    agnBolometricLuminosityUnitsInSI=ergs
     return
-  end function AGNBolometricLuminosityUnitsInSI
+  end function agnBolometricLuminosityUnitsInSI
 
