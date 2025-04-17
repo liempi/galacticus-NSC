@@ -122,7 +122,10 @@ contains
          &                                                                                     efficiencyRadiative
     !$GLC attributes unused :: instance
     
-    blackHole                      => node%blackHole()
+    blackHole => node%blackHole()
+    
+    if (blackHole%mass() <= 0.0d0) agnBolometricLuminosityExtract = 0.0d0
+
     call self%blackHoleAccretionRate_%rateAccretion(blackHole,rateAccretionSpheroid,rateAccretionHotHalo,rateAccretionNuclearStarCluster)
     rateAccretion                  = +                    rateAccretionSpheroid                                                         &
          &                           +                    rateAccretionHotHalo                                                          &
