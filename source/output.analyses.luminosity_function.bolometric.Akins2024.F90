@@ -157,7 +157,7 @@ contains
     !!}
     use :: Cosmology_Functions                   , only : cosmologyFunctionsClass                        , cosmologyFunctionsMatterLambda
     use :: Cosmology_Parameters                  , only : cosmologyParametersSimple
-    use :: Galactic_Filters                      , only : galacticFilterStellarMass
+    use :: Galactic_Filters                      , only : galacticFilterBlackHoleMass
     use :: Error                                 , only : Error_Report
     use :: Input_Paths                           , only : inputPath                                      , pathTypeDataStatic
     use :: Geometry_Surveys                      , only : surveyGeometryFullSky
@@ -175,7 +175,7 @@ contains
     double precision                                                     , intent(in   ), dimension(:) :: randomErrorPolynomialCoefficient                    , systematicErrorPolynomialCoefficient
     integer                                                              , intent(in   )               :: covarianceBinomialBinsPerDecade
     double precision                                                     , intent(in   )               :: covarianceBinomialMassHaloMinimum                   , covarianceBinomialMassHaloMaximum
-    type            (galacticFilterStellarMass                          )               , pointer      :: galacticFilter_
+    type            (galacticFilterBlackHoleMass                        )               , pointer      :: galacticFilter_
     type            (surveyGeometryFullSky                              )               , pointer      :: surveyGeometry_
     type            (outputAnalysisPropertyOperatorSystmtcPolynomial    )               , pointer      :: outputAnalysisPropertyOperator_
     type            (outputAnalysisDistributionOperatorRandomErrorPlynml)               , pointer      :: outputAnalysisDistributionOperatorRandomErrorPlynml_
@@ -193,7 +193,7 @@ contains
     ! Build a filter which select galaxies with stellar mass 10³M☉ or greater.
     allocate(galacticFilter_)
     !![
-    <referenceConstruct object="galacticFilter_" constructor="galacticFilterStellarMass(massThreshold=1.0d3)"/>
+    <referenceConstruct object="galacticFilter_" constructor="galacticFilterBlackHoleMass(massThreshold=1.0d3)"/>
     !!]
     ! Create cosmological model in which data were analyzed.
     allocate(cosmologyParametersData)
