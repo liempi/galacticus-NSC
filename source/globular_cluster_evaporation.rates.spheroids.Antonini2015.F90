@@ -108,15 +108,23 @@ contains
     !!{
     Returns the globular formation rate (in $\mathrm{M}_\odot$ Gyr$^{-1}$) in the galactic spheroid of {\normalfont \ttfamily node}
     !!}
-    use :: Galacticus_Nodes        , only : nodeComponentSpheroid, treeNode
-    use :: Numerical_Constants_Math, only : Pi
+    use :: Galactic_Structure_Options, only : componentTypeSpheroid, massTypeStellar
+    use :: Galacticus_Nodes          , only : nodeComponentSpheroid, treeNode
+    use :: Mass_Distributions        , only : massDistributionClass
+    use :: Numerical_Constants_Math  , only : Pi
+    use :: Numerical_Integration     , only : integrator
+    
     implicit none
     class           (globularClusterEvaporationRateSpheroidsAntonini2015), intent(inout), target  :: self
     type            (treeNode                                           ), intent(inout), target  :: node
+    class           (massDistributionClass                              ), pointer                :: massDistributionStellar_
+    double precision                                                     , parameter              :: radiusInnerDimensionless=1.0d-13, radiusOuterDimensionless=1.0d0
     class           (nodeComponentSpheroid                              ), pointer                :: spheroid 
     double precision                                                                              :: radiusSpheroid             , massStellar         , &
          &                                                                                           normalizationMass          , evaporationTimescale, &
-         &                                                                                           massGlobularClusterSpheroid
+         &                                                                                           massGlobularClusterSpheroid, radiusInner         , &
+         &                                                                                           radiusOuter
+    type            (integrator                                         )                         :: integrator_
 
     ! Get the spheroid properties.
     spheroid       => node    %spheroid   ()
@@ -136,12 +144,19 @@ contains
         evaporationTimescale        = 17.0d0 / 2.0d5 ! Gyr M☉⁻¹
         massGlobularClusterSpheroid = spheroid%floatRank0MetaPropertyGet(self%globularClusterStellarMassSpheroidID    ) ! M☉
 
-        ! Find the rate of globSular cluster formation in the spheroid component.
+        ! Find the rate of globular cluster formation in the spheroid component.
         if (massGlobularClusterSpheroid <= 0.0d0) then
-            rate   = 0.0d0
-            return
+          rate   = 0.0d0
+          return
         else
-            rate   =+normalizationMass           &
+          radiusInner = radiusSpheroid*radiusInnerDimensionless
+          radiusOuter = radiusSpheroid*radiusOuterDimensionless
+
+            massDistributionStellar_ => node%massDistribution(componentType=componentTypeSpheroid,massType=massTypeStellar)
+            integrator_              =  integrator(radialIntegrand,toleranceRelative=1.0d-3, hasSingularities=.true.)
+
+            rate   =+4.0d0*Pi                    &                    
+             &      *normalizationMass           &
              &      *massGlobularClusterSpheroid &
              &      *(-1.0d0/2.0d0            &
              &       *(1.0d0/                 &
@@ -149,10 +164,29 @@ contains
              &        -1.0d0/self%massMinimum**2.0d0&
              &          )                     &
              &         )                      &
-             &      /evaporationTimescale      ! M☉ Gyr⁻¹        end if 
-        end if
-    end if 
+             &       *integrator_%integrate(radiusInner,radiusOuter)  &
+             &      /evaporationTimescale      ! M☉ Gyr⁻¹
+            !![
+              <objectDestructor name="massDistributionStellar_"/>
+            !!]     
+        end if 
+      end if
     return
+
+    contains
+      double precision function radialIntegrand(radius)
+        use :: Coordinates, only : coordinateSpherical, assignment(=)
+        implicit none
+        double precision                     , intent(in  ) :: radius
+        type            (coordinateSpherical)               :: coordinates
+        double precision                                    :: density
+
+        coordinates = [radius,0.0d0,0.0d0]
+        density     = massDistributionStellar_%density(coordinates)
+        ! Get stellar surface density.
+        radialIntegrand =density*radius**2.0d0
+        return 
+      end function radialIntegrand 
   end function globularClusterEvaporationSpheroidsAntonini2015Rate
 
   

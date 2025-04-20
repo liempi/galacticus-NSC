@@ -18,9 +18,10 @@
 !!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
 
   !!{
-  Implementation of a globular cluster infall rate in galactic disks which computes the  rate over
-  the disk.
+  Implementation of a globular cluster infall rate in galactic disks which computes the  rate over the disk.
   !!}
+
+  use :: Dark_Matter_Halo_Scales, only : darkMatterHaloScale, darkMatterHaloScaleClass
 
   !![
   <globularClusterInfallRateDisks name="globularClusterInfallRateDisksAntonini2015">
@@ -34,9 +35,11 @@
      Implementation of a rate for globular cluster infall in galactic disks.
      !!}
      private
-     double precision                                     :: massMinimum                         , massMaximum
-     integer                                              :: globularClusterStellarMassDiskID
+      class          (darkMatterHaloScaleClass), pointer :: darkMatterHaloScale_   => null()
+     double precision                                    :: massMinimum                     , massMaximum
+     integer                                             :: globularClusterStellarMassDiskID
    contains
+     final     ::         globularClusterInfallDisksAntonini2015Destructor
      procedure :: rate => globularClusterInfallDisksAntonini2015Rate
   end type globularClusterInfallRateDisksAntonini2015
 
@@ -44,13 +47,13 @@
      !!{
      Constructors for the {\normalfont \ttfamily globularClusterInfallDisksAntonini2015} infall rate in disks class.
      !!}
-     module procedure globularClusterInfallSpheAntonini2015ConstructorParameters
-     module procedure globularClusterInfallSpheAntonini2015ConstructorInternal
+     module procedure globularClusterInfallDisksAntonini2015ConstructorParameters
+     module procedure globularClusterInfallDisksAntonini2015ConstructorInternal
   end interface globularClusterInfallRateDisksAntonini2015
   
 contains
 
-  function globularClusterInfallSpheAntonini2015ConstructorParameters(parameters) result(self)
+  function globularClusterInfallDisksAntonini2015ConstructorParameters(parameters) result(self)
     !!{
     Constructor for the {\normalfont \ttfamily globularClusterInfallDisks} formation rate in disks class which takes a
     parameter set as input.
@@ -60,7 +63,8 @@ contains
     type            (globularClusterInfallRateDisksAntonini2015)                :: self
     type            (inputParameters                           ), intent(inout) :: parameters
     double precision                                                            :: massMinimum, massMaximum
-  
+    class           (darkMatterHaloScaleClass                  ), pointer       :: darkMatterHaloScale_
+
     !![
     <inputParameter>
       <name>massMinimum</name>
@@ -74,31 +78,47 @@ contains
       <description>Maximum mass of the globular clusters in the disk component.</description>
       <source>parameters</source>
     </inputParameter>
+    <objectBuilder class="darkMatterHaloScale"  name="darkMatterHaloScale_"  source="parameters"/>
     !!]
-    self=globularClusterInfallRateDisksAntonini2015(massMinimum,massMaximum)
+    self=globularClusterInfallRateDisksAntonini2015(massMinimum,massMaximum, darkMatterHaloScale_)
     !![
     <inputParametersValidate source="parameters"/>
+    <objectDestructor name="darkMatterHaloScale_" />
     !!]
     return
-  end function globularClusterInfallSpheAntonini2015ConstructorParameters
+  end function globularClusterInfallDisksAntonini2015ConstructorParameters
 
-  function globularClusterInfallSpheAntonini2015ConstructorInternal(massMinimum, massMaximum) result(self)
+  function globularClusterInfallDisksAntonini2015ConstructorInternal(massMinimum, massMaximum,darkMatterHaloScale_) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily globularClusterInfallDisks} globular cluster infall rate in disks class.
     !!}
     implicit none
-    type            (globularClusterInfallRateDisksAntonini2015)                :: self
-    double precision                                            , intent(in   ) :: massMinimum
-    double precision                                            , intent(in   ) :: massMaximum
+    type            (globularClusterInfallRateDisksAntonini2015)                        :: self
+    double precision                                            , intent(in   )         :: massMinimum
+    double precision                                            , intent(in   )         :: massMaximum
+    class           (darkMatterHaloScaleClass                  ), intent(in   ), target :: darkMatterHaloScale_
 
     !![
-    <constructorAssign variables="massMinimum, massMaximum"/>
+    <constructorAssign variables="massMinimum, massMaximum,*darkMatterHaloScale_"/>
     !!]
     !![
     <addMetaProperty component="disk" name="globularClusterStellarMassDisk" id="self%globularClusterStellarMassDiskID" isEvolvable="yes" isCreator="no" />
     !!]
     return
-  end function globularClusterInfallSpheAntonini2015ConstructorInternal
+  end function globularClusterInfallDisksAntonini2015ConstructorInternal
+
+  subroutine globularClusterInfallDisksAntonini2015Destructor(self)
+    !!{
+    Internal constructor for the {\normalfont \ttfamily globularClusterInfallDisks} globular cluster infall rate in disks class.
+    !!}
+    implicit none
+    type(globularClusterInfallRateDisksAntonini2015), intent(inout) :: self
+
+    !![
+    <objectDestructor name="self%darkMatterHaloScale_" />
+    !!]
+    return
+  end subroutine globularClusterInfallDisksAntonini2015Destructor
   
   double precision function globularClusterInfallDisksAntonini2015Rate(self,node) result(rate)
     !!{
@@ -180,34 +200,24 @@ contains
         double precision                      , intent(in  ) :: radius
         type            (coordinateCylindrical)              :: coordinates
         double precision                                     :: surfaceDensityStellar            , surfaceDensityGas            , &
-            &                                                   angularMomentumRateStellar       , angularMomentumRateGas       , &
             &                                                   velocityDispersionStellar        , velocityDispersionGas        , &
-            &                                                   rotationCurveMaximum             , specificAngularMomentum              , &
-            &                                                   dynamicalFrictionTimescaleStellar, dynamicalFrictionTimescaleGas, &
-            &                                                   dynamicalFrictionTimescaleDisk   , rotationCurveDisk
+            &                                                   rotationCurveMaximum             , virialVelocity               , &
+            &                                                   rotationCurveDisk
 
         coordinates             = [radius,0.0d0,0.0d0]
-        surfaceDensityStellar   = massDistributionStellar_%surfaceDensity      (coordinates) ! M☉ Mpc⁻²
-        surfaceDensityGas       = massDistributionGaseous_%surfaceDensity      (coordinates) ! M☉ Mpc⁻²
-        rotationCurveDisk       = massDistributionStellar_%RotationCurve       (radius     ) ! km s⁻¹
-        rotationCurveMaximum    = massDistributionStellar_%velocityRotationCurveMaximum(   ) ! km s⁻¹
-        specificAngularMomentum = rotationCurveDisk*radius                                   ! Mpc km s⁻¹
+        surfaceDensityStellar   = massDistributionStellar_ %surfaceDensity      (coordinates) ! M☉ Mpc⁻²
+        surfaceDensityGas       = massDistributionGaseous_ %surfaceDensity      (coordinates) ! M☉ Mpc⁻²
+        rotationCurveDisk       = massDistributionStellar_ %RotationCurve       (radius     ) ! km s⁻¹
+        virialVelocity          = self%darkMatterHaloScale_%velocityVirial     (node       ) ! km s⁻¹
+        rotationCurveMaximum    = massDistributionStellar_ %velocityRotationCurveMaximum(   ) ! km s⁻¹
 
         ! Use Eq. to approximate the velocity dispersion of stars of the gas () M. Kregel, P. C. van der Kruit, and K. C. Freeman. Structure and kinematics of edge- on galaxy discs - V. The dynamics of stellar discs. MNRAS, 358(2):503–520, Apr. 2005. doi: 10.1111/j.1365-2966.2005.08855.x.
         velocityDispersionStellar = 0.29d0*rotationCurveMaximum      ! km s⁻¹
         ! Use Eq. in  A. Dutton and F. C. van den Bosch. The impact of feedback on disc galaxy scaling relations. MNRAS, 396(1):141–164, June 2009. doi: 10.1111/j.1365-2966.2009. 14742.x.
         velocityDispersionGas     = 0.10d0*velocityDispersionStellar ! km s⁻¹
 
-        angularMomentumRateGas     = surfaceDensityGas    *(gravitationalConstant_internal/velocityDispersionGas    )**2.0d0 ! M☉⁻¹ km² s⁻²
-        angularMomentumRateStellar = surfaceDensityStellar*(gravitationalConstant_internal/velocityDispersionStellar)**2.0d0 ! M☉⁻¹ km² s⁻²
-
-        dynamicalFrictionTimescaleGas     = (specificAngularMomentum/angularMomentumRateGas    )/MpcPerKmPerSToGyr ! Gyr M☉⁻¹
-        dynamicalFrictionTimescaleStellar = (specificAngularMomentum/angularMomentumRateStellar)/MpcPerKmPerSToGyr ! Gyr M☉⁻¹ 
-
-        dynamicalFrictionTimescaleDisk = 1.0d0/(1.0d0/dynamicalFrictionTimescaleStellar+1.0d0/dynamicalFrictionTimescaleGas) !Gyr M☉⁻¹
-
         ! Get stellar surface density.
-        radialIntegrand= 2*Pi*surfaceDensityStellar*radius/dynamicalFrictionTimescaleDisk
+        radialIntegrand= 2*Pi*radius*surfaceDensityStellar*(gravitationalConstant_internal**2.0d0/virialVelocity)*(surfaceDensityStellar/(velocityDispersionStellar**2.0d0*radius)+surfaceDensityGas/(velocityDispersionGas**2.0d0*radius))/MpcPerKmPerSToGyr
         return 
       end function radialIntegrand 
 

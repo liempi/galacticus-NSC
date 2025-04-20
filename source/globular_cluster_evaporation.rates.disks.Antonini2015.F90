@@ -118,7 +118,7 @@ contains
     type            (treeNode                                       ), intent(inout), target  :: node
     class           (massDistributionClass                          ), pointer                :: massDistributionStellar_
     class           (nodeComponentDisk                              ), pointer                :: disk
-    double precision                                                 , parameter              :: radiusInnerDimensionless=1.0d-13, radiusOuterDimensionless=10.0d0
+    double precision                                                 , parameter              :: radiusInnerDimensionless=1.0d-13, radiusOuterDimensionless=1.0d0
     double precision                                                                          :: radiusDisk               , massStellar         , &
          &                                                                                       normalizationMass        , evaporationTimescale, &
          &                                                                                       massGlobularClusterDisk  , radiusInner         , &
@@ -153,18 +153,22 @@ contains
           if (massGlobularClusterDisk <= 0.0d0) then
             rate   = 0.0d0 
           else
+            radiusInner = radiusDisk*radiusInnerDimensionless
+            radiusOuter = radiusDisk*radiusOuterDimensionless
+
             massDistributionStellar_ => node%massDistribution(componentType=componentTypeDisk,massType=massTypeStellar)
             integrator_              =  integrator(radialIntegrand,toleranceRelative=1.0d-3, hasSingularities=.true.)
 
-            rate   =+Pi                              &
-             &      +normalizationMass               &
-             &      *massGlobularClusterDisk         &
-             &      /massStellar                     &
-             &      *(-1.0d0/self%massMaximum**2.0d0 &
-             &        +1.0d0/self%massMinimum**2.0d0 &
-             &        )                              &
-             &      *integrator_%integrate(radiusInner,radiusOuter)  &
-             &      /evaporationTimescale      ! M☉ Gyr⁻¹
+            rate   =(+Pi                              &
+             &       *normalizationMass               &
+             &       *massGlobularClusterDisk         &
+             &      )                                 &
+             &       /massStellar                     &
+             &       *(-1.0d0/self%massMaximum**2.0d0 &
+             &         +1.0d0/self%massMinimum**2.0d0 &
+             &         )                              &
+             &       *integrator_%integrate(radiusInner,radiusOuter)  &
+             &       /evaporationTimescale      ! M☉ Gyr⁻¹
             !![
               <objectDestructor name="massDistributionStellar_"/>
             !!]                                                
