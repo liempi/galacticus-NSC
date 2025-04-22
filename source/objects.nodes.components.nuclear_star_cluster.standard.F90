@@ -870,13 +870,14 @@ contains
     !!{
     Transfer any standard nuclear star cluster associated with {\normalfont \ttfamily node} to its host halo.
     !!}
-    use :: Abundances_Structure            , only : zeroAbundances
-    use :: Error                           , only : Error_Report
-    use :: Galacticus_Nodes                , only : nodeComponentNSC         , nodeComponentNSCStandard, nodeComponentSpheroid   , nodeComponentDisk               , &
-       &                                            treeNode
-    use :: Satellite_Merging_Mass_Movements, only : destinationMergerSpheroid, destinationMergerDisk   , destinationMergerUnmoved, enumerationDestinationMergerType
-    use :: Satellite_Merging_Remnant_Sizes , only : remnantNoChange
-    use :: Stellar_Luminosities_Structure  , only : zeroStellarLuminosities
+    use :: Abundances_Structure                   , only : zeroAbundances
+    use :: Error                                  , only : Error_Report
+    use :: Galacticus_Nodes                       , only : nodeComponentNSC                , nodeComponentNSCStandard, nodeComponentSpheroid   , nodeComponentDisk               , &
+       &                                                   treeNode
+    use :: Satellite_Merging_Mass_Movements       , only : destinationMergerSpheroid       , destinationMergerDisk   , destinationMergerUnmoved, enumerationDestinationMergerType
+    use :: Satellite_Merging_Remnant_Sizes        , only : remnantNoChange
+    use :: Satellite_Merging_Nuclear_Star_Clusters, only : nuclearStarClusterMovementsClass
+    use :: Stellar_Luminosities_Structure         , only : zeroStellarLuminosities
     implicit none
     class           (*                               ), intent(inout) :: self
     type            (treeNode                        ), intent(inout) :: node
