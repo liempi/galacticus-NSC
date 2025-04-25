@@ -70,9 +70,9 @@ contains
     !!]
     self=nodePropertyExtractorAGNBolometricLuminosity(blackHoleAccretionRate_,accretionDisks_)
     !![
-    <inputParametersValidate source="parameters"/>
-    <objectDestructor name="blackHoleAccretionRate_" />
-    <objectDestructor name="accretionDisks_"/>
+    <inputParametersValidate source="parameters"    />
+    <objectDestructor name="blackHoleAccretionRate_"/>
+    <objectDestructor name="accretionDisks_"        />
     !!]
     return
   end function agnBolometricLuminosityConstructorParameters
@@ -121,8 +121,9 @@ contains
          &                                                                                     rateAccretion        , rateAccretionNuclearStarCluster, &
          &                                                                                     efficiencyRadiative
     !$GLC attributes unused :: instance
-    
-    blackHole => node%blackHole()
+  
+    ! Get the central black hole of the galaxy.
+    blackHole => node%blackHole(instance=1)
     
     if (blackHole%mass() <= 0.0d0) agnBolometricLuminosityExtract = 0.0d0
 

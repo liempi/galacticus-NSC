@@ -21,7 +21,6 @@
 Implements a stellar mass function output analysis class.
 !!}
 
-
   !![
   <outputAnalysis name="outputAnalysisLuminosityFunctionAkins2024CosmosWeb">
    <description>An SDSS H$\alpha$ luminosity function output analysis class for the \cite{akins_2024} analysis.</description>
@@ -32,10 +31,10 @@ Implements a stellar mass function output analysis class.
      An SDSS H$\alpha$ luminosity function output analysis class for the \cite{akins_2024} analysis.
      !!}
      private
-     class           (gravitationalLensingClass), pointer                     :: gravitationalLensing_            => null()
-     double precision                           , allocatable  , dimension(:) :: randomErrorPolynomialCoefficient          , systematicErrorPolynomialCoefficient
-     double precision                                                         :: randomErrorMinimum                        , randomErrorMaximum                  , &
-          &                                                                      sizeSourceLensing
+     class           (gravitationalLensingClass ), pointer                     :: gravitationalLensing_            => null()
+     double precision                            , allocatable  , dimension(:) :: randomErrorPolynomialCoefficient          , systematicErrorPolynomialCoefficient
+     double precision                                                          :: randomErrorMinimum                        , randomErrorMaximum                  , &
+          &                                                                       sizeSourceLensing
    contains
      final :: luminosityFunctionAkins2024CosmosWebDestructor
   end type outputAnalysisLuminosityFunctionAkins2024CosmosWeb
@@ -54,13 +53,17 @@ contains
     !!{
     Constructor for the ``luminosityFunctionAkins2024CosmosWeb'' output analysis class which takes a parameter set as input.
     !!}
-    use :: Gravitational_Lensing         , only : gravitationalLensing           , gravitationalLensingClass
-    use :: Input_Parameters              , only : inputParameter                 , inputParameters
+    use :: Gravitational_Lensing     , only : gravitationalLensing       , gravitationalLensingClass
+    use :: Input_Parameters          , only : inputParameter             , inputParameters
+    use :: Accretion_Disks           , only : accretionDisksClass
+    use :: Black_Hole_Accretion_Rates, only : blackHoleAccretionRateClass   
     implicit none
     type            (outputAnalysisLuminosityFunctionAkins2024CosmosWeb)                              :: self
     type            (inputParameters                                   ), intent(inout)               :: parameters
     class           (cosmologyFunctionsClass                           ), pointer                     :: cosmologyFunctions_
     class           (outputTimesClass                                  ), pointer                     :: outputTimes_
+    class           (blackHoleAccretionRateClass                       ), pointer                     :: blackHoleAccretionRate_
+    class           (accretionDisksClass                               ), pointer                     :: accretionDisks_
     class           (gravitationalLensingClass                         ), pointer                     :: gravitationalLensing_
     double precision                                                    , allocatable  , dimension(:) :: randomErrorPolynomialCoefficient , systematicErrorPolynomialCoefficient
     integer                                                                                           :: covarianceBinomialBinsPerDecade
@@ -136,22 +139,26 @@ contains
       <defaultValue>1.0d16</defaultValue>
       <description>The maximum halo mass to consider when constructing SDSS H$\alpha$ luminosity function covariance matrices for main branch galaxies.</description>
     </inputParameter>
-    <objectBuilder class="cosmologyFunctions"            name="cosmologyFunctions_"            source="parameters"/>
-    <objectBuilder class="outputTimes"                   name="outputTimes_"                   source="parameters"/>
-    <objectBuilder class="gravitationalLensing"          name="gravitationalLensing_"          source="parameters"/>
+    <objectBuilder class="cosmologyFunctions"      name="cosmologyFunctions_"       source="parameters"/>
+    <objectBuilder class="outputTimes"             name="outputTimes_"              source="parameters"/>
+    <objectBuilder class="gravitationalLensing"    name="gravitationalLensing_"     source="parameters"/>
+    <objectBuilder class="blackHoleAccretionRate"  name="blackHoleAccretionRate_"   source="parameters"/>
+    <objectBuilder class="accretionDisks"          name="accretionDisks_"           source="parameters"/> 
     !!]
     ! Build the object.
-    self=outputAnalysisLuminosityFunctionAkins2024CosmosWeb(cosmologyFunctions_,gravitationalLensing_,outputTimes_,randomErrorMinimum,randomErrorMaximum,randomErrorPolynomialCoefficient,systematicErrorPolynomialCoefficient,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum,sizeSourceLensing)
+    self=outputAnalysisLuminosityFunctionAkins2024CosmosWeb(cosmologyFunctions_,gravitationalLensing_,outputTimes_,blackHoleAccretionRate_,accretionDisks_,randomErrorMinimum,randomErrorMaximum,randomErrorPolynomialCoefficient,systematicErrorPolynomialCoefficient,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum,sizeSourceLensing)
     !![
     <inputParametersValidate source="parameters"/>
-    <objectDestructor name="cosmologyFunctions_"           />
-    <objectDestructor name="outputTimes_"                  />
-    <objectDestructor name="gravitationalLensing_"         />
+    <objectDestructor name="cosmologyFunctions_"    />
+    <objectDestructor name="outputTimes_"           />
+    <objectDestructor name="gravitationalLensing_"  />
+    <objectDestructor name="blackHoleAccretionRate_"/>
+    <objectDestructor name="accretionDisks_"        />
     !!]
     return
   end function luminosityFunctionAkins2024CosmosWebConstructorParameters
 
-  function luminosityFunctionAkins2024CosmosWebConstructorInternal(cosmologyFunctions_,gravitationalLensing_,outputTimes_,randomErrorMinimum,randomErrorMaximum,randomErrorPolynomialCoefficient,systematicErrorPolynomialCoefficient,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum,sizeSourceLensing) result (self)
+  function luminosityFunctionAkins2024CosmosWebConstructorInternal(cosmologyFunctions_,gravitationalLensing_,outputTimes_,blackHoleAccretionRate_,accretionDisks_,randomErrorMinimum,randomErrorMaximum,randomErrorPolynomialCoefficient,systematicErrorPolynomialCoefficient,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum,sizeSourceLensing) result (self)
     !!{
     Constructor for the ``uminosityFunctionAkins2024CosmosWeb'' output analysis class for internal use.
     !!}
@@ -165,11 +172,15 @@ contains
     use :: Output_Analysis_Distribution_Operators, only : distributionOperatorList                       , outputAnalysisDistributionOperatorGrvtnlLnsng, outputAnalysisDistributionOperatorRandomErrorPlynml, outputAnalysisDistributionOperatorSequence
     use :: Output_Analysis_Property_Operators    , only : outputAnalysisPropertyOperatorSystmtcPolynomial
     use :: String_Handling                       , only : operator(//)
+    use :: Accretion_Disks                       , only : accretionDisksClass
+    use :: Black_Hole_Accretion_Rates            , only : blackHoleAccretionRateClass
     implicit none
     type            (outputAnalysisLuminosityFunctionAkins2024CosmosWeb )                              :: self
     class           (cosmologyFunctionsClass                            ), intent(in   ), target       :: cosmologyFunctions_
     class           (outputTimesClass                                   ), intent(inout), target       :: outputTimes_
     class           (gravitationalLensingClass                          ), intent(in   ), target       :: gravitationalLensing_
+    class           (blackHoleAccretionRateClass                        ), intent(in   ), target       :: blackHoleAccretionRate_
+    class           (accretionDisksClass                                ), intent(in   ), target       :: accretionDisks_
     double precision                                                     , intent(in   )               :: randomErrorMinimum                                  , randomErrorMaximum                  , &
          &                                                                                                sizeSourceLensing
     double precision                                                     , intent(in   ), dimension(:) :: randomErrorPolynomialCoefficient                    , systematicErrorPolynomialCoefficient
@@ -284,6 +295,8 @@ contains
          &                                        surveyGeometry_                                                                          , &
          &                                        cosmologyFunctions_                                                                      , &
          &                                        cosmologyFunctionsData                                                                   , &
+         &                                        blackHoleAccretionRate_                                                                  , &
+         &                                        accretionDisks_                                                                          , &
          &                                        outputAnalysisPropertyOperator_                                                          , &
          &                                        outputAnalysisDistributionOperator_                                                      , &
          &                                        outputTimes_                                                                             , &

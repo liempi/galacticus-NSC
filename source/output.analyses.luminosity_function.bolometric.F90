@@ -20,9 +20,8 @@
 !!{
 Implements a luminosity function output analysis class.
 !!}
-
-  use :: Geometry_Surveys                 , only : surveyGeometryClass
-  use :: Cosmology_Functions              , only : cosmologyFunctionsClass
+  use :: Geometry_Surveys          , only : surveyGeometryClass
+  use :: Cosmology_Functions       , only : cosmologyFunctionsClass
 
   !![
   <outputAnalysis name="outputAnalysisBlackHoleLuminosityFunction">
@@ -34,9 +33,11 @@ Implements a luminosity function output analysis class.
      A luminosity function output analysis class.
      !!}
      private
-     class           (surveyGeometryClass    ), pointer                   :: surveyGeometry_    => null()
-     class           (cosmologyFunctionsClass), pointer                   :: cosmologyFunctions_=> null(), cosmologyFunctionsData => null()
-     double precision                         , allocatable, dimension(:) :: luminosities
+     class           (accretionDisksClass        ), pointer                   :: accretionDisks_         => null()
+     class           (surveyGeometryClass        ), pointer                   :: surveyGeometry_         => null()
+     class           (cosmologyFunctionsClass    ), pointer                   :: cosmologyFunctions_     => null(), cosmologyFunctionsData => null()
+     class           (blackHoleAccretionRateClass), pointer                   :: blackHoleAccretionRate_ => null()
+     double precision                             , allocatable, dimension(:) :: luminosities
    contains
      final :: luminosityFunctionBlackHoleDestructor
   end type outputAnalysisBlackHoleLuminosityFunction
@@ -56,14 +57,19 @@ contains
     !!{
     Constructor for the ``luminosityFunctionBlackHole'' output analysis class which takes a parameter set as input.
     !!}
-    use :: Error                         , only : Error_Report
-    use :: Input_Parameters              , only : inputParameter             , inputParameters
+    use :: Error                     , only : Error_Report
+    use :: Input_Parameters          , only : inputParameter, inputParameters
+    use :: Accretion_Disks           , only : accretionDisksClass
+    use :: Black_Hole_Accretion_Rates, only : blackHoleAccretionRateClass
+
     implicit none
-    type            (outputAnalysisBlackHoleLuminosityFunction)                                 :: self
+    type            (outputAnalysisBlackHoleLuminosityFunction)                              :: self
     type            (inputParameters                          ), intent(inout)               :: parameters
     class           (galacticFilterClass                      ), pointer                     :: galacticFilter_
     class           (surveyGeometryClass                      ), pointer                     :: surveyGeometry_
     class           (cosmologyFunctionsClass                  ), pointer                     :: cosmologyFunctions_                , cosmologyFunctionsData
+    class           (blackHoleAccretionRateClass              ), pointer                     :: blackHoleAccretionRate_
+    class           (accretionDisksClass                      ), pointer                     :: accretionDisks_
     class           (outputTimesClass                         ), pointer                     :: outputTimes_
     class           (outputAnalysisDistributionOperatorClass  ), pointer                     :: outputAnalysisDistributionOperator_
     class           (outputAnalysisPropertyOperatorClass      ), pointer                     :: outputAnalysisPropertyOperator_
@@ -154,12 +160,14 @@ contains
     <objectBuilder class="galacticFilter"                     name="galacticFilter_"                     source="parameters"            />
     <objectBuilder class="cosmologyFunctions"                 name="cosmologyFunctions_"                 source="parameters"            />
     <objectBuilder class="cosmologyFunctions"                 name="cosmologyFunctionsData"              source="dataAnalysisParameters"/>
+    <objectBuilder class="blackHoleAccretionRate"             name="blackHoleAccretionRate_"             source="parameters"            />
+    <objectBuilder class="accretionDisks"                     name="accretionDisks_"                     source="parameters"            /> 
     <objectBuilder class="outputAnalysisPropertyOperator"     name="outputAnalysisPropertyOperator_"     source="parameters"            />
     <objectBuilder class="outputAnalysisDistributionOperator" name="outputAnalysisDistributionOperator_" source="parameters"            />
     <objectBuilder class="surveyGeometry"                     name="surveyGeometry_"                     source="parameters"            />
     <objectBuilder class="outputTimes"                        name="outputTimes_"                        source="parameters"            />
     <conditionalCall>
-     <call>self=outputAnalysisBlackHoleLuminosityFunction(label,comment,luminosities,galacticFilter_,surveyGeometry_,cosmologyFunctions_,cosmologyFunctionsData,outputAnalysisPropertyOperator_,outputAnalysisDistributionOperator_,outputTimes_,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum{conditions})</call>
+     <call>self=outputAnalysisBlackHoleLuminosityFunction(label,comment,luminosities,galacticFilter_,surveyGeometry_,cosmologyFunctions_,cosmologyFunctionsData,blackHoleAccretionRate_,accretionDisks_,outputAnalysisPropertyOperator_,outputAnalysisDistributionOperator_,outputTimes_,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum{conditions})</call>
      <argument name="targetLabel"              value="targetLabel"              parameterPresent="parameters"/>
      <argument name="functionValueTarget"      value="functionValueTarget"      parameterPresent="parameters"/>
      <argument name="functionCovarianceTarget" value="functionCovarianceTarget" parameterPresent="parameters"/>
@@ -169,6 +177,8 @@ contains
     <objectDestructor name="outputTimes_"                       />
     <objectDestructor name="cosmologyFunctions_"                />
     <objectDestructor name="cosmologyFunctionsData"             />
+    <objectDestructor name="blackHoleAccretionRate_"            />
+    <objectDestructor name="accretionDisks_"                    />
     <objectDestructor name="outputAnalysisPropertyOperator_"    />
     <objectDestructor name="outputAnalysisDistributionOperator_"/>
     <objectDestructor name="surveyGeometry_"                    />
@@ -176,12 +186,14 @@ contains
     return
   end function luminosityFunctionBlackHoleConstructorParameters
 
-  function luminosityFunctionBlackHoleConstructorFile(label,comment,fileName,galacticFilter_,surveyGeometry_,cosmologyFunctions_,cosmologyFunctionsData,outputAnalysisPropertyOperator_,outputAnalysisDistributionOperator_,outputTimes_,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum) result (self)
+  function luminosityFunctionBlackHoleConstructorFile(label,comment,fileName,galacticFilter_,surveyGeometry_,cosmologyFunctions_,cosmologyFunctionsData,blackHoleAccretionRate_,accretionDisks_,outputAnalysisPropertyOperator_,outputAnalysisDistributionOperator_,outputTimes_,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum) result (self)
     !!{
     Constructor for the ``luminosityFunctionBlackHole'' output analysis class which reads bin information from a standard format file.
     !!}
     use :: HDF5_Access               , only : hdf5Access
     use :: IO_HDF5                   , only : hdf5Object
+    use :: Accretion_Disks           , only : accretionDisksClass
+    use :: Black_Hole_Accretion_Rates, only : blackHoleAccretionRateClass
   implicit none
     type            (outputAnalysisBlackHoleLuminosityFunction)                              :: self
     type            (varying_string                           ), intent(in   )               :: label                              , comment
@@ -189,6 +201,8 @@ contains
     class           (galacticFilterClass                      ), intent(in   ) , target      :: galacticFilter_
     class           (surveyGeometryClass                      ), intent(in   ) , target      :: surveyGeometry_
     class           (cosmologyFunctionsClass                  ), intent(in   ) , target      :: cosmologyFunctions_                , cosmologyFunctionsData
+    class           (blackHoleAccretionRateClass              ), intent(in   ) , target      :: blackHoleAccretionRate_
+    class           (accretionDisksClass                      ), intent(in   ) , target      :: accretionDisks_
     class           (outputTimesClass                         ), intent(inout) , target      :: outputTimes_
     class           (outputAnalysisPropertyOperatorClass      ), intent(inout) , target      :: outputAnalysisPropertyOperator_
     class           (outputAnalysisDistributionOperatorClass  ), intent(in   ) , target      :: outputAnalysisDistributionOperator_
@@ -223,7 +237,7 @@ contains
     ! Construct the object.
     !![
     <conditionalCall>
-     <call>self=outputAnalysisBlackHoleLuminosityFunction(label,comment,luminosities,galacticFilter_,surveyGeometry_,cosmologyFunctions_,cosmologyFunctionsData,outputAnalysisPropertyOperator_,outputAnalysisDistributionOperator_,outputTimes_,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum{conditions})</call>
+     <call>self=outputAnalysisBlackHoleLuminosityFunction(label,comment,luminosities,galacticFilter_,surveyGeometry_,cosmologyFunctions_,cosmologyFunctionsData,blackHoleAccretionRate_,accretionDisks_,outputAnalysisPropertyOperator_,outputAnalysisDistributionOperator_,outputTimes_,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum{conditions})</call>
      <argument name="targetLabel"              value="targetLabel"              condition="haveTarget"/>
      <argument name="functionValueTarget"      value="functionValueTarget"      condition="haveTarget"/>
      <argument name="functionCovarianceTarget" value="functionCovarianceTarget" condition="haveTarget"/>
@@ -232,11 +246,13 @@ contains
     return
   end function luminosityFunctionBlackHoleConstructorFile
 
-  function luminosityFunctionBlackHoleConstructorInternal(label,comment,luminosities,galacticFilter_,surveyGeometry_,cosmologyFunctions_,cosmologyFunctionsData,outputAnalysisPropertyOperator_,outputAnalysisDistributionOperator_,outputTimes_,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum,targetLabel,functionValueTarget,functionCovarianceTarget) result(self)
+  function luminosityFunctionBlackHoleConstructorInternal(label,comment,luminosities,galacticFilter_,surveyGeometry_,cosmologyFunctions_,cosmologyFunctionsData,blackHoleAccretionRate_,accretionDisks_,outputAnalysisPropertyOperator_,outputAnalysisDistributionOperator_,outputTimes_,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum,targetLabel,functionValueTarget,functionCovarianceTarget) result(self)
     !!{
     Constructor for the ``luminosityFunctionBlackHole'' output analysis class which takes a parameter set as input.
     !!}
     use :: Cosmology_Functions                     , only : cosmologyFunctionsClass
+    use :: Black_Hole_Accretion_Rates              , only : blackHoleAccretionRateClass
+    use :: Accretion_Disks                         , only : accretionDisksClass
     use :: Galactic_Filters                        , only : galacticFilterClass
     use :: Geometry_Surveys                        , only : surveyGeometryClass
     use :: ISO_Varying_String                      , only : var_str                                     , varying_string
@@ -258,6 +274,8 @@ contains
     class           (galacticFilterClass                               ), intent(in   ), target                   :: galacticFilter_
     class           (surveyGeometryClass                               ), intent(in   ), target                   :: surveyGeometry_
     class           (cosmologyFunctionsClass                           ), intent(in   ), target                   :: cosmologyFunctions_                                   , cosmologyFunctionsData
+    class           (blackHoleAccretionRateClass                       ), intent(in   ), target                   :: blackHoleAccretionRate_
+    class           (accretionDisksClass                               ), intent(in   ), target                   :: accretionDisks_
     class           (outputTimesClass                                  ), intent(inout), target                   :: outputTimes_
     class           (outputAnalysisPropertyOperatorClass               ), intent(inout), target                   :: outputAnalysisPropertyOperator_
     class           (outputAnalysisDistributionOperatorClass           ), intent(in   ), target                   :: outputAnalysisDistributionOperator_
@@ -282,7 +300,7 @@ contains
     integer         (c_size_t                                          ), parameter                               :: bufferCountMinimum                              =5
     integer         (c_size_t                                          )                                          :: iBin                                                  , bufferCount
     !![
-    <constructorAssign variables="luminosities, *surveyGeometry_, *cosmologyFunctions_, *cosmologyFunctionsData"/>
+    <constructorAssign variables="luminosities, *surveyGeometry_, *cosmologyFunctions_, *cosmologyFunctionsData, *blackHoleAccretionRate_, *accretionDisks_"/>
     !!]
     ! Compute weights that apply to each output redshift.
     self%binCount=size(luminosities,kind=c_size_t)
@@ -293,7 +311,7 @@ contains
     ! Create a luminosity property extractor.
     allocate(nodePropertyExtractor_)
     !![
-    <referenceConstruct object="nodePropertyExtractor_"                           constructor="nodePropertyExtractorAGNBolometricLuminosity()"/>
+    <referenceConstruct object="nodePropertyExtractor_"                           constructor="nodePropertyExtractorAGNBolometricLuminosity(blackHoleAccretionRate_,accretionDisks_)"/>
     !!]
     ! Prepend log10 and cosmological luminosity distance property operators.
     allocate(outputAnalysisPropertyOperatorLog10_            )
@@ -415,9 +433,11 @@ contains
     type(outputAnalysisBlackHoleLuminosityFunction), intent(inout) :: self
 
     !![
-    <objectDestructor name="self%surveyGeometry_"               />
-    <objectDestructor name="self%cosmologyFunctions_"           />
-    <objectDestructor name="self%cosmologyFunctionsData"        />
+    <objectDestructor name="self%surveyGeometry_"       />
+    <objectDestructor name="self%cosmologyFunctions_"   />
+    <objectDestructor name="self%cosmologyFunctionsData"/>
+    <objectDestructor name="self%blackHoleAccretionRate_"/>    
+    <objectDestructor name="self%accretionDisks_"       />
     !!]
     return
   end subroutine luminosityFunctionBlackHoleDestructor
