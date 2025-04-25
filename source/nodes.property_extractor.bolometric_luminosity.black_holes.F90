@@ -38,6 +38,7 @@ Contains a module which implements an AGN bolometric luminosity property extract
    contains
      final     ::                agnBolometricLuminosityDestructor
      procedure :: extract     => agnBolometricLuminosityExtract
+     procedure :: quantity    => agnBolometricLuminosityQuantity
      procedure :: name        => agnBolometricLuminosityName
      procedure :: description => agnBolometricLuminosityDescription
      procedure :: unitsInSI   => agnBolometricLuminosityUnitsInSI
@@ -140,6 +141,20 @@ contains
           &                          /luminositySolar
     return
   end function agnBolometricLuminosityExtract
+
+ function agnBolometricLuminosityQuantity(self)
+    !!{
+    Return the class of the emission line luminosity property.
+    !!}
+    use :: Output_Analyses_Options, only : outputAnalysisPropertyQuantityLuminosity
+    implicit none
+    type (enumerationOutputAnalysisPropertyQuantityType)                :: agnBolometricLuminosityQuantity
+    class(nodePropertyExtractorAGNBolometricLuminosity ), intent(inout) :: self
+    !$GLC attributes unused :: self
+
+    agnBolometricLuminosityQuantity=outputAnalysisPropertyQuantityLuminosity
+    return
+  end function agnBolometricLuminosityQuantity
 
   function agnBolometricLuminosityName(self)
     !!{
