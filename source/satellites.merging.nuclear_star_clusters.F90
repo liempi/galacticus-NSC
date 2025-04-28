@@ -38,12 +38,12 @@ module Satellite_Merging_Nuclear_Star_Clusters
     Class providing models of the movements of nuclear star clusters during mergers.
    </description>
    <default>simple</default>
-   <method name="isDestroyed" >
+   <method name="isDestroyed">
     <description>Determine if a nuclear star cluster survives in a galaxy merger.</description>
-    <type>logical</type>
+    <type>void</type>
     <pass>yes</pass>
     <argument>type   (treeNode), intent(inout), target :: node       </argument>
-    <argument>logical          , intent(  out)         :: isDestroyed</argument>
+    <argument>logical          , intent(  out)         :: nuclearStarClusterIsDestroyed</argument>
    </method>
   </functionClass>
   !!]

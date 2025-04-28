@@ -20,7 +20,7 @@
   !!{
   Implements a merger nuclear star cluster movement class which uses a simple calculation.
   !!}
-
+  
   !![
   <nuclearStarClusterMovements name="nuclearStarClusterMovementsSimple">
    <description>
@@ -33,20 +33,24 @@
      A merger mass movements class which uses a simple calculation.
      !!}
      private
+     logical                  :: nuclearStarClusterIsDestroyed
    contains
-     procedure :: isDestroyed => simpleIsDestroyed
+     final     ::                nuclearStarClusterMovementsSimpleDestructor
+     procedure :: autoHook    => nuclearStarClusterMovementsSimpleAutoHook
+     procedure :: isDestroyed => nuclearStarClusterMovementsSimpleIsDestroyed
   end type nuclearStarClusterMovementsSimple
 
   interface nuclearStarClusterMovementsSimple
      !!{
      Constructors for the {\normalfont \ttfamily simple} merger mass movements class.
      !!}
-     module procedure simpleConstructorParameters
+     module procedure nuclearStarClusterMovementsSimpleConstructorParameters
+     module procedure nuclearStarClusterMovementsSimpleConstructorInternal
   end interface nuclearStarClusterMovementsSimple
 
 contains
 
-  function simpleConstructorParameters(parameters) result(self)
+  function nuclearStarClusterMovementsSimpleConstructorParameters(parameters) result(self)
     !!{
     Constructor for the {\normalfont \ttfamily simple} merger mass movements class which takes a parameter list as input.
     !!}
@@ -60,19 +64,76 @@ contains
     <inputParametersValidate source="parameters"/>
     !!]
     return
-  end function simpleConstructorParameters
+  end function nuclearStarClusterMovementsSimpleConstructorParameters
 
-  logical function simpleIsDestroyed(self,node,isDestroyed)
+ function nuclearStarClusterMovementsSimpleConstructorInternal() result(self)
+    !!{
+    Internal constructor for the {\normalfont \ttfamily simple} merger mass movements class.
+    !!}
+    implicit none
+    type(nuclearStarClusterMovementsSimple) :: self
+
+    self%nuclearStarClusterIsDestroyed =.true.
+
+    return
+  end function nuclearStarClusterMovementsSimpleConstructorInternal
+
+  subroutine nuclearStarClusterMovementsSimpleAutoHook(self)
+    !!{
+    Attach to the calculation reset event.
+    !!}
+    use :: Events_Hooks, only : openMPThreadBindingAllLevels, satelliteMergerEvent
+    implicit none
+    class(nuclearStarClusterMovementsSimple), intent(inout) :: self
+    
+    call satelliteMergerEvent %attach(self,nuclearStarClusterMovementsSimpleIsDestroyedHook,openMPThreadBindingAllLevels)
+    
+    return
+  end subroutine nuclearStarClusterMovementsSimpleAutoHook
+ 
+  subroutine nuclearStarClusterMovementsSimpleDestructor(self)
+    !!{
+    Destructor for the {\normalfont \ttfamily simple} satellite merger mass movements class
+    !!}
+    use :: Events_Hooks, only : calculationResetEvent, satelliteMergerEvent
+    implicit none
+    type(nuclearStarClusterMovementsSimple), intent(inout) :: self
+
+    if       (satelliteMergerEvent%isAttached(self,nuclearStarClusterMovementsSimpleIsDestroyedHook)) &
+       & call satelliteMergerEvent%detach    (self,nuclearStarClusterMovementsSimpleIsDestroyedHook)
+    return
+  end subroutine nuclearStarClusterMovementsSimpleDestructor
+
+  subroutine nuclearStarClusterMovementsSimpleIsDestroyedHook(self,node)
+    !!{
+    Hookable wrapper around the get function.
+    !!}
+    use :: Error, only : Error_Report
+    implicit none
+    class  (*       ), intent(inout)         :: self
+    type   (treeNode), intent(inout), target :: node
+    logical                                  :: nuclearStarClusterIsDestroyed
+
+    select type (self)
+    type is (nuclearStarClusterMovementsSimple)
+       call self%isDestroyed(node,nuclearStarClusterIsDestroyed)
+    class default
+       call Error_Report('incorrect class'//{introspection:location})
+    end select
+    return
+  end subroutine nuclearStarClusterMovementsSimpleIsDestroyedHook
+
+  subroutine nuclearStarClusterMovementsSimpleIsDestroyed(self,node,nuclearStarClusterIsDestroyed)
     !!{
     Determine if a nuclear star cluster survives a merger event using a simple criteria.
     !!}
-    use :: Galacticus_Nodes          , only : nodeComponentNSC, nodeComponentSpheroid, nodeComponentDisk
-    use :: Galactic_Structure_Options, only : componentTypeAll, massTypeStellar
+    use :: Galacticus_Nodes          , only : nodeComponentNSC     , nodeComponentSpheroid, nodeComponentDisk
+    use :: Galactic_Structure_Options, only : componentTypeAll     , massTypeStellar
     use :: Mass_Distributions        , only : massDistributionClass
     implicit none
     class           (nuclearStarClusterMovementsSimple), intent(inout)         :: self
     type            (treeNode                         ), intent(inout), target :: node
-    logical                                            , intent(  out)         :: isDestroyed
+    logical                                            , intent(  out)         :: nuclearStarClusterIsDestroyed
     class           (nodeComponentNSC                 ), pointer               :: nuclearStarCluster
     class           (nodeComponentSpheroid            ), pointer               :: spheroid                  , spheroidHost           
     class           (nodeComponentDisk                ), pointer               :: disk                      , diskHost               
@@ -103,7 +164,7 @@ contains
     radiusNuclearStarCluster = nuclearStarCluster%radius()
 
     ! Assume that distance between galaxies is given by the sum of their half mass radii.
-    distance                = halfMassRadiusHost+halfMassRadiusSatellite
+    distance                 = halfMassRadiusHost+halfMassRadiusSatellite
 
 
     massDistribution_             => nodeHost        %massDistribution(                                &
@@ -124,12 +185,12 @@ contains
           &        **(1.0d0/3.0d0)
 
     if (tidalRadius >= radiusNuclearStarCluster) then 
-        isDestroyed=.false.
+        self%nuclearStarClusterIsDestroyed=.false.
     else
-        isDestroyed=.true.
+        self%nuclearStarClusterIsDestroyed=.true.
     end if
     !![
     <objectDestructor name="massDistribution_"/>
     !!]
     return
-  end function simpleIsDestroyed
+  end subroutine nuclearStarClusterMovementsSimpleIsDestroyed
