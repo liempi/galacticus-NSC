@@ -134,11 +134,11 @@ contains
          &                           +                    rateAccretionNuclearStarCluster
     efficiencyRadiative            = self%accretionDisks_%efficiencyRadiative  (blackHole,rateAccretion                               )
     agnBolometricLuminosityExtract = +efficiencyRadiative    &
+          &                          *1.0d7                  &
           &                          *rateAccretion          &
           &                          *massSolar              &
           &                          *speedLight         **2 &
           &                          /gigaYear               &
-          &                          /luminositySolar
     return
   end function agnBolometricLuminosityExtract
 
