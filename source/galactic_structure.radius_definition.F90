@@ -37,8 +37,10 @@ module Galactic_Structure_Radii_Definitions
    <encodeFunction>yes</encodeFunction>
    <visibility>public</visibility>
    <validator>yes</validator>
+
    <entry label="radius"                           description="Radii are specified absolutely, in units of Mpc"                                            />
    <entry label="virialRadius"                     description="Radii are specified in units of the virial radius"                                          />
+   <entry label="hotHaloOuterRadius"               description="Radii are specified in units of the outer radius of the hot halo"                           />
    <entry label="darkMatterScaleRadius"            description="Radii are specified in units of the dark matter profile scale radius"                       />
    <entry label="diskRadius"                       description="Radii are specified in units of the disk scale radius"                                      />
    <entry label="nuclearStarClusterRadius"         description="Radii are specified in units of the \gls{nsc} scale radius"                                 />
@@ -83,7 +85,8 @@ module Galactic_Structure_Radii_Definitions
 
 contains
 
-  subroutine Galactic_Structure_Radii_Definition_Decode(descriptors,specifiers,diskRequired,spheroidRequired,nuclearStarClusterRequired,satelliteRequired,radiusVirialRequired,radiusScaleRequired)
+  
+  subroutine Galactic_Structure_Radii_Definition_Decode(descriptors,specifiers,hotHaloRequired,diskRequired,spheroidRequired,nuclearStarClusterRequired,satelliteRequired,radiusVirialRequired,radiusScaleRequired)    !!{
     !!{
     Decode a set of radii descriptors and return the corresponding specifiers.
     !!}
@@ -91,7 +94,7 @@ contains
           &                                       enumerationComponentTypeDescribe , enumerationMassTypeDescribe, weightIndexNull
     use :: Error                         , only : Component_List                   , Error_Report               , errorStatusSuccess
     use :: Galacticus_Nodes              , only : defaultDarkMatterProfileComponent, defaultDiskComponent       , defaultSpheroidComponent, defaultNSCComponent, &
-          &                                       treeNode
+          &                                       defaultHotHaloComponent          , treeNode
     use :: ISO_Varying_String            , only : char                             , extract                    , operator(==)            , assignment(=)      , &
           &                                       operator(//)
     use :: Stellar_Luminosities_Structure, only : unitStellarLuminosities
@@ -101,7 +104,8 @@ contains
     type     (radiusSpecifier), intent(inout), dimension(:), allocatable :: specifiers
     logical                   , intent(  out)                            :: diskRequired              , spheroidRequired    , &
          &                                                                  nuclearStarClusterRequired, radiusVirialRequired, &
-         &                                                                  radiusScaleRequired       , satelliteRequired
+         &                                                                  radiusScaleRequired       , satelliteRequired   , &
+         &                                                                  hotHaloRequired
     type     (varying_string  )              , dimension(5)              :: radiusDefinition
     type     (varying_string  )              , dimension(3)              :: fractionDefinition
     type     (varying_string  )              , dimension(2)              :: weightingDefinition
@@ -110,6 +114,7 @@ contains
     integer                                                              :: i                   , radiiCount         , &
          &                                                                  countComponents     , status
 
+    hotHaloRequired           =.false.
     diskRequired              =.false.
     spheroidRequired          =.false.
     nuclearStarClusterRequired=.false.
@@ -142,6 +147,19 @@ contains
        case ('virialRadius'                    )
           specifiers(i)%type=radiusTypeVirialRadius
           radiusVirialRequired         =.true.
+       case ('hotHaloOuterRadius'              )
+          specifiers(i)%type=radiusTypeHotHaloOuterRadius
+          hotHaloRequired              =.true.
+          if (.not.defaultHotHaloComponent          %outerRadiusIsGettable   ())                                        &
+               & call Error_Report                                                                                      &
+               &(                                                                                                       &
+               &                              'hot halo outer radius is not gettable.'//                                &
+               &        Component_List(                                                                                 &
+               &                       'hotHalo'                                                                     ,  &
+               &                        defaultHotHaloComponent %   outerRadiusAttributeMatch(requireGettable=.true.)   &
+               &                       )                                                                             // &
+               &       {introspection:location}                                                                         &
+               &                             )
        case ('darkMatterScaleRadius'           )
           specifiers(i)%type=radiusTypeDarkMatterScaleRadius
           radiusScaleRequired=.true.
@@ -194,6 +212,7 @@ contains
                &                       )                                                                             // &
                &       {introspection:location}                                                                         &
                &                             )
+       
        case ('diskHalfMassRadius'              )
           specifiers(i)%type=radiusTypeDiskHalfMassRadius
           diskRequired                 =.true.
@@ -233,6 +252,7 @@ contains
                &                       )                                                                             // &
                &       {introspection:location}                                                                         &
                &                             )
+       
        case ('satelliteBoundMassFraction'      )
           specifiers(i)%type=radiusTypeSatelliteBoundMassFraction
           satelliteRequired=.true.

@@ -36,13 +36,15 @@
      private
      class  (darkMatterHaloScaleClass), pointer                   :: darkMatterHaloScale_          => null()
      class  (cosmologyParametersClass), pointer                   :: cosmologyParameters_          => null()
-     integer                                                      :: radiiCount                             , elementCount_
+     integer                                                      :: radiiCount                             , elementCount_     
      logical                                                      :: includeRadii
      type   (varying_string          ), allocatable, dimension(:) :: radiusSpecifiers
      type   (radiusSpecifier         ), allocatable, dimension(:) :: radii
+     
      logical                                                      :: darkMatterScaleRadiusIsNeeded          , diskIsNeeded        , &
           &                                                          spheroidIsNeeded                       , virialRadiusIsNeeded, &
-          &                                                          nuclearStarClusterIsNeeded             , satelliteIsNeeded 
+          &                                                          nuclearStarClusterIsNeeded             , satelliteIsNeeded   , &
+          &                                                          hotHaloIsNeeded
      double precision                                             :: fractionDarkMatter
    contains
      final     ::                       massProfileDestructor
@@ -126,6 +128,7 @@ contains
     call Galactic_Structure_Radii_Definition_Decode(                                    &
          &                                          radiusSpecifiers                  , &
          &                                          self%radii                        , &
+         &                                          self%hotHaloIsNeeded              , &
          &                                          self%diskIsNeeded                 , &
          &                                          self%spheroidIsNeeded             , &
          &                                          self%nuclearStarClusterIsNeeded   , &
@@ -186,13 +189,14 @@ contains
     !!{
     Implement a {\normalfont \ttfamily massProfile} property extractor.
     !!}
+    
     use :: Galactic_Structure_Options          , only : componentTypeAll                          , massTypeGalactic            , massTypeStellar                     , massTypeDark
     use :: Galactic_Structure_Radii_Definitions, only : radiusTypeDarkMatterScaleRadius           , radiusTypeDiskHalfMassRadius, radiusTypeDiskRadius                , radiusTypeGalacticLightFraction   , &
          &                                              radiusTypeGalacticMassFraction            , radiusTypeRadius            , radiusTypeSpheroidHalfMassRadius    , radiusTypeSpheroidRadius          , &
          &                                              radiusTypeStellarMassFraction             , radiusTypeVirialRadius      , radiusTypeSatelliteBoundMassFraction, radiusTypeNuclearStarClusterRadius, &
-         &                                              radiusTypeNuclearStarClusterHalfMassRadius
-    use :: Galacticus_Nodes                    , only : nodeComponentDarkMatterProfile            , nodeComponentDisk           , nodeComponentSpheroid               , nodeComponentNSC               , & 
-         &                                              nodeComponentSatellite                    , treeNode
+         &                                              radiusTypeNuclearStarClusterHalfMassRadius, radiusTypeHotHaloOuterRadius
+    use :: Galacticus_Nodes                    , only : nodeComponentDarkMatterProfile            , nodeComponentDisk           , nodeComponentSpheroid               , nodeComponentNSC                  , & 
+         &                                              nodeComponentSatellite                    , nodeComponentHotHalo        , treeNode
     use :: Mass_Distributions                  , only : massDistributionClass
     use :: Error                               , only : Error_Report
     implicit none
@@ -201,6 +205,7 @@ contains
     type            (treeNode                        ), intent(inout) , target      :: node
     double precision                                  , intent(in   )               :: time
     type            (multiCounter                    ), intent(inout) , optional    :: instance
+    class           (nodeComponentHotHalo            ), pointer                     :: hotHalo
     class           (nodeComponentDisk               ), pointer                     :: disk
     class           (nodeComponentSpheroid           ), pointer                     :: spheroid
     class           (nodeComponentNSC                ), pointer                     :: nuclearStarCluster
@@ -215,12 +220,12 @@ contains
     allocate(massProfileExtract(self%radiiCount,self%elementCount_))
     radiusVirial                                               =  0.0d0
     if (self%         virialRadiusIsNeeded) radiusVirial       =  self%darkMatterHaloScale_%radiusVirial(node                    )
+    if (self%              hotHaloIsNeeded) hotHalo            =>                                        node%hotHalo          ()
     if (self%                 diskIsNeeded) disk               =>                                        node%disk             ()
     if (self%             spheroidIsNeeded) spheroid           =>                                        node%spheroid         ()
     if (self%   nuclearStarClusterIsNeeded) nuclearStarCluster =>                                        node%NSC              ()
     if (self%            satelliteIsNeeded) satellite          =>                                        node%satellite        ()
     if (self%darkMatterScaleRadiusIsNeeded) darkMatterProfile  =>                                        node%darkMatterProfile()
-
     do i=1,self%radiiCount
        radius=self%radii(i)%value
        select case (self%radii(i)%type%ID)
@@ -230,6 +235,8 @@ contains
           radius=+radius*radiusVirial
        case   (radiusTypeDarkMatterScaleRadius           %ID)
           radius=+radius*darkMatterProfile %         scale()
+       case   (radiusTypeHotHaloOuterRadius              %ID)
+          radius=+radius*hotHalo           %   outerRadius()
        case   (radiusTypeDiskRadius                      %ID)
           radius=+radius*disk              %        radius()
        case   (radiusTypeSpheroidRadius                  %ID)

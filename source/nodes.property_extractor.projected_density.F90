@@ -44,10 +44,10 @@
      logical                                                      :: includeRadii
      type   (varying_string          ), allocatable, dimension(:) :: radiusSpecifiers
      type   (radiusSpecifier         ), allocatable, dimension(:) :: radii
-     logical                                                      :: darkMatterScaleRadiusIsNeeded          , diskIsNeeded               , &
-          &                                                          spheroidIsNeeded                       , virialRadiusIsNeeded       , &
-          &                                                          nuclearStarClusterIsNeeded             , satelliteIsNeeded          , &
-          &                                                          tolerateIntegrationFailures
+     logical                                                      :: darkMatterScaleRadiusIsNeeded          , diskIsNeeded        , &
+          &                                                          spheroidIsNeeded                       , virialRadiusIsNeeded, &
+          &                                                          nuclearStarClusterIsNeeded             , satelliteIsNeeded   , &
+          &                                                          tolerateIntegrationFailures            , hotHaloIsNeeded            
    contains
      final     ::                       projectedDensityDestructor
      procedure :: columnDescriptions => projectedDensityColumnDescriptions
@@ -137,6 +137,7 @@ contains
     call Galactic_Structure_Radii_Definition_Decode(                                    &
          &                                          radiusSpecifiers                  , &
          &                                          self%radii                        , &
+         &                                          self%hotHaloIsNeeded              , &
          &                                          self%diskIsNeeded                 , &
          &                                          self%spheroidIsNeeded             , &
          &                                          self%nuclearStarClusterIsNeeded   , &
@@ -194,9 +195,10 @@ contains
     use :: Galactic_Structure_Options          , only : componentTypeAll               , massTypeGalactic            , massTypeStellar
     use :: Galactic_Structure_Radii_Definitions, only : radiusTypeDarkMatterScaleRadius, radiusTypeDiskHalfMassRadius, radiusTypeDiskRadius                      , radiusTypeGalacticLightFraction   , &
           &                                             radiusTypeGalacticMassFraction , radiusTypeRadius            , radiusTypeSpheroidHalfMassRadius          , radiusTypeSpheroidRadius          , &
-          &                                             radiusTypeStellarMassFraction  , radiusTypeVirialRadius      , radiusTypeNuclearStarClusterHalfMassRadius, radiusTypeNuclearStarClusterRadius
+          &                                             radiusTypeStellarMassFraction  , radiusTypeVirialRadius      , radiusTypeNuclearStarClusterHalfMassRadius, radiusTypeNuclearStarClusterRadius, &
+          &                                             radiusTypeHotHaloOuterRadius   , radiusTypeHotHaloOuterRadius
     use :: Galacticus_Nodes                    , only : nodeComponentDarkMatterProfile , nodeComponentDisk           , nodeComponentSpheroid                     , nodeComponentNSC                  , &
-          &                                             treeNode
+          &                                             nodeComponentHotHalo           , treeNode
     use :: Numerical_Integration               , only : integrator                     , GSL_Integ_Gauss15
     use :: Numerical_Comparison                , only : Values_Agree
     use :: Mass_Distributions                  , only : massDistributionClass
@@ -208,6 +210,7 @@ contains
     type            (treeNode                             ), intent(inout) , target      :: node
     double precision                                       , intent(in   )               :: time
     type            (multiCounter                         ), intent(inout) , optional    :: instance
+    class           (nodeComponentHotHalo                 ), pointer                     :: hotHalo
     class           (nodeComponentDisk                    ), pointer                     :: disk
     class           (nodeComponentSpheroid                ), pointer                     :: spheroid
     class           (nodeComponentNSC                     ), pointer                     :: nuclearStarCluster
@@ -225,11 +228,11 @@ contains
 
     allocate(densityProjected(self%radiiCount,self%elementCount_))
     radiusVirial                                               =  self%darkMatterHaloScale_%radiusVirial(node                    )
+    if (self%              hotHaloIsNeeded) hotHalo            =>                                        node%hotHalo          ()
     if (self%                 diskIsNeeded) disk               =>                                        node%disk             ()
     if (self%             spheroidIsNeeded) spheroid           =>                                        node%spheroid         ()
     if (self%   nuclearStarClusterIsNeeded) nuclearStarCluster =>                                        node%NSC              ()
     if (self%darkMatterScaleRadiusIsNeeded) darkMatterProfile  =>                                        node%darkMatterProfile()
-
     integrator_=integrator(projectedDensityIntegrand,toleranceRelative=1.0d-3,hasSingularities=.true.,integrationRule=GSL_Integ_Gauss15)
     do i=1,self%radiiCount
        radius_=self%radii(i)%value
@@ -240,6 +243,8 @@ contains
           radius_=+radius_*radiusVirial
        case   (radiusTypeDarkMatterScaleRadius           %ID)
           radius_=+radius_*darkMatterProfile %         scale()
+       case   (radiusTypeHotHaloOuterRadius              %ID)
+          radius_=+radius_*hotHalo           %   outerRadius()
        case   (radiusTypeDiskRadius                      %ID)
           radius_=+radius_*disk              %        radius()
        case   (radiusTypeSpheroidRadius                  %ID)
