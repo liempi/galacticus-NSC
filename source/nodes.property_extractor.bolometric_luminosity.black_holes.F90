@@ -138,7 +138,7 @@ contains
           &                          *rateAccretion          &
           &                          *massSolar              &
           &                          *speedLight         **2 &
-          &                          /gigaYear               &
+          &                          /gigaYear
     return
   end function agnBolometricLuminosityExtract
 
