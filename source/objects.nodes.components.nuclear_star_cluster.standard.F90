@@ -876,9 +876,9 @@ contains
     !!}
     use :: Abundances_Structure                   , only : zeroAbundances
     use :: Error                                  , only : Error_Report
-    use :: Galacticus_Nodes                       , only : nodeComponentNSC                , nodeComponentNSCStandard, nodeComponentSpheroid   , nodeComponentDisk               , &
+    use :: Galacticus_Nodes                       , only : nodeComponentNSC         , nodeComponentNSCStandard, nodeComponentSpheroid   , nodeComponentDisk               , &
        &                                                   treeNode
-    use :: Satellite_Merging_Mass_Movements       , only : destinationMergerSpheroid       , destinationMergerDisk   , destinationMergerUnmoved, enumerationDestinationMergerType
+    use :: Satellite_Merging_Mass_Movements       , only : destinationMergerSpheroid, destinationMergerDisk   , destinationMergerUnmoved, enumerationDestinationMergerType
     use :: Satellite_Merging_Remnant_Sizes        , only : remnantNoChange
     use :: Stellar_Luminosities_Structure         , only : zeroStellarLuminosities
     implicit none

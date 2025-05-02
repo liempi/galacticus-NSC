@@ -26,7 +26,7 @@
   use :: Star_Formation_Rates_Spheroids            , only : starFormationRateSpheroidsClass
   use :: Star_Formation_Rates_Nuclear_Star_Clusters, only : starFormationRateNuclearStarClustersClass
   use :: Satellite_Merging_Mass_Movements          , only : mergerMassMovementsClass
-
+  use :: Satellite_Merging_Nuclear_Star_Clusters   , only : nuclearStarClusterMovementsClass
   !![
   <nodeOperator name="nodeOperatorAgesStellarMassWeighted">
     <description>
@@ -44,6 +44,7 @@
      class  (starFormationRateSpheroidsClass          ), pointer :: starFormationRateSpheroids_           => null()
      class  (starFormationRateNuclearStarClustersClass), pointer :: starFormationRateNuclearStarClusters_ => null()
      class  (mergerMassMovementsClass                 ), pointer :: mergerMassMovements_                  => null()
+     class  (nuclearStarClusterMovementsClass         ), pointer :: nuclearStarClusterMovements_          => null()
      integer                                                     :: stellarMassFormedDiskID                        , timeStellarMassFormedDiskID    , &
           &                                                         stellarMassFormedSpheroidID                    , timeStellarMassFormedSpheroidID, &
           &                                                         stellarMassFormedNSCID                         , timeStellarMassFormedNSCID
@@ -77,14 +78,16 @@ contains
     class(starFormationRateSpheroidsClass          ), pointer       :: starFormationRateSpheroids_
     class(starFormationRateNuclearStarClustersClass), pointer       :: starFormationRateNuclearStarClusters_  
     class(mergerMassMovementsClass                 ), pointer       :: mergerMassMovements_
+    class(nuclearStarClusterMovementsClass         ), pointer       :: nuclearStarClusterMovements_       
     
     !![
     <objectBuilder class="starFormationRateDisks"               name="starFormationRateDisks_"               source="parameters"/>
     <objectBuilder class="starFormationRateSpheroids"           name="starFormationRateSpheroids_"           source="parameters"/>
     <objectBuilder class="starFormationRateNuclearStarClusters" name="starFormationRateNuclearStarClusters_" source="parameters"/>
     <objectBuilder class="mergerMassMovements"                  name="mergerMassMovements_"                  source="parameters"/>
+    <objectBuilder class="nuclearStarClusterMovements"          name="nuclearStarClusterMovements_"          source="parameters"/>
     !!]
-    self=nodeOperatorAgesStellarMassWeighted(starFormationRateDisks_,starFormationRateSpheroids_,starFormationRateNuclearStarClusters_,mergerMassMovements_)
+    self=nodeOperatorAgesStellarMassWeighted(starFormationRateDisks_,starFormationRateSpheroids_,starFormationRateNuclearStarClusters_,mergerMassMovements_,nuclearStarClusterMovements_)
     !![
     <inputParametersValidate source="parameters"/>
     <objectDestructor name="starFormationRateDisks_"              />
@@ -95,7 +98,7 @@ contains
     return
   end function agesStellarMassWeightedConstructorParameters
 
-  function agesStellarMassWeightedConstructorInternal(starFormationRateDisks_,starFormationRateSpheroids_,starFormationRateNuclearStarClusters_,mergerMassMovements_) result(self)
+  function agesStellarMassWeightedConstructorInternal(starFormationRateDisks_,starFormationRateSpheroids_,starFormationRateNuclearStarClusters_,mergerMassMovements_,nuclearStarClusterMovements_) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily agesStellarMassWeighted} node operator class.
     !!}
@@ -105,8 +108,9 @@ contains
     class(starFormationRateSpheroidsClass          ), intent(in   ), target :: starFormationRateSpheroids_
     class(starFormationRateNuclearStarClustersClass), intent(in   ), target :: starFormationRateNuclearStarClusters_
     class(mergerMassMovementsClass                 ), intent(in   ), target :: mergerMassMovements_
+    class(nuclearStarClusterMovementsClass         ), intent(in   ), target :: nuclearStarClusterMovements_
     !![
-    <constructorAssign variables="*starFormationRateDisks_, *starFormationRateSpheroids_, *starFormationRateNuclearStarClusters_, *mergerMassMovements_"/>
+    <constructorAssign variables="*starFormationRateDisks_, *starFormationRateSpheroids_, *starFormationRateNuclearStarClusters_, *mergerMassMovements_, *nuclearStarClusterMovements_"/>
     !!]
     
     !![
@@ -132,6 +136,7 @@ contains
     <objectDestructor name="self%starFormationRateSpheroids_"          />
     <objectDestructor name="self%starFormationRateNuclearStarClusters_"/>
     <objectDestructor name="self%mergerMassMovements_"                 />
+    <objectDestructor name="self%nuclearStarClusterMovements_"         />
     !!]
     return
   end subroutine agesStellarMassWeightedDestructor
@@ -297,10 +302,10 @@ contains
     class  (nodeComponentDisk                  ), pointer       :: disk                      , diskHost
     class  (nodeComponentSpheroid              ), pointer       :: spheroid                  , spheroidHost
     class  (nodeComponentNSC                   ), pointer       :: nuclearStarCluster        , nuclearStarClusterHost
-    type   (enumerationDestinationMergerType   )                :: destinationGasSatellite   , destinationStarsSatellite, &
+    type   (enumerationDestinationMergerType   )                :: destinationGasSatellite   , destinationStarsSatellite    , &
          &                                                         destinationGasHost        , destinationStarsHost
-    logical                                                     :: mergerIsMajor             , haveNuclearStarCluster   , &
-         &                                                         haveNuclearStarClusterHost
+    logical                                                     :: mergerIsMajor             , haveNuclearStarCluster       , &
+         &                                                         haveNuclearStarClusterHost, nuclearStarClusterIsDestroyed
     double precision                                            :: massNuclearStarCluster    , timeNuclearStarCluster
 
     ! Find the node to merge with.
@@ -324,7 +329,8 @@ contains
        haveNuclearStarClusterHost=.true.
     end select
     ! Get mass movement descriptors.
-    call self%mergerMassMovements_%get(node,destinationGasSatellite,destinationStarsSatellite,destinationGasHost,destinationStarsHost,mergerIsMajor)
+    call self%mergerMassMovements_        %get        (node,destinationGasSatellite,destinationStarsSatellite,destinationGasHost,destinationStarsHost,mergerIsMajor)
+    call self%nuclearStarClusterMovements_%isDestroyed(node,nuclearStarClusterIsDestroyed)
     ! Move star formation rates within the host if necessary.
     if (haveNuclearStarClusterHost) then
        massNuclearStarCluster=nuclearStarClusterHost%floatRank0MetaPropertyGet(self%    stellarMassFormedNSCID)
