@@ -20,24 +20,24 @@
   !+    Contributions to this file made by: Matías Liempi
 
 !!{
-Contains a module which provides a class that implements calculations of rates of stellar-mass black holes formation in nuclear star clusters.
+Contains a module which provides a class that implements rates for the dark core mass within nuclear star clusters.
 !!}
 
-module Nuclear_Star_Cluster_Stellar_Black_Holes_Growth_Rates
+module Dark_Core_Growth_Rates
   !!{
-  Provides a class that implements calculations of rates of stellar-mass black holes formation in nuclear star clusters.
+  Provides a class that implements calculations of rates of gas inflows onto nuclear star clusters.
   !!}
   use :: Galacticus_Nodes, only : treeNode
   private
 
   !![
   <functionClass>
-   <name>nuclearStarClusterStellarBlackHoleGrowthRates</name>
-   <descriptiveName>Rates of stellar-mass black holes in nuclear star clusters</descriptiveName>
-   <description>Class providing models of rates of stellar-mass black holes in nuclear star clusters.</description>
-   <default>scaled</default>
+   <name>darkCoreGrowthRates</name>
+   <descriptiveName>Rates for the dark core mass within nuclear star clusters</descriptiveName>
+   <description>Class providing models of rates for the dark core mass within nuclear star clusters.</description>
+   <default>timescale</default>
    <method name="rate" >
-    <description>Returns the rate (in units of $\mathrm{M}_\odot$ Gyr$^{-1}$) of stellar-mass in the nuclear star cluster component of {\normalfont \ttfamily node}.</description>
+    <description>Returns the rate (in units of $\mathrm{M}_\odot$ Gyr$^{-1}$) of stellar mass black holes for falling into the dark core within nuclear star clusters {\normalfont \ttfamily node}.</description>
     <type>double precision</type>
     <pass>yes</pass>
     <selfTarget>yes</selfTarget>
@@ -46,4 +46,4 @@ module Nuclear_Star_Cluster_Stellar_Black_Holes_Growth_Rates
   </functionClass>
   !!]
 
-end module Nuclear_Star_Cluster_Stellar_Black_Holes_Growth_Rates
+end module Dark_Core_Growth_Rates

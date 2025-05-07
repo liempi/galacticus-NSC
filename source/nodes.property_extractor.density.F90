@@ -182,7 +182,8 @@ contains
           &                                             radiusTypeStellarMassFraction  , radiusTypeVirialRadius      , radiusTypeNuclearStarClusterHalfMassRadius, radiusTypeNuclearStarClusterRadius, &
           &                                             radiusTypeHotHaloOuterRadius
     use :: Galacticus_Nodes                    , only : nodeComponentDarkMatterProfile , nodeComponentDisk           , nodeComponentSpheroid                     , nodeComponentNSC                  , &
-         &                                              nodeComponentHotHalo           , treeNode    use :: Mass_Distributions                  , only : massDistributionClass
+         &                                              nodeComponentHotHalo           , treeNode 
+    use :: Mass_Distributions                  , only : massDistributionClass
     use :: Coordinates                         , only : coordinateSpherical            , assignment(=)
     use :: Numerical_Constants_Math            , only : Pi
     use :: Error                               , only : Error_Report

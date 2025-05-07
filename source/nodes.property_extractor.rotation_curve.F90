@@ -214,7 +214,7 @@ contains
     if (self%                 diskIsNeeded) disk               =>                                        node%disk             ()
     if (self%             spheroidIsNeeded) spheroid           =>                                        node%spheroid         ()
     if (self%   nuclearStarClusterIsNeeded) nuclearStarCluster =>                                        node%NSC              ()
-    if (self%darkMatterScaleRadiusIsNeeded) darkMatterProfile  =>                                        node%darkMatterProfile(
+    if (self%darkMatterScaleRadiusIsNeeded) darkMatterProfile  =>                                        node%darkMatterProfile()
     do i=1,self%radiiCount
        radius=self%radii(i)%value
        select case (self%radii(i)%type%ID)

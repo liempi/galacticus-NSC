@@ -758,15 +758,26 @@ contains
        call nuclearStarCluster%angularMomentumScale(max(angularMomentum,angularMomentumMinimum))
        ! Set scale for masses.
        ! The scale here (and for other quantities below) combines the mass of nuclear star cluster and spheroid.
-        mass     =    max(     scaleMassRelative*spheroid          %massStellar(), &
-            &              max(                  nuclearStarCluster%massStellar(), &
-            &                  massMinimum                                         &
-            &                 )                                                    &
+       mass     =    max(     scaleMassRelative*spheroid          %massStellar(), &
+            &             max(                  nuclearStarCluster%massStellar(), &
+            &                 massMinimum                                         &
+            &                )                                                    &
             &             ) 
        call nuclearStarCluster%massGasScale              (mass)
        call nuclearStarCluster%massStellarScale          (mass)
-       call nuclearStarCluster%massStellarBlackHolesScale(mass)
        call nuclearStarCluster%massStellarFormedScale    (mass)
+       call nuclearStarCluster%massDarkCoreScale         (                                                        &
+            &                                             max(                                                    &
+            &                                                 fractionTolerance*nuclearStarCluster%massStellar(), &
+            &                                                 massMinimum                                         &
+            &                                                )                                                    &
+            &                                            )
+       call nuclearStarCluster%massStellarBlackHolesScale(                                                        &
+            &                                             max(                                                    &
+            &                                                 fractionTolerance*nuclearStarCluster%massStellar(), &
+            &                                                 massMinimum                                         &
+            &                                                )                                                    &
+            &                                            )
        ! Set scales for abundances if necessary.
        if (abundancesCount > 0) then
           ! Set scale for abundances.

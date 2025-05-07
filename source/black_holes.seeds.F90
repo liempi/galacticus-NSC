@@ -41,6 +41,7 @@ module Black_Hole_Seeds
     <entry label="undetermined"       />
     <entry label="starClusterCollapse"/>
     <entry label="darkCoreCollapse"   />
+    <entry label="veryMassiveStars"   />
   </enumeration>
   !!]
   

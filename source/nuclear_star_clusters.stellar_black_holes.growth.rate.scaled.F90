@@ -45,7 +45,7 @@
      class           (starFormationRateNuclearStarClustersClass), pointer :: starFormationRateNuclearStarClusters_ => null()
      double precision                                                     :: efficiency
      contains
-     final     ::          scaledRateDestructor
+     final     ::          scaledDestructor
      procedure :: rate  => scaledRate
   end type nuclearStarClusterStellarBlackHoleGrowthRatesScaled
 

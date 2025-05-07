@@ -34,7 +34,7 @@
      !!}
      private
     integer   :: darkCoreRadiusID            , darkCoreGasMassID  , &
-       &         darkCoreVelocityDispersionID, darkCoreTimeScaleID
+       &         darkCoreVelocityDispersionID, darkCoreTimescaleID
    
    contains
      procedure :: elementCount       => DarkCoresElementCount
@@ -80,7 +80,7 @@ contains
     <addMetaProperty component="NSC" name="darkCoreRadius"             id="self%darkCoreRadiusID"             isEvolvable="no" isCreator="no"/>
     <addMetaProperty component="NSC" name="darkCoreGasMass"            id="self%darkCoreGasMassID"            isEvolvable="no" isCreator="no"/>
     <addMetaProperty component="NSC" name="darkCoreVelocityDispersion" id="self%darkCoreVelocityDispersionID" isEvolvable="no" isCreator="no"/>
-    <addMetaProperty component="NSC" name="darkCoreTimeScale"          id="self%darkCoreTimeScaleID"          isEvolvable="no" isCreator="no"/>
+    <addMetaProperty component="NSC" name="darkCoreTimescale"          id="self%darkCoreTimeScaleID"          isEvolvable="no" isCreator="no"/>
     !!]
     return
   end function DarkCoresConstructorInternal
@@ -129,7 +129,7 @@ contains
        &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreRadiusID            ), &
        &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreGasMassID           ), &
        &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreVelocityDispersionID), &
-       &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreTimeScaleID         )  &
+       &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreTimescaleID         )  &
        &               ]
     end select
     return
