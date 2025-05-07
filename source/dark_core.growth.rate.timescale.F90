@@ -26,7 +26,7 @@
   !![
   <darkCoreGrowthRates name="darkCoreGrowthRatesTimescale">
    <description>
-    A gas inflow rate implementing the model of \citep{...} for galactic \glspl{nsc}.
+    A dark core mass rate where the mass evolution takes place over a timescale for galactic \glspl{nsc}.
     \begin{equation}
      \dot{M}_\mathrm{stellar\,BHs}^\mathrm{NSC} = \epsilon_\bullet \dot{M}_\star^\mathrm{NSC},
     \end{equation}    
@@ -179,8 +179,12 @@ contains
     nuclearStarClusterDensityGas        =  massDistributionNuclearStarCluster_%density             (coordinates                                    )
     nuclearStarClusterGasMassEnclosed   =  massDistributionNuclearStarCluster_%massEnclosedBySphere(darkCoreRadius                                 ) 
     ! We do not use this here, but I do not know where to better place this yet.
-    if (darkCoreRadius>0.0d0.and.nuclearStarClusterGasMassEnclosed>0.0d0.and.darkCoreMass>0.0d0) then
-      PRINT *,darkCoreMass, darkCoreRadius, nuclearStarClusterGasMassEnclosed
+    if ( darkCoreRadius                  >0.0d0 &
+      & .and.                                   &
+      & darkCoreMass                     >0.0d0 &
+      & .and.                                   &
+      & nuclearStarClusterGasMassEnclosed>0.0d0 &
+      & ) then
       darkCoreVelocityDispersion          = sqrt(                                     &
         &                                         gravitationalConstant_internal      &
         &                                        *darkCoreMass                        &
