@@ -539,10 +539,9 @@ def generateJobSSP(grid,args):
         "onCompletion":         linesParse                                          ,
         "jobNumber":            jobNumber                                           ,
         "grid":                 grid                                                ,
- 	"cloudyScriptFileName": cloudyScriptFileName                                ,
+ 	"cloudyScriptFileName": args.workspace+cloudyScriptFileName                 ,
  	"linesFileName":        args.workspace+"lines"        +str(jobNumber)+".out",
  	"continuumFileName":    args.workspace+"continuum"    +str(jobNumber)+".out",
- 	"cloudyScriptFileName": cloudyScriptFileName                                ,
  	"indices":      	( iAge, iMetallicity, iLogHydrogenLuminosity, iLogHydrogenDensity ),
         "command":              "cd "+args.workspace+"; ulimit -c 0\n"+cloudyPath+"/source/cloudy.exe < "+cloudyScriptFileName+"\n"+"if [ $? != 0 ]; then\necho CLOUDY FAILED\nfi\n"
     }
@@ -657,10 +656,9 @@ def generateJobAGN(grid,args):
         "onCompletion":         linesParse                                          ,
         "jobNumber":            jobNumber                                           ,
         "grid":                 grid                                                ,
- 	"cloudyScriptFileName": cloudyScriptFileName                                ,
+ 	"cloudyScriptFileName": args.workspace+cloudyScriptFileName                 ,
  	"linesFileName":        args.workspace+"lines"        +str(jobNumber)+".out",
  	"continuumFileName":    args.workspace+"continuum"    +str(jobNumber)+".out",
- 	"cloudyScriptFileName": cloudyScriptFileName                                ,
  	"indices":      	( iSpectralIndex, iMetallicity, iIonizationParameter, iLogHydrogenDensity ),
         "command":              "cd "+args.workspace+"; ulimit -c 0\n"+cloudyPath+"/source/cloudy.exe < "+cloudyScriptFileName+"\n"+"if [ $? != 0 ]; then\necho CLOUDY FAILED\nfi\n"
     }
@@ -844,9 +842,9 @@ def outputSSP(grid,args):
         lineName    = lineList[lineLabel]
         datasetLine = lineGroup.create_dataset(lineName,data=np.transpose(grid['lineData'][lineName]['luminosity']))
         datasetLine.attrs['description'] = "Energy radiated by a unit area of cloud into 4 π sr."
-        datasetLine.attrs['lunits'     ] = "erg cm¯² s¯¹"
-        datasetLine.attrs['lunitsInSI' ] = unitsIntensity
-        datasetLine.attrs['lwavelength'] = grid['lineData'][lineName]['wavelength']
+        datasetLine.attrs['units'      ] = "erg cm¯² s¯¹"
+        datasetLine.attrs['unitsInSI'  ] = unitsIntensity
+        datasetLine.attrs['wavelength' ] = grid['lineData'][lineName]['wavelength']
 
 def outputAGN(grid,args):
     # Output the results of the Cloudy calculations for AGN.
@@ -882,9 +880,9 @@ def outputAGN(grid,args):
         lineName    = lineList[lineLabel]
         datasetLine = lineGroup.create_dataset(lineName,data=np.transpose(grid['lineData'][lineName]['luminosity']))
         datasetLine.attrs['description'] = "Energy radiated by a unit area of cloud into 4 π sr."
-        datasetLine.attrs['lunits'     ] = "erg cm¯² s¯¹"
-        datasetLine.attrs['lunitsInSI' ] = unitsIntensity
-        datasetLine.attrs['lwavelength'] = grid['lineData'][lineName]['wavelength']
+        datasetLine.attrs['units'      ] = "erg cm¯² s¯¹"
+        datasetLine.attrs['unitsInSI'  ] = unitsIntensity
+        datasetLine.attrs['wavelength' ] = grid['lineData'][lineName]['wavelength']
 
 
 # Parse command line arguments.
