@@ -18,9 +18,8 @@
 !!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
 
   !!{
-  Implementation of a globular cluster Dissolution rate in galactic spheroids.
+  Implementation of a globular cluster dissolution rate in galactic spheroids.
   !!}
-  use :: Dark_Matter_Halo_Scales, only : darkMatterHaloScale, darkMatterHaloScaleClass
 
   !![
   <globularClusterDissolutionRateSpheroids name="globularClusterDissolutionRateSpheroidsAntonini2015">
@@ -34,11 +33,9 @@
      Implementation of a rate for globular cluster Dissolution in galactic spheroids.
      !!}
      private
-     class           (darkMatterHaloScaleClass ), pointer :: darkMatterHaloScale_ => null()
-     double precision                                     :: massMinimum                         , massMaximum
-     integer                                              :: globularClusterStellarMassSpheroidID
+     double precision :: massMinimum                         , massMaximum
+     integer          :: globularClusterStellarMassSpheroidID
    contains
-     final     ::         globularClusterDissolutionSpheroidsAntonini2015Destructor
      procedure :: rate => globularClusterDissolutionSpheroidsAntonini2015Rate
   end type globularClusterDissolutionRateSpheroidsAntonini2015
 
@@ -54,15 +51,14 @@ contains
 
   function globularClusterDssltnSpheAntonini2015ConstructorParameters(parameters) result(self)
     !!{
-    Constructor for the {\normalfont \ttfamily globularClusterDissolutionSpheroids} formation rate in spheroids class which takes a
+    Constructor for the {\normalfont \ttfamily globularClusterDissolutionSpheroids} rate in spheroids class which takes a
     parameter set as input.
     !!}
     use :: Input_Parameters, only : inputParameter, inputParameters
     implicit none
     type            (globularClusterDissolutionRateSpheroidsAntonini2015)                :: self
     type            (inputParameters                                    ), intent(inout) :: parameters
-    class           (darkMatterHaloScaleClass                           ), pointer       :: darkMatterHaloScale_
-    double precision                                                                     :: massMinimum         , massMaximum
+    double precision                                                                     :: massMinimum, massMaximum
   
     !![
     <inputParameter>
@@ -77,69 +73,51 @@ contains
       <description>Maximum mass of the globular clusters in the spheroid component.</description>
       <source>parameters</source>
     </inputParameter>
-    <objectBuilder class="darkMatterHaloScale" name="darkMatterHaloScale_" source="parameters"/>
     !!]
-    self=globularClusterDissolutionRateSpheroidsAntonini2015(massMinimum,massMaximum, darkMatterHaloScale_)
+    self=globularClusterDissolutionRateSpheroidsAntonini2015(massMinimum,massMaximum)
     !![
     <inputParametersValidate source="parameters"/>
-    <objectDestructor name="darkMatterHaloScale_"/>
     !!]
     return
   end function globularClusterDssltnSpheAntonini2015ConstructorParameters
 
-  function globularClusterDssltnSpheAntonini2015ConstructorInternal(massMinimum, massMaximum,darkMatterHaloScale_) result(self)
+  function globularClusterDssltnSpheAntonini2015ConstructorInternal(massMinimum, massMaximum) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily globularClusterDissolutionSpheroids} globular cluster Dissolution rate in spheroids class.
     !!}
     implicit none
-    type            (globularClusterDissolutionRateSpheroidsAntonini2015)                        :: self
-    double precision                                                     , intent(in   )         :: massMinimum
-    double precision                                                     , intent(in   )         :: massMaximum
-    class           (darkMatterHaloScaleClass                           ), intent(in   ), target :: darkMatterHaloScale_
+    type            (globularClusterDissolutionRateSpheroidsAntonini2015)                :: self
+    double precision                                                     , intent(in   ) :: massMinimum
+    double precision                                                     , intent(in   ) :: massMaximum
 
     !![
-    <constructorAssign variables="massMinimum, massMaximum, *darkMatterHaloScale_"/>
-    !!]
-    !![
+    <constructorAssign variables="massMinimum, massMaximum"/>
     <addMetaProperty component="spheroid" name="globularClusterStellarMassSpheroid" id="self%globularClusterStellarMassSpheroidID" isEvolvable="yes" isCreator="no" />
     !!]
     return
   end function globularClusterDssltnSpheAntonini2015ConstructorInternal
   
-  subroutine globularClusterDissolutionSpheroidsAntonini2015Destructor(self)
-    !!{
-    Destructor for the cut off cooling rate class.
-    !!}
-    implicit none
-    type(globularClusterDissolutionRateSpheroidsAntonini2015), intent(inout) :: self
-
-    !![
-    <objectDestructor name="self%darkMatterHaloScale_"/>
-    !!]
-    return
-  end subroutine globularClusterDissolutionSpheroidsAntonini2015Destructor
- 
   double precision function globularClusterDissolutionSpheroidsAntonini2015Rate(self,node) result(rate)
     !!{
-    Returns the globular formation rate (in $\mathrm{M}_\odot$ Gyr$^{-1}$) in the galactic spheroid of {\normalfont \ttfamily node}
+    Returns the globular dissolution rate (in $\mathrm{M}_\odot$ Gyr$^{-1}$) in the galactic spheroid of {\normalfont \ttfamily node}
     !!}
-    use :: Coordinates               , only : coordinateSpherical  , assignment(=)
-    use :: Galactic_Structure_Options, only : componentTypeSpheroid, massTypeStellar
+    use :: Galactic_Structure_Options, only : componentTypeSpheroid, massTypeStellar              , massTypeGalactic
     use :: Galacticus_Nodes          , only : nodeComponentSpheroid, nodeComponentSpheroidStandard, treeNode
     use :: Mass_Distributions        , only : massDistributionClass
-    use :: Numerical_Constants_Math  , only : Pi
     use :: Numerical_Integration     , only : integrator
     implicit none
     class           (globularClusterDissolutionRateSpheroidsAntonini2015), intent(inout), target  :: self
     type            (treeNode                                           ), intent(inout), target  :: node
-    type            (coordinateSpherical                                )                         :: coordinates
-    class           (massDistributionClass                              ), pointer                :: massDistributionStellar_
+    class           (massDistributionClass                              ), pointer                :: massDistributionStellar_        , massDistributionGalactic_
     class           (nodeComponentSpheroid                              ), pointer                :: spheroid 
     double precision                                                     , parameter              :: radiusInnerDimensionless=1.0d-13, radiusOuterDimensionless=10.0d0
     double precision                                                                              :: radiusSpheroid                  , massStellar                    , &
-         &                                                                                           normalizationMass               , velocityVirial                 , &
+         &                                                                                           normalizationIntegral           , integralEvaluated              , &
          &                                                                                           massGlobularClusterSpheroid     , radiusInner                    , &
-         &                                                                                           radiusOuter                     , density
+         &                                                                                           radiusOuter
+    double precision                                                     , parameter              :: rotationPeriodNormalization      =41.4d-3  ! Mpc⁻¹
+    double precision                                                     , parameter              :: dissolutionTimescaleNormalization=10.0d0   ! Gyr
+    double precision                                                     , parameter              :: globularClusterMassNormalization =2.0d5    ! M☉ 
     type            (integrator                                         )                         :: integrator_
 
     ! Get the spheroid properties.
@@ -155,62 +133,68 @@ contains
         if (massStellar <= 0.0d0 .or. radiusSpheroid <= 0.0d0) then
           ! It is not, so return zero rate.
           rate =+0.0d0
+          return
         else
           ! Here we use equation 10 from from F. Antonini, E. Barausse & J. Silk (2015; https://ui.adsabs.harvard.edu/abs/2015ApJ...812...72A).
           ! Specifically, we split the equations in two parts, the disk and spheroidal components. This allow us to track the mass of the globular
             ! clusters in each component. The integral over the globular cluster mass can be evaluated analyticaly. 
-
-          velocityVirial                 =self%darkMatterHaloScale_%velocityVirial(node)
-          normalizationMass              = (self%massMaximum * self%massMinimum)         &
-            &                             /(self%massMaximum - self%massMinimum)         ! M☉
-              ! Compute suitable limits for the integration.
-          radiusInner=radiusSpheroid*radiusInnerDimensionless
-          radiusOuter=radiusSpheroid*radiusOuterDimensionless
           massGlobularClusterSpheroid = spheroid%floatRank0MetaPropertyGet(self%globularClusterStellarMassSpheroidID) ! M☉
 
           ! Find the rate of globSular cluster formation in the spheroid component.
           if (massGlobularClusterSpheroid <= 0.0d0) then
             rate   = 0.0d0
+            return
           else
-            massDistributionStellar_ => node%massDistribution(componentType=componentTypeSpheroid,massType=massTypeStellar)
-            coordinates =[radiusSpheroid, 0.0d0, 0.0d0]
-            density = massDistributionStellar_%density(coordinates)
 
-            integrator_             =  integrator(radialIntegrand,toleranceRelative=1.0d-3, hasSingularities=.true.)
-            rate   = 4.0d0*Pi                                        &      
-             &      *normalizationMass                               &
+            normalizationIntegral = (self%massMaximum*self%massMinimum) &
+               &                   /(self%massMaximum-self%massMinimum) ! M☉
+            
+            ! Compute suitable limits for the integration.
+            radiusInner=radiusSpheroid*radiusInnerDimensionless
+            radiusOuter=radiusSpheroid*radiusOuterDimensionless
+
+            massDistributionStellar_ => node%massDistribution(componentType=componentTypeSpheroid,massType=massTypeStellar )
+            massDistributionGalactic_=> node%massDistribution(                                    massType=massTypeGalactic)
+
+            integrator_      = integrator(radialIntegrand,toleranceRelative=1.0d-3, hasSingularities=.true.)
+            integralEvaluated= integrator_%integrate(radiusInner,radiusOuter)
+            rate   =+normalizationIntegral                           &
              &      *massGlobularClusterSpheroid                     &
              &      /massStellar                                     &
-             &      *(2.0d+5)**(-2.0d0/3.0d0)                        &
-             &      *(10.0d0)**-1.0d0                                &
-             &      *(41.4d3)**-1.0d0                                &
-             &      *velocityVirial                                  &
-             &      *integrator_%integrate(radiusInner,radiusOuter)  &
+             &      *integralEvaluated                               &
+             &      *globularClusterMassNormalization**(2.0d0/3.0d0) &                         
+             &      *dissolutionTimescaleNormalization**(-1.0d0)     &
+             &      *rotationPeriodNormalization**(-1.0d0)           &
              &      *(-3.0d0/5.0d0                                   &
-             &       *(+1.0d0/self%massMaximum**(5.0d0/3.0d0)        &
-             &         -1.0d0/self%massMinimum**(5.0d0/3.0d0)        &
-             &          )                                            &
-             &         )
+             &      *(+1.0d0/self%massMaximum**(5.0d0/3.0d0)         &
+             &        -1.0d0/self%massMinimum**(5.0d0/3.0d0)         &
+             &         )                                             &
+             &        )
              !![
               <objectDestructor name="massDistributionStellar_"/>
-            !!]                                                
+              <objectDestructor name="massDistributionGalactic_"/>
+             !!]                                                
           end if
         end if
       end select 
     return
 
     contains
-      double precision function radialIntegrand(radius)
-        use :: Coordinates, only : coordinateSpherical, assignment(=)
-        implicit none
-        double precision                      , intent(in  ) :: radius
-        type            (coordinateSpherical)                :: coordinates
-        double precision                                     :: density
 
+      double precision function radialIntegrand(radius)
+        use :: Coordinates             , only : coordinateSpherical, assignment(=)
+        use :: Numerical_Constants_Math, only : Pi
+        implicit none
+        double precision                     , intent(in  ) :: radius
+        type            (coordinateSpherical)               :: coordinates
+        double precision                                    :: density                    , velocityRotation
+        double precision                     , parameter    :: velocityNormalization=1.0d0 !km s⁻¹
+        ! Define coordinates.
         coordinates    = [radius,0.0d0,0.0d0]
-        density = massDistributionStellar_%density(coordinates)
-        ! Get stellar surface density.
-        radialIntegrand  =density*radius
+        ! Get the galactic rotation curve at the radius.
+        velocityRotation=massDistributionGalactic_%rotationCurve (     radius)
+        density         =massDistributionStellar_ %density       (coordinates)
+        radialIntegrand =4.0d0*Pi*density*(velocityRotation/velocityNormalization)*radius**3.0d0
         return 
       end function radialIntegrand 
 

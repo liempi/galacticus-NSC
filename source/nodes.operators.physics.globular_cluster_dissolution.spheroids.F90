@@ -113,7 +113,7 @@ contains
     procedure       (interruptTask                                  ), intent(inout), pointer :: functionInterrupt
     integer                                                          , intent(in   )          :: propertyType
     class           (nodeComponentSpheroid                          )               , pointer :: spheroid
-    double precision                                                                          :: rateGlobularClusterDissolution
+    double precision                                                                          :: globularClusterMass, rateGlobularClusterDissolution
     ! Check for a realistic spheroid, return immediately if spheroid is unphysical.
     spheroid => node%spheroid()
     if     (         spheroid%angularMomentum() <= 0.0d0 &
@@ -123,9 +123,10 @@ contains
          & ) return
     if (propertyInactive(propertyType)) return
 
-    rateGlobularClusterDissolution=self%globularClusterDissolutionRateSpheroids_%rate(node)
+    globularClusterMass           = spheroid%floatRank0MetaPropertyGet(self%globularClusterStellarMassSpheroidID)
+    rateGlobularClusterDissolution= self%globularClusterDissolutionRateSpheroids_%rate(node)
 
-    if (rateGlobularClusterDissolution <= 0.0d0) return
+    if (rateGlobularClusterDissolution<=0.0d0.or.globularClusterMass<=0.0d0) return
 
     call spheroid%massStellarRate           (+rateGlobularClusterDissolution)
 

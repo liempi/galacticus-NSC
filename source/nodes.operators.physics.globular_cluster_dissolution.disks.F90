@@ -113,7 +113,7 @@ contains
     procedure       (interruptTask                              ), intent(inout), pointer :: functionInterrupt
     integer                                                      , intent(in   )          :: propertyType
     class           (nodeComponentDisk                          )               , pointer :: disk
-    double precision                                                                      :: rateGlobularClusterDissolution
+    double precision                                                                      :: globularClusterMass, rateGlobularClusterDissolution
     ! Check for a realistic disk, return immediately if disk is unphysical.
     disk => node%disk()
     if     (         disk%angularMomentum() <= 0.0d0 &
@@ -123,9 +123,10 @@ contains
          & ) return
     if (propertyInactive(propertyType)) return
 
+    globularClusterMass           = disk%floatRank0MetaPropertyGet(self%globularClusterStellarMassDiskID)
     rateGlobularClusterDissolution=self%globularClusterDissolutionRateDisks_%rate(node)
 
-    if (rateGlobularClusterDissolution <= 0.0d0) return
+    if (rateGlobularClusterDissolution<=0.0d0.or.globularClusterMass<=0.0d0) return
 
     call disk%massStellarRate           (+rateGlobularClusterDissolution)
 
