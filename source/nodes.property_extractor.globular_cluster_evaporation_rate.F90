@@ -27,9 +27,9 @@ Implements a star Evaporation rate property extractor class.
   !![
   <nodePropertyExtractor name="nodePropertyExtractorGlobularClusterEvaporationRate">
    <description>
-    A node property extractor which extracts the globular cluster evaporation rate in a galaxy. The type of star 3vaporation rate is controlled by
+    A node property extractor which extracts the globular cluster evaporation rate in a galaxy. The type globular evaporation rate is controlled by
     the {\normalfont \ttfamily [component]} parameter, which can be either ``{\normalfont \ttfamily disk}'', ``{\normalfont
-    \ttfamily spheroid}'' or ``{\normalfont \ttfamily total}''. The corresponding globular cluster Evaporation
+    \ttfamily spheroid}'' or ``{\normalfont \ttfamily total}''. The corresponding globular cluster evaporation
     rate is extracted as {\normalfont \ttfamily \textless\ component\textgreater\ globularClusterEvaporationRate} in units of $M_\odot$/Gyr.
    </description>
   </nodePropertyExtractor>
@@ -129,7 +129,7 @@ contains
        self%name_       ="diskglobularClusterEvaporationRate"
        self%description_="Disk globular cluster evaporation rate [M☉ Gyr⁻¹]."
        self%component   ="disk"
-    else if (                                                        associated(self%globularClusterEvaporationRateSpheroids_)                                                           ) then
+    else if (                                                          associated(self%globularClusterEvaporationRateSpheroids_)                                                           ) then
        self%name_       ="spheroidglobularClusterEvaporationRate"
        self%description_="Spheroid globular cluster evaporation rate [M☉ Gyr⁻¹]."
        self%component   ="spheroid"

@@ -123,7 +123,7 @@ contains
          & ) return
     if (propertyInactive(propertyType)) return
 
-    globularClusterMass           = disk%floatRank0MetaPropertyGet(self%globularClusterStellarMassDiskID)
+    globularClusterMass           =disk%floatRank0MetaPropertyGet(self%globularClusterStellarMassDiskID)
     rateGlobularClusterDissolution=self%globularClusterDissolutionRateDisks_%rate(node)
 
     if (rateGlobularClusterDissolution<=0.0d0.or.globularClusterMass<=0.0d0) return

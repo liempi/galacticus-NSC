@@ -30,7 +30,7 @@
   !!]
   type, extends(globularClusterDissolutionRateDisksClass) :: globularClusterDissolutionRateDisksAntonini2015
      !!{
-     Implementation of a rate for globular cluster Dissolution in galactic disks.
+     Implementation of a rate for globular cluster dissolution in galactic disks.
      !!}
      private
      double precision :: massMinimumGlobularClusters     , massMaximumGlobularClusters
@@ -90,6 +90,7 @@ contains
     double precision                                                 , intent(in   ) :: massMinimumGlobularClusters
     double precision                                                 , intent(in   ) :: massMaximumGlobularClusters
     !![
+    <constructorAssign variables="massMinimumGlobularClusters, massMaximumGlobularClusters"/>
     <addMetaProperty component="disk" name="globularClusterStellarMassDisk" id="self%globularClusterStellarMassDiskID" isEvolvable="yes" isCreator="no" />
     !!]
     return
@@ -127,12 +128,10 @@ contains
       class default 
         !Generic type, do nothing.
         rate= 0.0d0
-        return
       class is (nodeComponentDiskStandard)
         if (massStellar<=0.0d0.or.radiusDisk<=0.0d0) then
           ! It is not, so return zero rate.
           rate=0.0d0
-          return 
         else
           ! Here we use equation 10 from from F. Antonini, E. Barausse & J. Silk (2015; https://ui.adsabs.harvard.edu/abs/2015ApJ...812...72A).
           ! Specifically, we split the equations in two parts, the disk and spheroidal components. This allow us to track the mass of the globular
@@ -144,9 +143,7 @@ contains
           if (massGlobularClusterDisk <= 0.0d0) then
             ! If there are no globular clusters, it does not make sense to compute their dissolution.
             rate=0.0d0
-            return
           else
-            PRINT*, "stellar mass disk", massStellar
             ! First, compute the normalization constant in units of M☉.
             normalizationIntegral = (self%massMaximumGlobularClusters*self%massMinimumGlobularClusters) &
               &                    /(self%massMaximumGlobularClusters-self%massMinimumGlobularClusters)
@@ -164,7 +161,7 @@ contains
              &      /massStellar                                              &
              &      *integralEvaluated                                        &
              &      *globularClusterMassNormalization**(2.0d0/3.0d0)          &                         
-             &      *dissolutionTimescaleNormalization**(-1.0d0)              &
+             &      /dissolutionTimescaleNormalization                        &
              &      *rotationPeriodNormalization**(-1.0d0)                    &
              &      *(  -3.0d0/5.0d0                                          &
              &        *(+1.0d0/self%massMaximumGlobularClusters**(5.0d0/3.0d0)&
@@ -191,11 +188,11 @@ contains
         double precision                       , parameter    :: velocityNormalization=1.0d0 !km s⁻¹
 
         ! Define coordinates.
-        coordinates    = [radius,Pi/2.0d0,0.0d0]
+        coordinates    = [radius,0.0d0,0.0d0]
         ! Get the galactic rotation curve at the radius.
         velocityRotation=massDistributionGalactic_%rotationCurve (     radius)
         surfaceDensity  =massDistributionStellar_ %surfaceDensity(coordinates)
-        radialIntegrand =2.0d0*Pi*surfaceDensity*(velocityRotation/velocityNormalization)*radius**2.0d0
+        radialIntegrand =2.0d0*Pi*surfaceDensity*(velocityRotation/velocityNormalization)
         return 
       end function radialIntegrand 
 

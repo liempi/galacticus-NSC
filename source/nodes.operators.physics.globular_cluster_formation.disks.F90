@@ -147,7 +147,7 @@ contains
     double precision                                           , parameter     :: massMinimum=1.0d+0, scaleRelative=1.0d-3
     double precision                                                           :: mass
     ! Get disk component
-    disk =>  node%disk       ()
+    disk =>  node%disk()
     ! Set scale for masses.
     mass = disk%massGas()+disk%massStellar()
     ! Set scales.
@@ -155,7 +155,7 @@ contains
     type is (nodeComponentDisk)
        ! Disk does not yet exist - nothing to do here.
     class default
-       call disk%floatRank0MetaPropertyScale(self%globularClusterStellarMassDiskID, max(scaleRelative*mass,massMinimum))
+       call disk%floatRank0MetaPropertyScale(self%globularClusterStellarMassDiskID, massMinimum)
     end select
     return
   end subroutine globularClusterFormationDisksDifferentialEvolutionScales

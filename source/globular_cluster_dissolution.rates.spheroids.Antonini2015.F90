@@ -129,6 +129,7 @@ contains
       class default 
         !Generic type, do nothing.
         rate= 0.0d0
+        return
       class is (nodeComponentSpheroidStandard)
         if (massStellar <= 0.0d0 .or. radiusSpheroid <= 0.0d0) then
           ! It is not, so return zero rate.

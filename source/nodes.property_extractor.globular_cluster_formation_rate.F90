@@ -27,7 +27,7 @@ Implements a star formation rate property extractor class.
   !![
   <nodePropertyExtractor name="nodePropertyExtractorGlobularClusterFormationRate">
    <description>
-    A node property extractor which extracts the globular cluster formation rate in a galaxy. The type of star formation rate is controlled by
+    A node property extractor which extracts the globular cluster formation rate in a galaxy. The type of globular cluster formation rate is controlled by
     the {\normalfont \ttfamily [component]} parameter, which can be either ``{\normalfont \ttfamily disk}'', ``{\normalfont
     \ttfamily spheroid}'' or ``{\normalfont \ttfamily total}''. The corresponding globular cluster formation
     rate is extracted as {\normalfont \ttfamily \textless\ component\textgreater\ globularClusterFormationRate} in units of $M_\odot$/Gyr.
@@ -83,27 +83,27 @@ contains
     !!]
     component_=enumerationGalacticComponentEncode(char(component),includesPrefix=.false.)
     select case (component_%ID)
-    case (galacticComponentDisk              %ID)
+    case (galacticComponentDisk    %ID)
        !![
-       <objectBuilder class="globularClusterFormationRateDisks"               name="globularClusterFormationRateDisks_"               source="parameters"/>
+       <objectBuilder class="globularClusterFormationRateDisks"     name="globularClusterFormationRateDisks_"               source="parameters"/>
        !!]
-       globularClusterFormationRateSpheroids_           => null()
-    case (galacticComponentSpheroid          %ID)
+       globularClusterFormationRateSpheroids_ => null()
+    case (galacticComponentSpheroid%ID)
        !![
-       <objectBuilder class="globularClusterFormationRateSpheroids"           name="globularClusterFormationRateSpheroids_"           source="parameters"/>
+       <objectBuilder class="globularClusterFormationRateSpheroids" name="globularClusterFormationRateSpheroids_"           source="parameters"/>
        !!]
-       globularClusterFormationRateDisks_               => null()
-    case (galacticComponentTotal            %ID)
+       globularClusterFormationRateDisks_     => null()
+    case (galacticComponentTotal   %ID)
        !![
-       <objectBuilder class="globularClusterFormationRateDisks"               name="globularClusterFormationRateDisks_"               source="parameters"/>
-       <objectBuilder class="globularClusterFormationRateSpheroids"           name="globularClusterFormationRateSpheroids_"           source="parameters"/>
+       <objectBuilder class="globularClusterFormationRateDisks"     name="globularClusterFormationRateDisks_"               source="parameters"/>
+       <objectBuilder class="globularClusterFormationRateSpheroids" name="globularClusterFormationRateSpheroids_"           source="parameters"/>
        !!]
     end select
     self=nodePropertyExtractorGlobularClusterFormationRate(globularClusterFormationRateDisks_,globularClusterFormationRateSpheroids_)
     !![
     <inputParametersValidate source="parameters"/>
-    <objectDestructor name="globularClusterFormationRateDisks_"              />
-    <objectDestructor name="globularClusterFormationRateSpheroids_"          />
+    <objectDestructor name="globularClusterFormationRateDisks_"    />
+    <objectDestructor name="globularClusterFormationRateSpheroids_"/>
     !!]
     return
   end function globularClusterFormationRateConstructorParameters
@@ -123,7 +123,7 @@ contains
 
     if      (associated(self%globularClusterFormationRateDisks_).and.associated(self%globularClusterFormationRateSpheroids_)) then
        self%name_       ="totalglobularClusterFormationRate"
-       self%description_="Total (disk + spheroid) star formation rate [M☉ Gyr⁻¹]."
+       self%description_="Total (disk + spheroid) globular cluster formation rate [M☉ Gyr⁻¹]."
        self%component   ="total"
     else if (associated(self%globularClusterFormationRateDisks_)                                                                                                            ) then
        self%name_       ="diskglobularClusterFormationRate"
@@ -147,8 +147,8 @@ contains
     type(nodePropertyExtractorGlobularClusterFormationRate), intent(inout) :: self
   
     !![
-    <objectDestructor name="self%globularClusterFormationRateDisks_"              />
-    <objectDestructor name="self%globularClusterFormationRateSpheroids_"          />
+    <objectDestructor name="self%globularClusterFormationRateDisks_"    />
+    <objectDestructor name="self%globularClusterFormationRateSpheroids_"/>
     !!]
     return
   end subroutine globularClusterFormationRateDestructor
@@ -164,8 +164,8 @@ contains
     !$GLC attributes unused :: instance
 
     globularClusterFormationRateExtract=0.0d0
-    if (associated(self%globularClusterFormationRateDisks_              )) globularClusterFormationRateExtract=globularClusterFormationRateExtract+self%globularClusterFormationRateDisks_              %rate(node)
-    if (associated(self%globularClusterFormationRateSpheroids_          )) globularClusterFormationRateExtract=globularClusterFormationRateExtract+self%globularClusterFormationRateSpheroids_          %rate(node)
+    if (associated(self%globularClusterFormationRateDisks_    )) globularClusterFormationRateExtract=globularClusterFormationRateExtract+self%globularClusterFormationRateDisks_    %rate(node)
+    if (associated(self%globularClusterFormationRateSpheroids_)) globularClusterFormationRateExtract=globularClusterFormationRateExtract+self%globularClusterFormationRateSpheroids_%rate(node)
     return
   end function globularClusterFormationRateExtract
 

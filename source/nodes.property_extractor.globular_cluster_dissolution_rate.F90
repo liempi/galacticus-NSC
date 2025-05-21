@@ -27,9 +27,9 @@ Implements a star Dissolution rate property extractor class.
   !![
   <nodePropertyExtractor name="nodePropertyExtractorGlobularClusterDissolutionRate">
    <description>
-    A node property extractor which extracts the globular cluster Dissolution rate in a galaxy. The type of star Dissolution rate is controlled by
+    A node property extractor which extracts the globular cluster dissolution rate in a galaxy. The type of globular dissolution rate is controlled by
     the {\normalfont \ttfamily [component]} parameter, which can be either ``{\normalfont \ttfamily disk}'', ``{\normalfont
-    \ttfamily spheroid}'' or ``{\normalfont \ttfamily total}''. The corresponding globular cluster Dissolution
+    \ttfamily spheroid}'' or ``{\normalfont \ttfamily total}''. The corresponding globular cluster dissolution
     rate is extracted as {\normalfont \ttfamily \textless\ component\textgreater\ globularClusterDissolutionRate} in units of $M_\odot$/Gyr.
    </description>
   </nodePropertyExtractor>
@@ -41,7 +41,7 @@ Implements a star Dissolution rate property extractor class.
      private
      class(globularClusterDissolutionRateDisksClass    ), pointer :: globularClusterDissolutionRateDisks_    => null()
      class(globularClusterDissolutionRateSpheroidsClass), pointer :: globularClusterDissolutionRateSpheroids_=> null()
-     type (varying_string                            )          :: name_                                          , description_, &
+     type (varying_string                              )          :: name_                                            , description_, &
           &                                                        component
    contains
      final     ::                globularClusterDissolutionRateDestructor
@@ -83,20 +83,20 @@ contains
     !!]
     component_=enumerationGalacticComponentEncode(char(component),includesPrefix=.false.)
     select case (component_%ID)
-    case (galacticComponentDisk              %ID)
+    case (galacticComponentDisk    %ID)
        !![
-       <objectBuilder class="globularClusterDissolutionRateDisks"               name="globularClusterDissolutionRateDisks_"               source="parameters"/>
+       <objectBuilder class="globularClusterDissolutionRateDisks"     name="globularClusterDissolutionRateDisks_"     source="parameters"/>
        !!]
-       globularClusterDissolutionRateSpheroids_           => null()
-    case (galacticComponentSpheroid          %ID)
+       globularClusterDissolutionRateSpheroids_ => null()
+    case (galacticComponentSpheroid%ID)
        !![
-       <objectBuilder class="globularClusterDissolutionRateSpheroids"           name="globularClusterDissolutionRateSpheroids_"           source="parameters"/>
+       <objectBuilder class="globularClusterDissolutionRateSpheroids" name="globularClusterDissolutionRateSpheroids_" source="parameters"/>
        !!]
-       globularClusterDissolutionRateDisks_               => null()
-    case (galacticComponentTotal            %ID)
+       globularClusterDissolutionRateDisks_     => null()
+    case (galacticComponentTotal   %ID)
        !![
-       <objectBuilder class="globularClusterDissolutionRateDisks"               name="globularClusterDissolutionRateDisks_"               source="parameters"/>
-       <objectBuilder class="globularClusterDissolutionRateSpheroids"           name="globularClusterDissolutionRateSpheroids_"           source="parameters"/>
+       <objectBuilder class="globularClusterDissolutionRateDisks"     name="globularClusterDissolutionRateDisks_"     source="parameters"/>
+       <objectBuilder class="globularClusterDissolutionRateSpheroids" name="globularClusterDissolutionRateSpheroids_" source="parameters"/>
        !!]
     end select
     self=nodePropertyExtractorGlobularClusterDissolutionRate(globularClusterDissolutionRateDisks_,globularClusterDissolutionRateSpheroids_)
@@ -123,13 +123,13 @@ contains
 
     if      (associated(self%globularClusterDissolutionRateDisks_).and.associated(self%globularClusterDissolutionRateSpheroids_)) then
        self%name_       ="totalglobularClusterDissolutionRate"
-       self%description_="Total (disk + spheroid) star dissolution rate [M☉ Gyr⁻¹]."
+       self%description_="Total (disk + spheroid) globular cluster dissolution rate [M☉ Gyr⁻¹]."
        self%component   ="total"
     else if (associated(self%globularClusterDissolutionRateDisks_)                                                                                                            ) then
        self%name_       ="diskglobularClusterDissolutionRate"
        self%description_="Disk globular cluster dissolution rate [M☉ Gyr⁻¹]."
        self%component   ="disk"
-    else if (                                                        associated(self%globularClusterDissolutionRateSpheroids_)                                                           ) then
+    else if (                                                          associated(self%globularClusterDissolutionRateSpheroids_)                                                           ) then
        self%name_       ="spheroidglobularClusterDissolutionRate"
        self%description_="Spheroid globular cluster dissolution rate [M☉ Gyr⁻¹]."
        self%component   ="spheroid"
