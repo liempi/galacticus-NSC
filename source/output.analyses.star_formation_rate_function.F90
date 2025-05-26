@@ -51,7 +51,7 @@
 
   interface outputAnalysisStarFormationRateFunction
      !!{
-     Constructors for the {\normalfont \ttfamily starFormationRateFunction} output analysis class.
+     Constructors for the \refClass{outputAnalysisStarFormationRateFunction} output analysis class.
      !!}
      module procedure starFormationRateFunctionConstructorParameters
      module procedure starFormationRateFunctionConstructorInternal
@@ -62,7 +62,7 @@ contains
 
   function starFormationRateFunctionConstructorParameters(parameters) result (self)
     !!{
-    Constructor for the {\normalfont \ttfamily starFormationRateFunction} output analysis class which takes a parameter set as input.
+    Constructor for the \refClass{outputAnalysisStarFormationRateFunction} output analysis class which takes a parameter set as input.
     !!}
     use :: Error           , only : Error_Report
     use :: Input_Parameters, only : inputParameter, inputParameters
@@ -198,7 +198,7 @@ contains
 
   function starFormationRateFunctionConstructorFile(label,comment,fileName,galacticFilter_,surveyGeometry_,cosmologyFunctions_,cosmologyFunctionsData,outputAnalysisPropertyOperator_,outputAnalysisDistributionOperator_,outputTimes_,starFormationRateDisks_,starFormationRateSpheroids_,starFormationRateNuclearStarClusters_,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum) result (self)
     !!{
-    Constructor for the {\normalfont \ttfamily starFormationRateFunction} output analysis class which reads bin information from a standard format file.
+    Constructor for the \refClass{outputAnalysisStarFormationRateFunction} output analysis class which reads bin information from a standard format file.
     !!}
     use :: HDF5_Access, only : hdf5Access
     use :: IO_HDF5    , only : hdf5Object
@@ -215,24 +215,41 @@ contains
     class           (starFormationRateDisksClass              ), intent(in   ) , target      :: starFormationRateDisks_
     class           (starFormationRateSpheroidsClass          ), intent(in   ) , target      :: starFormationRateSpheroids_
     class           (starFormationRateNuclearStarClustersClass), intent(in   ) , target      :: starFormationRateNuclearStarClusters_
-    double precision                                           , dimension(:  ), allocatable :: starFormationRates                   , functionValueTarget
-    double precision                                           , dimension(:,:), allocatable :: functionCovarianceTarget
     integer                                                    , intent(in   )               :: covarianceBinomialBinsPerDecade
     double precision                                           , intent(in   )               :: covarianceBinomialMassHaloMinimum    , covarianceBinomialMassHaloMaximum
+    double precision                                           , dimension(:  ), allocatable :: starFormationRates                   , functionValueTarget              , &
+         &                                                                                      functionErrorTarget
+    double precision                                           , dimension(:,:), allocatable :: functionCovarianceTarget
     type            (hdf5Object                               )                              :: dataFile
     type            (varying_string                           )                              :: targetLabel
     logical                                                                                  :: haveTarget
+    integer                                                                                  :: i
 
     !$ call hdf5Access%set()
     call    dataFile%openFile     (fileName              ,readOnly=.true.         )
     call    dataFile%readDataset  ('starFormationRate'   ,starFormationRates      )
-    haveTarget=dataFile%hasDataset('starFormationRateFunctionObserved').and.dataFile%hasDataset('covariance')
+    haveTarget=   dataFile%hasDataset('starFormationRateFunctionObserved'          ) &
+         &     .and.                                                                 &
+         &      (                                                                    &
+         &        dataFile%hasDataset('starFormationRateFunctionObservedCovariance') &
+         &       .or.                                                                &
+         &        dataFile%hasDataset('starFormationRateFunctionObservedError'     ) &
+         &      )
     if (haveTarget) then
-       call dataFile%readAttribute('label'               ,targetLabel             )
-       call dataFile%readDataset  ('massFunctionObserved',functionValueTarget     )
-       call dataFile%readDataset  ('covariance'          ,functionCovarianceTarget)
+       call dataFile%readAttribute('label'                            ,targetLabel        )
+       call dataFile%readDataset  ('starFormationRateFunctionObserved',functionValueTarget)
+       if (dataFile%hasDataset('starFormationRateFunctionObservedCovariance')) then
+          call dataFile%readDataset('starFormationRateFunctionObservedCovariance',functionCovarianceTarget)
+       else
+          call dataFile%readDataset('starFormationRateFunctionObservedError'     ,functionErrorTarget     )
+          allocate(functionCovarianceTarget(size(functionErrorTarget),size(functionErrorTarget)))
+          functionCovarianceTarget=0.0d0
+          do i=1,size(functionErrorTarget)
+             functionCovarianceTarget(i,i)=functionErrorTarget(i)**2
+          end do
+       end if
     end if
-    call dataFile%close           (                                               )
+    call dataFile%close()
     !$ call hdf5Access%unset()
     ! Construct the object.
     !![
@@ -248,7 +265,7 @@ contains
 
   function starFormationRateFunctionConstructorInternal(label,comment,starFormationRates,galacticFilter_,surveyGeometry_,cosmologyFunctions_,cosmologyFunctionsData,outputAnalysisPropertyOperator_,outputAnalysisDistributionOperator_,outputTimes_,starFormationRateDisks_,starFormationRateSpheroids_,starFormationRateNuclearStarClusters_,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum,targetLabel,functionValueTarget,functionCovarianceTarget) result(self)
     !!{
-    Constructor for the {\normalfont \ttfamily starFormationRateFunction} output analysis class which takes a parameter set as input.
+    Constructor for the \refClass{outputAnalysisStarFormationRateFunction} output analysis class which takes a parameter set as input.
     !!}
     use :: Cosmology_Functions                     , only : cosmologyFunctionsClass
     use :: Galactic_Filters                        , only : galacticFilterClass
@@ -422,7 +439,7 @@ contains
 
   subroutine starFormationRateFunctionDestructor(self)
     !!{
-    Destructor for  the {\normalfont \ttfamily starFormationRateFunction} output analysis class.
+    Destructor for the \refClass{outputAnalysisStarFormationRateFunction} output analysis class.
     !!}
     type(outputAnalysisStarFormationRateFunction), intent(inout) :: self
 
