@@ -138,7 +138,7 @@ contains
          &                                                                                      normalizationIntegral                     , velocityVirial                   , &
          &                                                                                      massGlobularClusterSpheroid               , radiusInner                      , &
          &                                                                                      radiusOuter                               , globularClusterMassIntegralResult, &
-         &                                                                                      radialIntegralResult
+         &                                                                                      radialIntegralResult                      , normalizedVelocity
     type            (integrator                                    )                         :: integrator_
 
     ! Get the spheroid properties.
@@ -151,7 +151,7 @@ contains
         !Generic type, do nothing.
         rate=+0.0d0
       class is (nodeComponentSpheroidStandard)
-        if (massStellar<=0.0d0.or.radiusSpheroid<=0.0d0) then
+        if (massStellarSpheroid<=0.0d0.or.radiusSpheroid<=0.0d0) then
           ! It is not, so return zero rate.
           rate=+0.0d0
         else

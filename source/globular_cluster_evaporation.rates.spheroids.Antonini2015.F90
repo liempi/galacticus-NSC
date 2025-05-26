@@ -123,10 +123,11 @@ contains
     double precision                                                     , parameter              :: radiusInnerDimensionless=1.0d-13     , radiusOuterDimensionless=1.0d0
     double precision                                                     , parameter              :: evaporationTimescale    =17.0d0/2.0d5! Gyr M☉⁻¹
     double precision                                                                              :: radiusSpheroid                       , massStellar                   , &
-         &                                                                                           normalizationMass                    , evaporationTimescale          , &
+         &                                                                                           normalizationIntegral                , evaporationTimescale          , &
          &                                                                                           massGlobularClusterSpheroid          , radiusInner                   , &
-         &                                                                                           radiusOuter
-    type            (integrator                                         )                         :: integrator_
+         &                                                                                           radiusOuter                          , globularClusterIntegralResult , &
+         &                                                                                           radialIntegralResult
+    type            (integrator                                         )                         :: integrator_ 
 
     ! Get the spheroid properties.
     spheroid      => node    %spheroid   ()
@@ -165,11 +166,11 @@ contains
           integrator_             =  integrator(radialIntegrand,toleranceRelative=1.0d-3, hasSingularities=.true.)
           radialIntegralResult    =  integrator_%integrate(radiusInner,radiusOuter)
           ! The rate is given in units of M☉ Gyr⁻¹.
-          rate=+normalizationMass             & ! M☉
+          rate=+normalizationIntegral         & ! M☉
              & *massGlobularClusterSpheroid   & ! M☉
              & /massStellar                   & ! M☉⁻¹
              & *globularClusterIntegralResult & ! M☉⁻²
-             & *radialIntegrand               & ! M☉
+             & *radialIntegralResult          & ! M☉
              & /evaporationTimescale            ! M☉ Gyr⁻¹
             !![
               <objectDestructor name="massDistributionStellar_"/>

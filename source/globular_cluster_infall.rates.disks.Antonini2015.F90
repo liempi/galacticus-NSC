@@ -180,7 +180,7 @@ contains
              &   *massGlobularClusterDisk           & ! M☉
              &   /massStellar                       & ! M☉⁻¹
              &   *radialIntegralResult              & ! s⁻¹
-             &   *globularClusterMassIntegralResult   ! Adimensional 
+             &   *globularClusterMassIntegralResult & ! Adimensional 
              &   *gigayear                            ! Convert from s⁻¹ to Gyr.
             !![
               <objectDestructor name="massDistributionStellar_"/>
