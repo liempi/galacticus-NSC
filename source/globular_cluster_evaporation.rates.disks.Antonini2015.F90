@@ -122,7 +122,8 @@ contains
     double precision                                                                          :: radiusDisk                           , massStellar                   , &
          &                                                                                       normalizationMass                    , evaporationTimescale          , &
          &                                                                                       massGlobularClusterDisk              , radiusInner                   , &
-         &                                                                                       radiusOuter                          , radialIntegralResult
+         &                                                                                       radiusOuter                          , radialIntegralResult          , &
+         &                                                                                       globularClusterIntegralResult 
     type            (integrator                                     )                         :: integrator_
 
     ! Get the disk properties.
@@ -143,9 +144,7 @@ contains
           ! Here we use equation 15 from from F. Antonini, E. Barausse & J. Silk (2015; https://ui.adsabs.harvard.edu/abs/2015ApJ...812...72A).
           ! Specifically, we split the equations in two parts, the disk and spheroidal components. This allow us to track the mass of the globular
           ! clusters in each component. The integral, can be evaluated analyticaly. 
-
           massGlobularClusterDisk= disk%floatRank0MetaPropertyGet(self%globularClusterStellarMassDiskID) ! M☉
-
           ! Find the rate of globular cluster formation in the disk component.
           if (massGlobularClusterDisk<=0.0d0) then
             rate=+0.0d0 
@@ -153,6 +152,13 @@ contains
             ! Compute the normalization constant to normalize the integral over the spatial-mass distribution of the globular clusters.
             normalizationMass=+(self%massMaximumGlobularClusters*self%massMinimumGlobularClusters) &
              &                /(self%massMaximumGlobularClusters-self%massMinimumGlobularClusters)   ! M☉
+            ! Evaluate the analytic part of the integral over the mass range of globular clusters.
+            ! ∫  m_cl⁻³ d m_cl = -1/2 m_cl⁻1/2+C
+            globularClusterIntegralResult=-1.0d0/2.0d0                                  &
+              &                           *(                                            &
+              &                             +self%massMaximumGlobularClusters**(-2.0d0) &
+              &                             -self%massMinimumGlobularClusters**(-2.0d0) &
+              &                            ) ! M☉⁻²
             ! Set suiteable radius for integration.
             radiusInner = radiusDisk*radiusInnerDimensionless
             radiusOuter = radiusDisk*radiusOuterDimensionless
@@ -161,14 +167,11 @@ contains
             massDistributionStellar_ => node%massDistribution(componentType=componentTypeDisk,massType=massTypeStellar)
             integrator_              =  integrator(radialIntegrand,toleranceRelative=1.0d-3, hasSingularities=.true.)
             radialIntegralResult     =  integrator_%integrate(radiusInner,radiusOuter)
-            rate=*normalizationMass                               &
-             &   *massGlobularClusterDisk                         &
-             &   /massStellar                                     &
-             &   *0.5d0                                           &
-             &   *(-1.0d0/self%massMaximumGlobularClusters**2.0d0 &
-             &     +1.0d0/self%massMinimumGlobularClusters**2.0d0 &
-             &    )                                               &
-             &   *radialIntegralResult                            &
+            rate=+normalizationMass                               & ! M☉
+             &   *massGlobularClusterDisk                         & ! M☉
+             &   /massStellar                                     & ! M☉⁻¹
+             &   *globularClusterIntegralResult                   & ! M☉⁻²
+             &   *radialIntegralResult                            & ! M☉
              &   /evaporationTimescale                              ! M☉ Gyr⁻¹
             !![
               <objectDestructor name="massDistributionStellar_"/>
@@ -188,11 +191,12 @@ contains
         double precision                                     :: surfaceDensity
 
         coordinates    = [radius,0.0d0,0.0d0]
-        surfaceDensity = massDistributionStellar_%surfaceDensity(coordinates)
         ! Get stellar surface density.
-        radialIntegrand =+2.0d0*Pi       &
-          &              *surfaceDensity &
-          &              *radius
+        surfaceDensity = massDistributionStellar_%surfaceDensity(coordinates)
+        ! The result of the integral is in units of M☉.
+        radialIntegrand =+2.0d0*Pi       & ! Adimensional
+          &              *surfaceDensity & ! M☉ Mpc⁻²
+          &              *radius           ! Mpc
         return 
       end function radialIntegrand 
   end function globularClusterEvaporationDisksAntonini2015Rate

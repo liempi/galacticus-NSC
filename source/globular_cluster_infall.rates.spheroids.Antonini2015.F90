@@ -35,7 +35,7 @@
      !!}
      private
      class           (darkMatterHaloScaleClass), pointer :: darkMatterHaloScale_ => null()
-     double precision                                    :: massMinimumGlobularClusters        m , massMaximumGlobularClusters
+     double precision                                    :: massMinimumGlobularClusters         , massMaximumGlobularClusters
      integer                                             :: globularClusterStellarMassSpheroidID
    contains
      final     ::         globularClusterInfallSpheroidsAntonini2015Destructor

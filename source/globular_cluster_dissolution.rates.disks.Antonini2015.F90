@@ -198,7 +198,7 @@ contains
         ! The result of the integral is M☉ Mpc⁻¹.
         radialIntegrand =+2.0d0*Pi                                 & ! Adimensional
           &              *surfaceDensity                           & ! M☉ Mpc⁻²
-          &              *(velocityRotation/velocityNormalization) & ! Adimensional
+          &              *(velocityRotation/velocityNormalization)   ! Adimensional
         return 
       end function radialIntegrand 
 
