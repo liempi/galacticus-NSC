@@ -26,11 +26,11 @@
   !![
   <globularClusterFormationRateDisks name="globularClusterFormationRateDisksAntonini2015">
    <description>
-    A globular cluster formation rate in galactic disks which computes the rate by multiply the star formation rate of the disk by a factor. Specifically, the globular cluster formation rate is given by
+    A globular cluster formation rate in galactic disks which computes the rate by multiply the star formation rate of the disk by an efficiency factor. Specifically, the globular cluster formation rate is given by
     \begin{equation}
-     \dot{M}_\mathrm{disk}^\mathrm{gc} = f_\mathrm{gc} \dot{\Sigma}_\star(r) \mathrm{d}r,
+     \dot{M}_\mathrm{disk}^\mathrm{gc} = f_\mathrm{gc} \dot{M}_\star(r),
     \end{equation}
-    where $\dot{\Sigma}_\star(r)$ is the surface density of star formation rate.
+    where $\dot{M}_\star$ is the star formation rate of the disk.
    </description>
   </globularClusterFormationRateDisks>
   !!]
@@ -73,7 +73,7 @@ contains
     <inputParameter>
       <name>efficiency</name>
       <defaultValue>7.0d-2</defaultValue>
-      <description>Relative tolerance to use when integrating star formation rate surface densities over the disk.</description>
+      <description>Efficiency of the globular cluster formation rate in the disk component.</description>
       <source>parameters</source>
     </inputParameter>
     <objectBuilder class="starFormationRateDisks" name="starFormationRateDisks_" source="parameters"/>
@@ -139,8 +139,8 @@ contains
         if (rateStarFormationDisk <= 0.0d0) then
             rate   =+0.0d0
         else
-            ! Gas accretion rate model from F. Antonini, E. Barausse & J. Silk (2015; https://ui.adsabs.harvard.edu/abs/2015ApJ...812...72A).
-            rate   =+self%efficiency                &
+            ! Globular cluster formation rate model from F. Antonini, E. Barausse & J. Silk (2015; https://ui.adsabs.harvard.edu/abs/2015ApJ...812...72A).
+            rate   =+self%efficiency            &
                  &  *     rateStarFormationDisk
         end if 
     end if

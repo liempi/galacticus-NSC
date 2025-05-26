@@ -38,7 +38,7 @@
      Implementation of a rate for globular cluster evaporation in galactic disks.
      !!}
      private
-     double precision :: massMinimum                     , massMaximum                               
+     double precision :: massMinimumGlobularClusters     , massMaximumGlobularClusters                               
      integer          :: globularClusterStellarMassDiskID
    contains
      procedure        :: rate => globularClusterEvaporationDisksAntonini2015Rate
@@ -56,47 +56,47 @@ contains
 
   function globularClusterEvaprtnDisksAntonini2015ConstructorParameters(parameters) result(self)
     !!{
-    Constructor for the {\normalfont \ttfamily globularClusterEvaporationDisks} formation rate in disks class which takes a
+    Constructor for the {\normalfont \ttfamily globularClusterEvaporationDisks} evaporation rate in disks class which takes a
     parameter set as input.
     !!}
     use :: Input_Parameters, only : inputParameter, inputParameters
     implicit none
     type            (globularClusterEvaporationRateDisksAntonini2015)                :: self
     type            (inputParameters                                ), intent(inout) :: parameters
-    double precision                                                                 :: massMinimum, massMaximum
+    double precision                                                                 :: massMinimumGlobularClusters, massMaximumGlobularClusters
 
     !![
     <inputParameter>
-      <name>massMinimum</name>
+      <name>massMinimumGlobularClusters</name>
       <defaultValue>1.0d2</defaultValue>
       <description>Minimum mass of the globular clusters in the disk component.</description>
       <source>parameters</source>
     </inputParameter>
     <inputParameter>
-      <name>massMaximum</name>
+      <name>massMaximumGlobularClusters</name>
       <defaultValue>1.0d7</defaultValue>
       <description>Maximum mass of the globular clusters in the disk component.</description>
       <source>parameters</source>
     </inputParameter>
     !!]
-    self=globularClusterEvaporationRateDisksAntonini2015(massMinimum,massMaximum)
+    self=globularClusterEvaporationRateDisksAntonini2015(massMinimumGlobularClusters,massMaximumGlobularClusters)
     !![
     <inputParametersValidate source="parameters"/>
     !!]
     return
   end function globularClusterEvaprtnDisksAntonini2015ConstructorParameters
 
-  function globularClusterEvaprtnDisksAntonini2015ConstructorInternal(massMinimum, massMaximum) result(self)
+  function globularClusterEvaprtnDisksAntonini2015ConstructorInternal(massMinimumGlobularClusters, massMaximumGlobularClusters) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily globularClusterEvaporationDisks} globular cluster evaporation rate in disks class.
     !!}
     implicit none
     type            (globularClusterEvaporationRateDisksAntonini2015)                :: self
-    double precision                                             , intent(in   ) :: massMinimum
-    double precision                                             , intent(in   ) :: massMaximum
+    double precision                                             , intent(in   ) :: massMinimumGlobularClusters
+    double precision                                             , intent(in   ) :: massMaximumGlobularClusters
 
     !![
-    <constructorAssign variables="massMinimum, massMaximum"/>
+    <constructorAssign variables="massMinimumGlobularClusters, massMaximumGlobularClusters"/>
     !!]
     !![
     <addMetaProperty component="disk" name="globularClusterStellarMassDisk" id="self%globularClusterStellarMassDiskID" isEvolvable="yes" isCreator="no" />
@@ -111,18 +111,18 @@ contains
     use :: Galactic_Structure_Options, only : componentTypeDisk    , massTypeStellar
     use :: Galacticus_Nodes          , only : nodeComponentDisk    , nodeComponentDiskStandard, treeNode
     use :: Mass_Distributions        , only : massDistributionClass
-    use :: Numerical_Constants_Math  , only : Pi
     use :: Numerical_Integration     , only : integrator
     implicit none
     class           (globularClusterEvaporationRateDisksAntonini2015), intent(inout), target  :: self
     type            (treeNode                                       ), intent(inout), target  :: node
     class           (massDistributionClass                          ), pointer                :: massDistributionStellar_
     class           (nodeComponentDisk                              ), pointer                :: disk
-    double precision                                                 , parameter              :: radiusInnerDimensionless=1.0d-13, radiusOuterDimensionless=1.0d0
-    double precision                                                                          :: radiusDisk               , massStellar         , &
-         &                                                                                       normalizationMass        , evaporationTimescale, &
-         &                                                                                       massGlobularClusterDisk  , radiusInner         , &
-         &                                                                                       radiusOuter         
+    double precision                                                 , parameter              :: radiusInnerDimensionless=1.0d-13     , radiusOuterDimensionless=1.0d0
+    double precision                                                 , parameter              :: evaporationTimescale    =17.0d0/2.0d5 ! Gyr M☉⁻¹
+    double precision                                                                          :: radiusDisk                           , massStellar                   , &
+         &                                                                                       normalizationMass                    , evaporationTimescale          , &
+         &                                                                                       massGlobularClusterDisk              , radiusInner                   , &
+         &                                                                                       radiusOuter                          , radialIntegralResult
     type            (integrator                                     )                         :: integrator_
 
     ! Get the disk properties.
@@ -144,31 +144,32 @@ contains
           ! Specifically, we split the equations in two parts, the disk and spheroidal components. This allow us to track the mass of the globular
           ! clusters in each component. The integral, can be evaluated analyticaly. 
 
-          normalizationMass      = (self%massMaximum * self%massMinimum)  &
-             &                     /(self%massMaximum - self%massMinimum)  ! M☉
-          evaporationTimescale   = 17.0d0 / 2.0d5 ! Gyr M☉⁻¹
-          massGlobularClusterDisk= disk%floatRank0MetaPropertyGet(self%globularClusterStellarMassDiskID    ) ! M☉
+          massGlobularClusterDisk= disk%floatRank0MetaPropertyGet(self%globularClusterStellarMassDiskID) ! M☉
 
           ! Find the rate of globular cluster formation in the disk component.
-          if (massGlobularClusterDisk <= 0.0d0) then
-            rate   = 0.0d0 
+          if (massGlobularClusterDisk<=0.0d0) then
+            rate=+0.0d0 
           else
+            ! Compute the normalization constant to normalize the integral over the spatial-mass distribution of the globular clusters.
+            normalizationMass=+(self%massMaximumGlobularClusters*self%massMinimumGlobularClusters) &
+             &                /(self%massMaximumGlobularClusters-self%massMinimumGlobularClusters)   ! M☉
+            ! Set suiteable radius for integration.
             radiusInner = radiusDisk*radiusInnerDimensionless
             radiusOuter = radiusDisk*radiusOuterDimensionless
 
+            ! Get the mass distribution of stars and performs the radial integration.
             massDistributionStellar_ => node%massDistribution(componentType=componentTypeDisk,massType=massTypeStellar)
             integrator_              =  integrator(radialIntegrand,toleranceRelative=1.0d-3, hasSingularities=.true.)
-
-            rate   =(+Pi                              &
-             &       *normalizationMass               &
-             &       *massGlobularClusterDisk         &
-             &      )                                 &
-             &       /massStellar                     &
-             &       *(-1.0d0/self%massMaximum**2.0d0 &
-             &         +1.0d0/self%massMinimum**2.0d0 &
-             &         )                              &
-             &       *integrator_%integrate(radiusInner,radiusOuter)  &
-             &       /evaporationTimescale      ! M☉ Gyr⁻¹
+            radialIntegralResult     =  integrator_%integrate(radiusInner,radiusOuter)
+            rate=*normalizationMass                               &
+             &   *massGlobularClusterDisk                         &
+             &   /massStellar                                     &
+             &   *0.5d0                                           &
+             &   *(-1.0d0/self%massMaximumGlobularClusters**2.0d0 &
+             &     +1.0d0/self%massMinimumGlobularClusters**2.0d0 &
+             &    )                                               &
+             &   *radialIntegralResult                            &
+             &   /evaporationTimescale                              ! M☉ Gyr⁻¹
             !![
               <objectDestructor name="massDistributionStellar_"/>
             !!]                                                
@@ -179,7 +180,8 @@ contains
 
     contains
       double precision function radialIntegrand(radius)
-        use :: Coordinates, only : coordinateCylindrical, assignment(=)
+        use :: Coordinates             , only : coordinateCylindrical, assignment(=)
+        use :: Numerical_Constants_Math, only : Pi
         implicit none
         double precision                      , intent(in  ) :: radius
         type            (coordinateCylindrical)              :: coordinates
@@ -188,7 +190,9 @@ contains
         coordinates    = [radius,0.0d0,0.0d0]
         surfaceDensity = massDistributionStellar_%surfaceDensity(coordinates)
         ! Get stellar surface density.
-        radialIntegrand  =surfaceDensity*radius
+        radialIntegrand =+2.0d0*Pi       &
+          &              *surfaceDensity &
+          &              *radius
         return 
       end function radialIntegrand 
   end function globularClusterEvaporationDisksAntonini2015Rate

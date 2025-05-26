@@ -33,7 +33,7 @@
      Implementation of a rate for globular cluster Dissolution in galactic spheroids.
      !!}
      private
-     double precision :: massMinimum                         , massMaximum
+     double precision :: massMinimumGlobularClusters         , massMaximumGlobularClusters
      integer          :: globularClusterStellarMassSpheroidID
    contains
      procedure :: rate => globularClusterDissolutionSpheroidsAntonini2015Rate
@@ -41,7 +41,7 @@
 
   interface globularClusterDissolutionRateSpheroidsAntonini2015
      !!{
-     Constructors for the {\normalfont \ttfamily globularClusterDissolutionSpheroidsAntonini2015} Dissolution rate in spheroids class.
+     Constructors for the {\normalfont \ttfamily globularClusterDissolutionSpheroidsAntonini2015} dissolution rate in spheroids class.
      !!}
      module procedure globularClusterDssltnSpheAntonini2015ConstructorParameters
      module procedure globularClusterDssltnSpheAntonini2015ConstructorInternal
@@ -58,40 +58,40 @@ contains
     implicit none
     type            (globularClusterDissolutionRateSpheroidsAntonini2015)                :: self
     type            (inputParameters                                    ), intent(inout) :: parameters
-    double precision                                                                     :: massMinimum, massMaximum
+    double precision                                                                     :: massMinimumGlobularClusters, massMaximumGlobularClusters
   
     !![
     <inputParameter>
-      <name>massMinimum</name>
+      <name>massMinimumGlobularClusters</name>
       <defaultValue>1.0d2</defaultValue>
       <description>Minimum mass of the globular clusters in the spheroid component.</description>
       <source>parameters</source>
     </inputParameter>
     <inputParameter>
-      <name>massMaximum</name>
+      <name>massMaximumGlobularClusters</name>
       <defaultValue>1.0d7</defaultValue>
       <description>Maximum mass of the globular clusters in the spheroid component.</description>
       <source>parameters</source>
     </inputParameter>
     !!]
-    self=globularClusterDissolutionRateSpheroidsAntonini2015(massMinimum,massMaximum)
+    self=globularClusterDissolutionRateSpheroidsAntonini2015(massMinimumGlobularClusters,massMaximumGlobularClusters)
     !![
     <inputParametersValidate source="parameters"/>
     !!]
     return
   end function globularClusterDssltnSpheAntonini2015ConstructorParameters
 
-  function globularClusterDssltnSpheAntonini2015ConstructorInternal(massMinimum, massMaximum) result(self)
+  function globularClusterDssltnSpheAntonini2015ConstructorInternal(massMinimumGlobularClusters, massMaximumGlobularClusters) result(self)
     !!{
-    Internal constructor for the {\normalfont \ttfamily globularClusterDissolutionSpheroids} globular cluster Dissolution rate in spheroids class.
+    Internal constructor for the {\normalfont \ttfamily globularClusterDissolutionSpheroids} globular cluster dissolution rate in spheroids class.
     !!}
     implicit none
     type            (globularClusterDissolutionRateSpheroidsAntonini2015)                :: self
-    double precision                                                     , intent(in   ) :: massMinimum
-    double precision                                                     , intent(in   ) :: massMaximum
+    double precision                                                     , intent(in   ) :: massMinimumGlobularClusters
+    double precision                                                     , intent(in   ) :: massMaximumGlobularClusters
 
     !![
-    <constructorAssign variables="massMinimum, massMaximum"/>
+    <constructorAssign variables="massMinimumGlobularClusters, massMaximumGlobularClusters"/>
     <addMetaProperty component="spheroid" name="globularClusterStellarMassSpheroid" id="self%globularClusterStellarMassSpheroidID" isEvolvable="yes" isCreator="no" />
     !!]
     return
@@ -112,12 +112,12 @@ contains
     class           (nodeComponentSpheroid                              ), pointer                :: spheroid 
     double precision                                                     , parameter              :: radiusInnerDimensionless=1.0d-13, radiusOuterDimensionless=10.0d0
     double precision                                                                              :: radiusSpheroid                  , massStellar                    , &
-         &                                                                                           normalizationIntegral           , integralEvaluated              , &
-         &                                                                                           massGlobularClusterSpheroid     , radiusInner                    , &
-         &                                                                                           radiusOuter
-    double precision                                                     , parameter              :: rotationPeriodNormalization      =41.4d-3  ! Mpc⁻¹
-    double precision                                                     , parameter              :: dissolutionTimescaleNormalization=10.0d0   ! Gyr
-    double precision                                                     , parameter              :: globularClusterMassNormalization =2.0d5    ! M☉ 
+         &                                                                                           normalizationIntegral           , radialIntegralResult           , &
+         &                                                                                           massGlobularClusterSpheroid     , globularClusterIntegralResult  , &
+         &                                                                                           radiusInner                     , radiusOuter
+    double precision                                                     , parameter              :: rotationPeriodNormalization      =41.4d0
+    double precision                                                     , parameter              :: dissolutionTimescaleNormalization=10.0d0 ! Gyr
+    double precision                                                     , parameter              :: globularClusterMassNormalization =2.0d5  ! M☉ 
     type            (integrator                                         )                         :: integrator_
 
     ! Get the spheroid properties.
@@ -131,46 +131,48 @@ contains
         rate= 0.0d0
         return
       class is (nodeComponentSpheroidStandard)
-        if (massStellar <= 0.0d0 .or. radiusSpheroid <= 0.0d0) then
+        if (massStellar<=0.0d0.or.radiusSpheroid<=0.0d0) then
           ! It is not, so return zero rate.
-          rate =+0.0d0
+          rate=+0.0d0
           return
         else
           ! Here we use equation 10 from from F. Antonini, E. Barausse & J. Silk (2015; https://ui.adsabs.harvard.edu/abs/2015ApJ...812...72A).
           ! Specifically, we split the equations in two parts, the disk and spheroidal components. This allow us to track the mass of the globular
-            ! clusters in each component. The integral over the globular cluster mass can be evaluated analyticaly. 
+          ! clusters in each component. The integral over the globular cluster mass can be evaluated analyticaly. 
           massGlobularClusterSpheroid = spheroid%floatRank0MetaPropertyGet(self%globularClusterStellarMassSpheroidID) ! M☉
 
           ! Find the rate of globSular cluster formation in the spheroid component.
-          if (massGlobularClusterSpheroid <= 0.0d0) then
-            rate   = 0.0d0
+          if (massGlobularClusterSpheroid<=0.0d0) then
+            rate=+0.0d0
             return
           else
-
-            normalizationIntegral = (self%massMaximum*self%massMinimum) &
-               &                   /(self%massMaximum-self%massMinimum) ! M☉
-            
+            normalizationIntegral= (self%massMaximumGlobularClusters*self%massMinimumGlobularClusters) &
+               &                  /(self%massMaximumGlobularClusters-self%massMinimumGlobularClusters) ! M☉
+            ! Evaluate the analytic part of the integral for the mass of the globular clusters.
+            ! ∫  m_cl⁻⁸/³ d m_cl = -3/5 m_cl⁻⁵/³+C
+            globularClusterIntegralResult=-3.0d0/5.0d0                                        &
+             &                            *(                                                  &
+             &                              +self%massMaximumGlobularClusters**(-5.0d0/3.0d0) &
+             &                              -self%massMinimumGlobularClusters**(-5.0d0/3.0d0) &
+             &                             ) ! M☉⁻⁵/³
             ! Compute suitable limits for the integration.
             radiusInner=radiusSpheroid*radiusInnerDimensionless
             radiusOuter=radiusSpheroid*radiusOuterDimensionless
-
+            ! Get the mass distributions to use in the radial integrand function.
             massDistributionStellar_ => node%massDistribution(componentType=componentTypeSpheroid,massType=massTypeStellar )
             massDistributionGalactic_=> node%massDistribution(                                    massType=massTypeGalactic)
-
-            integrator_      = integrator(radialIntegrand,toleranceRelative=1.0d-3, hasSingularities=.true.)
-            integralEvaluated= integrator_%integrate(radiusInner,radiusOuter)
-            rate   =+normalizationIntegral                           &
-             &      *massGlobularClusterSpheroid                     &
-             &      /massStellar                                     &
-             &      *integralEvaluated                               &
-             &      *globularClusterMassNormalization**(2.0d0/3.0d0) &                         
-             &      *dissolutionTimescaleNormalization**(-1.0d0)     &
-             &      *rotationPeriodNormalization**(-1.0d0)           &
-             &      *(-3.0d0/5.0d0                                   &
-             &      *(+1.0d0/self%massMaximum**(5.0d0/3.0d0)         &
-             &        -1.0d0/self%massMinimum**(5.0d0/3.0d0)         &
-             &         )                                             &
-             &        )
+            ! Integrate over the radius.
+            integrator_         = integrator(radialIntegrand,toleranceRelative=1.0d-3, hasSingularities=.true.)
+            radialIntegralResult= integrator_%integrate(radiusInner,radiusOuter) ! M☉
+            ! The rate is given in units of M☉ Gyr⁻¹.
+            rate=+normalizationIntegral                           & ! M☉
+             &   *massGlobularClusterSpheroid                     & ! M☉
+             &   /massStellar                                     & ! M☉⁻¹
+             &   *radialIntegralResult                            & ! M☉
+             &   *globularClusterMassNormalization**(2.0d0/3.0d0) & ! M☉²/³                       
+             &   /dissolutionTimescaleNormalization               & ! Gyr⁻¹
+             &   /rotationPeriodNormalization                     & ! Adimensional
+             &   *globularClusterIntegralResult                     ! M☉⁻⁵/³
              !![
               <objectDestructor name="massDistributionStellar_"/>
               <objectDestructor name="massDistributionGalactic_"/>
@@ -181,7 +183,6 @@ contains
     return
 
     contains
-
       double precision function radialIntegrand(radius)
         use :: Coordinates             , only : coordinateSpherical, assignment(=)
         use :: Numerical_Constants_Math, only : Pi
@@ -189,16 +190,21 @@ contains
         double precision                     , intent(in  ) :: radius
         type            (coordinateSpherical)               :: coordinates
         double precision                                    :: density                    , velocityRotation
-        double precision                     , parameter    :: velocityNormalization=1.0d0 !km s⁻¹
+        double precision                     , parameter    :: velocityNormalization=1.0d0  ! km s⁻¹
+        double precision                     , parameter    :: radiusNormalization  =1.0d-3 ! Mpc
         ! Define coordinates.
         coordinates    = [radius,0.0d0,0.0d0]
         ! Get the galactic rotation curve at the radius.
-        velocityRotation=massDistributionGalactic_%rotationCurve (     radius)
-        density         =massDistributionStellar_ %density       (coordinates)
-        radialIntegrand =4.0d0*Pi*density*(velocityRotation/velocityNormalization)*radius**3.0d0
+        velocityRotation=massDistributionGalactic_%rotationCurve(     radius)
+        density         =massDistributionStellar_ %density      (coordinates)
+        ! The units of the integral is M☉.
+        radialIntegrand =+4.0d0*Pi                                 & ! Adimensional
+            &            *density                                  & ! M☉ Mpc⁻³
+            &            *(velocityRotation/velocityNormalization) & ! Adimensional
+            &            *radius**2.0d0                            & ! Mpc²
+            &            /(radius/radiusNormalization)               ! Adimensional
         return 
       end function radialIntegrand 
-
   end function globularClusterDissolutionSpheroidsAntonini2015Rate
   
 

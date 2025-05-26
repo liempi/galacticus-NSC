@@ -31,8 +31,8 @@ module Globular_Cluster_Infall_Rates_Disks
   !![
   <functionClass>
    <name>globularClusterInfallRateDisks</name>
-   <descriptiveName>Rates for globular cluster dissolution in disks.</descriptiveName>
-   <description>Class providing models of rates of globular cluster dissolution in disks.</description>
+   <descriptiveName>Rates for globular cluster infalling in disks.</descriptiveName>
+   <description>Class providing models of rates of globular cluster infalling in disks.</description>
    <default>antonini2015</default>
    <method name="rate" >
     <description>Returns the rate (in units of $\mathrm{M}_\odot$ Gyr$^{-1}$) for disk globular clusters infalling into the nuclear star cluster component of the  {\normalfont \ttfamily node}.</description>

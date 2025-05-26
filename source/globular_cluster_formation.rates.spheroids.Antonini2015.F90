@@ -26,11 +26,12 @@
   !![
   <globularClusterFormationRateSpheroids name="globularClusterFormationRateSpheroidsAntonini2015">
    <description>
-    A globular cluster formation rate in galactic spheroids which computes the rate by multiply the star formation rate of the spheroid by a factor. Specifically, the globular cluster formation rate is given by
+    A globular cluster formation rate in galactic spheroids which computes the rate by multiply the star formation rate of the spheroid by a factor. Specifically, the globular cluster formation rate in
+    spheroids is given by
     \begin{equation}
-     \dot{M}_\mathrm{spheroid}^\mathrm{gc} = f_\mathrm{gc} \dot{\Sigma}_\star(r) \mathrm{d}r,
+     \dot{M}_\mathrm{spheroid}^\mathrm{gc} = f_\mathrm{gc} \dot{M}_\star(r),
     \end{equation}
-    where $\dot{\Sigma}_\star(r)$ is the surface density of star formation rate.
+    where $\dot{M}_\star$ is the star formation rate of the spheroid.
    </description>
   </globularClusterFormationRateSpheroids>
   !!]
@@ -73,7 +74,7 @@ contains
     <inputParameter>
       <name>efficiency</name>
       <defaultValue>7.0d-2</defaultValue>
-      <description>Efficiency of the globular cluster formation rate.</description>
+      <description>Efficiency of the globular cluster formation rate in the spheroid component.</description>
       <source>parameters</source>
     </inputParameter>
     <objectBuilder class="starFormationRateSpheroids" name="starFormationRateSpheroids_" source="parameters"/>
@@ -139,7 +140,7 @@ contains
         if (rateStarFormationSpheroid <= 0.0d0) then
             rate   =+0.0d0
         else
-            ! Gas accretion rate model from F. Antonini, E. Barausse & J. Silk (2015; https://ui.adsabs.harvard.edu/abs/2015ApJ...812...72A).
+            ! Globular cluster formation rate from F. Antonini, E. Barausse & J. Silk (2015; https://ui.adsabs.harvard.edu/abs/2015ApJ...812...72A).
             rate   =+self%efficiency                &
                  &  *     rateStarFormationSpheroid
         end if 

@@ -144,7 +144,7 @@ contains
     class           (nodeOperatorGlobularClusterFormationDisks), intent(inout) :: self
     type            (treeNode                                 ), intent(inout) :: node
     class           (nodeComponentDisk                        ), pointer       :: disk
-    double precision                                           , parameter     :: massMinimum=1.0d+0, scaleRelative=1.0d-3
+    double precision                                           , parameter     :: massMinimum=1.0d+0, scaleRelative=1.0d-4
     double precision                                                           :: mass
     ! Get disk component
     disk =>  node%disk()
@@ -155,7 +155,11 @@ contains
     type is (nodeComponentDisk)
        ! Disk does not yet exist - nothing to do here.
     class default
-       call disk%floatRank0MetaPropertyScale(self%globularClusterStellarMassDiskID, massMinimum)
+       if (mass>0.0d0) then
+            call disk%floatRank0MetaPropertyScale(self%globularClusterStellarMassDiskID,scaleRelative*mass)
+       else if (mass==0.0d0) then 
+            call disk%floatRank0MetaPropertyScale(self%globularClusterStellarMassDiskID,1.0d0)
+       end if
     end select
     return
   end subroutine globularClusterFormationDisksDifferentialEvolutionScales

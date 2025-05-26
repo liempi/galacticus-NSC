@@ -23,7 +23,7 @@ Contains a module which provides a class that implements rates of globular forma
 
 module Globular_Cluster_Evaporation_Rates_Disks
   !!{
-  Provides a class that implements calculations of rates of formation in disks.
+  Provides a class that implements calculations of rates of globular cluster evaporation in disks.
   !!}
   use :: Galacticus_Nodes, only : treeNode
   private
@@ -31,11 +31,11 @@ module Globular_Cluster_Evaporation_Rates_Disks
   !![
   <functionClass>
    <name>globularClusterEvaporationRateDisks</name>
-   <descriptiveName>Rates for globular cluster formation in disks.</descriptiveName>
-   <description>Class providing models of rates of star formation in disks.</description>
+   <descriptiveName>Rates for globular cluster evaporation in disks.</descriptiveName>
+   <description>Class providing models of rates of globular cluster evaporation in disks.</description>
    <default>antonini2015</default>
    <method name="rate" >
-    <description>Returns the rate (in units of $\mathrm{M}_\odot$ Gyr$^{-1}$) for star formation in the disk component of {\normalfont \ttfamily node}.</description>
+    <description>Returns the rate (in units of $\mathrm{M}_\odot$ Gyr$^{-1}$) for globular cluster evaporation in the disk component of {\normalfont \ttfamily node}.</description>
     <type>double precision</type>
     <pass>yes</pass>
     <selfTarget>yes</selfTarget>

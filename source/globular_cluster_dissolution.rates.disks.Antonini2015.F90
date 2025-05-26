@@ -41,7 +41,7 @@
 
   interface globularClusterDissolutionRateDisksAntonini2015
      !!{
-     Constructors for the {\normalfont \ttfamily globularClusterDissolutionDisksAntonini2015} Dissolution rate in disks class.
+     Constructors for the {\normalfont \ttfamily globularClusterDissolutionDisksAntonini2015} dissolution rate in disks class.
      !!}
      module procedure globularClusterDssltnDisksAntonini2015ConstructorParameters
      module procedure globularClusterDssltnDisksAntonini2015ConstructorInternal
@@ -51,7 +51,7 @@ contains
 
   function globularClusterDssltnDisksAntonini2015ConstructorParameters(parameters) result(self)
     !!{
-    Constructor for the {\normalfont \ttfamily globularClusterDissolutionDisks} formation rate in disks class which takes a
+    Constructor for the {\normalfont \ttfamily globularClusterDissolutionDisks} dissolution rate in disks class which takes a
     parameter set as input.
     !!}
     use :: Input_Parameters, only : inputParameter, inputParameters
@@ -83,7 +83,7 @@ contains
 
   function globularClusterDssltnDisksAntonini2015ConstructorInternal(massMinimumGlobularClusters, massMaximumGlobularClusters) result(self)
     !!{
-    Internal constructor for the {\normalfont \ttfamily globularClusterDissolutionDisks} globular cluster dissolution rate in disks class.
+    Internal constructor for the {\normalfont \ttfamily globularClusterDissolutionDisks} dissolution rate in disks class.
     !!}
     implicit none
     type            (globularClusterDissolutionRateDisksAntonini2015)                :: self
@@ -114,9 +114,9 @@ contains
     double precision                                                 , parameter              :: dissolutionTimescaleNormalization=10.0d0   ! Gyr
     double precision                                                 , parameter              :: globularClusterMassNormalization =2.0d5    ! M☉ 
     double precision                                                                          :: radiusDisk                                , massStellar                    , &
-         &                                                                                       normalizationIntegral                     , integralEvaluated              , &
-         &                                                                                       massGlobularClusterDisk                   , radiusInner                    , &
-         &                                                                                       radiusOuter
+         &                                                                                       normalizationIntegral                     , radialIntegralResult           , &
+         &                                                                                       massGlobularClusterDisk                   , globularClusterIntegralResult  , &
+         &                                                                                       radiusInner                               , radiusOuter
     type            (integrator                                     )                         :: integrator_
 
     ! Get the disk properties.
@@ -127,47 +127,50 @@ contains
     select type(disk)
       class default 
         !Generic type, do nothing.
-        rate= 0.0d0
+        rate=+0.0d0
       class is (nodeComponentDiskStandard)
         if (massStellar<=0.0d0.or.radiusDisk<=0.0d0) then
           ! It is not, so return zero rate.
-          rate=0.0d0
+          rate=+0.0d0
         else
           ! Here we use equation 10 from from F. Antonini, E. Barausse & J. Silk (2015; https://ui.adsabs.harvard.edu/abs/2015ApJ...812...72A).
           ! Specifically, we split the equations in two parts, the disk and spheroidal components. This allow us to track the mass of the globular
           ! clusters in each component. The integral over the globular cluster mass can be evaluated analyticaly. 
           !  Ṁ_dᵢₛₛᵍᶜ = M_dᵢₛₖᵍᶜ ∫ [π_dᵢₛₖᵍᶜ(r, m_cl) / t_dᵢₛₛ(m_cl)]  2πr dr dm_cl
-
           massGlobularClusterDisk = disk%floatRank0MetaPropertyGet(self%globularClusterStellarMassDiskID) ! M☉
 
-          if (massGlobularClusterDisk <= 0.0d0) then
+          if (massGlobularClusterDisk<=0.0d0) then
             ! If there are no globular clusters, it does not make sense to compute their dissolution.
-            rate=0.0d0
+            rate=+0.0d0
           else
             ! First, compute the normalization constant in units of M☉.
-            normalizationIntegral = (self%massMaximumGlobularClusters*self%massMinimumGlobularClusters) &
-              &                    /(self%massMaximumGlobularClusters-self%massMinimumGlobularClusters)
+            normalizationIntegral= (self%massMaximumGlobularClusters*self%massMinimumGlobularClusters) &
+              &                   /(self%massMaximumGlobularClusters-self%massMinimumGlobularClusters)   ! M☉
+            ! Evaluate the analytic part of the integral for the mass of the globular clusters.
+            ! ∫  m_cl⁻⁸/³ d m_cl = -3/5 m_cl⁻⁵/³+C
+            globularClusterIntegralResult=-3.0d0/5.0d0                                        &
+             &                            *(                                                  &
+             &                              +self%massMaximumGlobularClusters**(-5.0d0/3.0d0) &
+             &                              -self%massMinimumGlobularClusters**(-5.0d0/3.0d0) &
+             &                             ) ! M☉⁻⁵/³
             ! Compute suitable limits for the integration.
             radiusInner=radiusDisk*radiusInnerDimensionless
             radiusOuter=radiusDisk*radiusOuterDimensionless
-
+            ! Get the mass distributions to use in the radial integrand function.
             massDistributionStellar_ => node%massDistribution(componentType=componentTypeDisk,massType=massTypeStellar )
             massDistributionGalactic_=> node%massDistribution(                                massType=massTypeGalactic)
-            
-            integrator_              = integrator(radialIntegrand,toleranceRelative=1.0d-3, hasSingularities=.true.)
-            integralEvaluated        = integrator_%integrate(radiusInner,radiusOuter)
-            rate   =+normalizationIntegral                                    &
-             &      *massGlobularClusterDisk                                  &
-             &      /massStellar                                              &
-             &      *integralEvaluated                                        &
-             &      *globularClusterMassNormalization**(2.0d0/3.0d0)          &                         
-             &      /dissolutionTimescaleNormalization                        &
-             &      *rotationPeriodNormalization**(-1.0d0)                    &
-             &      *(  -3.0d0/5.0d0                                          &
-             &        *(+1.0d0/self%massMaximumGlobularClusters**(5.0d0/3.0d0)&
-             &          -1.0d0/self%massMinimumGlobularClusters**(5.0d0/3.0d0)&
-             &         )                                                      &
-             &       )
+            ! Integrate over the radius.
+            integrator_         =integrator(radialIntegrand,toleranceRelative=1.0d-3, hasSingularities=.true.)
+            radialIntegralResult=integrator_%integrate(radiusInner,radiusOuter) ! M☉ Mpc⁻¹
+            ! The rate is given in units of M☉ Gyr⁻¹.
+            rate=+normalizationIntegral                           & ! M☉
+             &   *massGlobularClusterDisk                         & ! M☉
+             &   /massStellar                                     & ! M☉⁻¹
+             &   *radialIntegralResult                            & ! M☉ Mpc⁻¹
+             &   *globularClusterMassNormalization**(2.0d0/3.0d0) & ! M☉²/³                         
+             &   /dissolutionTimescaleNormalization               & ! Gyr⁻¹
+             &   /rotationPeriodNormalization                     & ! Mpc
+             &   *globularClusterIntegralResult                     ! M☉⁻⁵/³  
             !![
               <objectDestructor name="massDistributionStellar_"/>
               <objectDestructor name="massDistributionGalactic_"/>
@@ -184,15 +187,18 @@ contains
         implicit none
         double precision                       , intent(in  ) :: radius
         type            (coordinateCylindrical)               :: coordinates
-        double precision                                      :: surfaceDensity, velocityRotation
+        double precision                                      :: surfaceDensity             , velocityRotation
         double precision                       , parameter    :: velocityNormalization=1.0d0 !km s⁻¹
 
         ! Define coordinates.
         coordinates    = [radius,0.0d0,0.0d0]
         ! Get the galactic rotation curve at the radius.
-        velocityRotation=massDistributionGalactic_%rotationCurve (     radius)
-        surfaceDensity  =massDistributionStellar_ %surfaceDensity(coordinates)
-        radialIntegrand =2.0d0*Pi*surfaceDensity*(velocityRotation/velocityNormalization)
+        velocityRotation=massDistributionGalactic_%rotationCurve (     radius) ! km s⁻¹
+        surfaceDensity  =massDistributionStellar_ %surfaceDensity(coordinates) ! M☉ Mpc⁻²
+        ! The result of the integral is M☉ Mpc⁻¹.
+        radialIntegrand =+2.0d0*Pi                                 & ! Adimensional
+          &              *surfaceDensity                           & ! M☉ Mpc⁻²
+          &              *(velocityRotation/velocityNormalization) & ! Adimensional
         return 
       end function radialIntegrand 
 
