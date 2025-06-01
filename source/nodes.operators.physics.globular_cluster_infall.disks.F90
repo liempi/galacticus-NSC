@@ -34,7 +34,7 @@
      !!}
      private
      class  (globularClusterInfallRateDisksClass), pointer :: globularClusterInfallRateDisks_ => null()
-     integer                                               :: globularClusterStellarMassDiskID
+     integer                                               :: globularClusterStellarMassDiskID         , globularClusterInfallTimescaleDiskID
      double precision                                      :: fraction 
    contains
      final     ::                                   globularClusterInfallDisksDestructor
@@ -91,9 +91,8 @@ contains
     double precision                             , intent(in  )          :: fraction
     !![
     <constructorAssign variables="fraction,*globularClusterInfallRateDisks_"/>
-    !!]
-    !![
-    <addMetaProperty component="disk" name="globularClusterStellarMassDisk" id="self%globularClusterStellarMassDiskID" isEvolvable="yes" isCreator="no"/>
+    <addMetaProperty component="disk" name="globularClusterStellarMassDisk"     id="self%globularClusterStellarMassDiskID"     isEvolvable="yes" isCreator="no"/>
+    <addMetaProperty component="disk" name="globularClusterInfallTimescaleDisk" id="self%globularClusterInfallTimescaleDiskID" isEvolvable="yes" isCreator="no"/>
     !!]
     return
   end function globularClusterInfallDisksConstructorInternal
@@ -159,8 +158,10 @@ contains
     !!{
     Perform globular cluster dissolution in a disk.
     !!}
-    use :: Galacticus_Nodes, only : propertyInactive, propertyTypeActive      , propertyEvaluate, nodeComponentDisk, &
-            &                       nodeComponentNSC, nodeComponentNSCStandard
+    use :: Galacticus_Nodes    , only : propertyInactive, propertyTypeActive      , propertyEvaluate, nodeComponentDisk, &
+            &                           nodeComponentNSC, nodeComponentNSCStandard
+    use :: Abundances_Structure, only : operator(*)     , abundances              , zeroAbundances  , max
+    use :: Histories           , only : operator(*)     , history
     implicit none
     class           (nodeOperatorglobularClusterInfallDisks), intent(inout), target  :: self
     type            (treeNode                              ), intent(inout), target  :: node
@@ -169,7 +170,10 @@ contains
     integer                                                 , intent(in   )          :: propertyType
     class           (nodeComponentDisk                     )               , pointer :: disk
     class           (nodeComponentNSC                      )               , pointer :: nuclearStarCluster
-    double precision                                                                 :: rateGlobularClusterInfall
+    type            (abundances                            ), save                   :: stellarAbundancesRates
+    !$omp threadprivate(stellarAbundancesRates)
+    type            (history                               )                         :: historyTransferRate
+    double precision                                                                 :: rateGlobularClusterInfall, globularClusterInfallTimescale
     ! Check for a realistic disk, return immediately if disk is unphysical.
     disk => node%disk()
     if     (         disk%angularMomentum() <= 0.0d0 &
@@ -179,7 +183,8 @@ contains
          & ) return
     if (propertyInactive(propertyType)) return
 
-    rateGlobularClusterInfall=self%fraction*self%globularClusterInfallRateDisks_%rate(node)
+    rateGlobularClusterInfall     =self%fraction*self%globularClusterInfallRateDisks_%rate(node)
+    globularClusterInfallTimescale=disk%floatRank0MetaPropertyGet(self%globularClusterInfallTimescaleDiskID)
 
     if (rateGlobularClusterInfall <= 0.0d0) return
 
@@ -195,13 +200,32 @@ contains
        return
     class default
        ! A nuclear star cluster exists - continue processing.
-       ! Remove gas from the spheroid component and add to the nuclear star cluster component.
+       ! Remove stars from the disk component and add to the nuclear star cluster component.
        call disk             %floatRank0MetaPropertyRate(                                       &
           &                                              self%globularClusterStellarMassDiskID, &
           &                                                  -rateGlobularClusterInfall         &
           &                                             )
        ! WARNING, here we need to adjust stellar histories in both, disk and nuclear star cluster components.
        call nuclearStarCluster%massStellarRate(+rateGlobularClusterInfall)
+        stellarAbundancesRates=max(zeroAbundances,disk%abundancesStellar    ())/globularClusterInfallTimescale
+       call                                       disk%abundancesStellarRate(-stellarAbundancesRates,interrupt,functionInterrupt)
+       call                         nuclearStarCluster%abundancesStellarRate(-stellarAbundancesRates,interrupt,functionInterrupt)
+       ! Stellar properties history.
+       historyTransferRate=disk%stellarPropertiesHistory()
+       if (historyTransferRate%exists()) then
+        historyTransferRate=historyTransferRate/globularClusterInfallTimescale
+        call               disk%stellarPropertiesHistoryRate(-historyTransferRate                            )
+        call nuclearStarCluster%stellarPropertiesHistoryRate(+historyTransferRate,interrupt,functionInterrupt)
+       end if
+       call historyTransferRate%destroy()
+       ! Star formation history.
+       historyTransferRate=disk%starFormationHistory()
+       if (historyTransferRate%exists()) then
+        historyTransferRate=historyTransferRate/globularClusterInfallTimescale
+        call               disk%starFormationHistoryRate(-historyTransferRate                            )
+        call nuclearStarCluster%starFormationHistoryRate(+historyTransferRate,interrupt,functionInterrupt)
+       end if
+       call historyTransferRate%destroy()
     end select
     return
   end subroutine globularClusterInfallDisksDifferentialEvolution

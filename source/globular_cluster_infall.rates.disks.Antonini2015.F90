@@ -37,7 +37,7 @@
      private
       class          (darkMatterHaloScaleClass), pointer :: darkMatterHaloScale_   => null()
      double precision                                    :: massMinimumGlobularClusters     , massMaximumGlobularClusters
-     integer                                             :: globularClusterStellarMassDiskID
+     integer                                             :: globularClusterStellarMassDiskID, globularClusterInfallTimescaleDiskID
    contains
      final     ::         globularClusterInfallDisksAntonini2015Destructor
      procedure :: rate => globularClusterInfallDisksAntonini2015Rate
@@ -100,7 +100,8 @@ contains
 
     !![
     <constructorAssign variables="massMinimumGlobularClusters, massMaximumGlobularClusters,*darkMatterHaloScale_"/>
-    <addMetaProperty component="disk" name="globularClusterStellarMassDisk" id="self%globularClusterStellarMassDiskID" isEvolvable="yes" isCreator="no"/>
+    <addMetaProperty component="disk" name="globularClusterStellarMassDisk"     id="self%globularClusterStellarMassDiskID"     isEvolvable="yes" isCreator="no" />
+    <addMetaProperty component="disk" name="globularClusterInfallTimescaleDisk" id="self%globularClusterInfallTimescaleDiskID" isEvolvable="no"  isCreator="yes"/>
     !!]
     return
   end function globularClusterInfallDisksAntonini2015ConstructorInternal
@@ -122,21 +123,24 @@ contains
     !!{
     Returns the globular infall rate (in $\mathrm{M}_\odot$ Gyr$^{-1}$) in the galactic spheroid of {\normalfont \ttfamily node}
     !!}
-    use :: Galactic_Structure_Options      , only : componentTypeDisk    , massTypeStellar          , massTypeGaseous
-    use :: Galacticus_Nodes                , only : nodeComponentDisk    , nodeComponentDiskStandard, treeNode
+    use :: Galactic_Structure_Options      , only : componentTypeDisk             , massTypeStellar          , massTypeGaseous
+    use :: Galacticus_Nodes                , only : nodeComponentDisk             , nodeComponentDiskStandard, treeNode
+    use :: Coordinates                     , only : coordinateCylindrical         , assignment(=)
     use :: Mass_Distributions              , only : massDistributionClass
     use :: Numerical_Integration           , only : integrator
-    use :: Numerical_Constants_Astronomical, only : gigayear
+    use :: Numerical_Constants_Astronomical, only : gravitationalConstant_internal, megaParsec               , gigayear       , MpcPerKmPerSToGyr
     implicit none
     class           (globularClusterInfallRateDisksAntonini2015), intent(inout), target  :: self
     type            (treeNode                                  ), intent(inout), target  :: node
     class           (massDistributionClass                     ), pointer                :: massDistributionStellar_        , massDistributionGaseous_
     class           (nodeComponentDisk                         ), pointer                :: disk
+    type            (coordinateCylindrical                     )                         :: coordinates
     double precision                                            , parameter              :: radiusInnerDimensionless=1.0d-13, radiusOuterDimensionless=10.0d0
     double precision                                                                     :: radiusDisk                      , massStellar                      , &
          &                                                                                  normalizationIntegral           , massGlobularClusterDisk          , &
          &                                                                                  radiusInner                     , radiusOuter                      , &
-         &                                                                                  radialIntegralResult            , globularClusterMassIntegralResult
+         &                                                                                  radialIntegralResult            , globularClusterMassIntegralResult, &
+         &                                                                                  virialVelocity                  , dynamicalFrictionTimescaleDisk
     type            (integrator                                )                         :: integrator_
     ! Get the disk properties.
     disk        => node%disk       ()
@@ -160,6 +164,7 @@ contains
           if (massGlobularClusterDisk<= 0.0d0) then
             rate=+0.0d0
           else
+            virialVelocity       = self%darkMatterHaloScale_%velocityVirial      (node       ) ! km s⁻¹
             normalizationIntegral=+(self%massMaximumGlobularClusters*self%massMinimumGlobularClusters) &
               &                   /(self%massMaximumGlobularClusters-self%massMinimumGlobularClusters)  ! M☉
             ! The integral over the mass of globular clusters can be evaluated analiticaly, let's say
@@ -172,6 +177,30 @@ contains
             ! Get the mass distribution used by the radial integrand function.
             massDistributionStellar_ => node%massDistribution(componentType=componentTypeDisk,massType=massTypeStellar)
             massDistributionGaseous_ => node%massDistribution(componentType=componentTypeDisk,massType=massTypeGaseous)
+            
+            coordinates                      =[radiusDisk,0.0d0,0.0d0]
+
+            dynamicalFrictionTimescaleDisk=+(gravitationalConstant_internal**2.0d0                                         &
+              &                             /virialVelocity                                                                &
+              &                             /radiusDisk                                                                    &
+              &                             *(+         massDistributionStellar_%surfaceDensity              (coordinates)  &
+              &                               /(0.290d0*massDistributionStellar_%velocityRotationCurveMaximum(           )) &
+              &                               +         massDistributionGaseous_%surfaceDensity              (coordinates)  &
+              &                               /(0.028d0*massDistributionStellar_%velocityRotationCurveMaximum(           )) &
+              &                              )                                                                              &                               
+              &                             /MpcPerKmPerSToGyr                                                             & ! Gyr M☉
+              &                            )**(-1.0d0)                                                                     &
+              &                             *(+0.5d0                                                                       &
+              &                                     *(+self%massMaximumGlobularClusters**(-2.0d0)                          & ! Here we use the analytic solution
+              &                                       -self%massMinimumGlobularClusters**(-2.0d0)                          & ! Units are M☉⁻¹
+              &                                      )                                                                     &
+              &                                     /(+self%massMaximumGlobularClusters**(-1.0d0)                          &
+              &                                       -self%massMinimumGlobularClusters**(-1.0d0)                          & 
+              &                                      )                                                                     &
+              &                              )
+            call disk%floatRank0MetaPropertySet(self%globularClusterInfallTimescaleDiskID, dynamicalFrictionTimescaleDisk)
+
+
             ! Integrate over the radius.
             integrator_         = integrator(radialIntegrand,toleranceRelative=1.0d-3, hasSingularities=.true.)
             radialIntegralResult= integrator_%integrate(radiusInner,radiusOuter)
@@ -193,17 +222,13 @@ contains
 
     contains
       double precision function radialIntegrand(radius)
-        use :: Coordinates                     , only : coordinateCylindrical         , assignment(=)
-        use :: Numerical_Constants_Astronomical, only : gravitationalConstant_internal, megaParsec   , gigayear
         use :: Numerical_Constants_Math        , only : Pi
         use :: Numerical_Constants_Prefixes    , only : kilo
         implicit none
-        double precision                      , intent(in  ) :: radius
-        type            (coordinateCylindrical)              :: coordinates
-        double precision                                     :: surfaceDensityStellar    , surfaceDensityGas    , &
-            &                                                   velocityDispersionStellar, velocityDispersionGas, &
-            &                                                   rotationCurveMaximum     , virialVelocity       , &
-            &                                                   rotationCurveDisk
+        double precision                       , intent(in  ) :: radius
+        double precision                                      :: surfaceDensityStellar    , surfaceDensityGas    , &
+            &                                                    velocityDispersionStellar, velocityDispersionGas, &
+            &                                                    rotationCurveMaximum
 
         coordinates             = [radius,0.0d0,0.0d0]
 
@@ -211,9 +236,7 @@ contains
         surfaceDensityStellar   = massDistributionStellar_ %surfaceDensity      (coordinates) ! M☉ Mpc⁻²
         surfaceDensityGas       = massDistributionGaseous_ %surfaceDensity      (coordinates) ! M☉ Mpc⁻²
         ! Get rotation curves and virial velocity.
-        rotationCurveDisk       = massDistributionStellar_ %RotationCurve       (radius     ) ! km s⁻¹
         rotationCurveMaximum    = massDistributionStellar_ %velocityRotationCurveMaximum(   ) ! km s⁻¹
-        virialVelocity          = self%darkMatterHaloScale_%velocityVirial      (node       ) ! km s⁻¹
 
         ! Use Eq. to approximate the velocity dispersion of stars of the gas ()
         ! M. Kregel, P. C. van der Kruit, and K. C. Freeman. Structure and kinematics of edge- on galaxy discs - V. The dynamics of stellar discs. MNRAS, 358(2):503–520, Apr. 2005. doi: 10.1111/j.1365-2966.2005.08855.x.

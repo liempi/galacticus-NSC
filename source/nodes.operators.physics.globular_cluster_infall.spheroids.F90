@@ -34,7 +34,7 @@
      !!}
      private
      class  (globularClusterInfallRateSpheroidsClass), pointer :: globularClusterInfallRateSpheroids_ => null()
-     integer                                                   :: globularClusterStellarMassSpheroidID
+     integer                                                   :: globularClusterStellarMassSpheroidID         , globularClusterInfallTimescaleSpheroidID
      double precision                                          :: fraction 
    contains
      final     ::                          globularClusterInfallSpheroidsDestructor
@@ -91,7 +91,8 @@ contains
     <constructorAssign variables="fraction,*globularClusterInfallRateSpheroids_"/>
     !!]
     !![
-    <addMetaProperty component="spheroid" name="globularClusterStellarMassSpheroid" id="self%globularClusterStellarMassSpheroidID" isEvolvable="yes" isCreator="no"/>
+    <addMetaProperty component="spheroid" name="globularClusterStellarMassSpheroid"     id="self%globularClusterStellarMassSpheroidID"     isEvolvable="yes" isCreator="no"/>
+    <addMetaProperty component="spheroid" name="globularClusterInfallTimescaleSpheroid" id="self%globularClusterInfallTimescaleSpheroidID" isEvolvable="yes" isCreator="no"/>
     !!]
     return
   end function globularClusterInfallSpheroidsConstructorInternal
@@ -113,8 +114,10 @@ contains
     !!{
     Perform globular cluster dissolution in an spheroid.
     !!}
-    use :: Galacticus_Nodes, only : propertyInactive, propertyTypeActive      , propertyEvaluate, nodeComponentSpheroid, &
-            &                       nodeComponentNSC, nodeComponentNSCStandard
+    use :: Galacticus_Nodes    , only : propertyInactive, propertyTypeActive      , propertyEvaluate, nodeComponentSpheroid, &
+            &                           nodeComponentNSC, nodeComponentNSCStandard
+    use :: Abundances_Structure, only : operator(*)     , abundances              , zeroAbundances  , max
+    use :: Histories           , only : operator(*)     , history
     implicit none
     class           (nodeOperatorglobularClusterInfallSpheroids), intent(inout), target  :: self
     type            (treeNode                                  ), intent(inout), target  :: node
@@ -123,7 +126,10 @@ contains
     integer                                                     , intent(in   )          :: propertyType
     class           (nodeComponentSpheroid                     )               , pointer :: spheroid
     class           (nodeComponentNSC                          )               , pointer :: nuclearStarCluster
-    double precision                                                                     :: rateGlobularClusterInfall
+    type            (abundances                                ), save                   :: stellarAbundancesRates
+    !$omp threadprivate(stellarAbundancesRates)
+    type            (history                                   )                         :: historyTransferRate
+    double precision                                                                     :: rateGlobularClusterInfall, globularClusterInfallTimescale
     ! Check for a realistic disk, return immediately if spheroid is unphysical.
     spheroid => node%spheroid()
     if     (         spheroid%angularMomentum() <= 0.0d0 &
@@ -133,12 +139,13 @@ contains
          & ) return
     if (propertyInactive(propertyType)) return
 
-    rateGlobularClusterInfall=self%fraction*self%globularClusterInfallRateSpheroids_%rate(node)
+    rateGlobularClusterInfall     =self%fraction*self%globularClusterInfallRateSpheroids_%rate(node)
+    globularClusterInfallTimescale=spheroid%floatRank0MetaPropertyGet(self%globularClusterInfallTimescaleSpheroidID)
 
-    if (rateGlobularClusterInfall <= 0.0d0) return
+    if (rateGlobularClusterInfall<=0.0d0) return
 
     ! Get nuclear star cluster component
-    nuclearStarCluster => node%NSC()
+    nuclearStarCluster=>node%NSC()
 
     ! Detect nuclear star cluster component type.
     select type (nuclearStarCluster)
@@ -150,12 +157,32 @@ contains
     class default
        ! A nuclear star cluster exists - continue processing.
        ! Remove gas from the spheroid component and add to the nuclear star cluster component.
-       call spheroid          %floatRank0MetaPropertyRate(                                          &
-          &                                              self%globularClusterStellarMassSpheroidID, &
-          &                                                  -rateGlobularClusterInfall             &
-          &                                             )
+       call spheroid          %floatRank0MetaPropertyRate(                                           &
+          &                                               self%globularClusterStellarMassSpheroidID, &
+          &                                                  -rateGlobularClusterInfall              &
+          &                                              )
        ! WARNING, here we need to adjust stellar histories in both, spheroid and nuclear star cluster components.
-       call nuclearStarCluster%massStellarRate(+rateGlobularClusterInfall)
+       call nuclearStarCluster%massStellarRate        (+rateGlobularClusterInfall)
+          ! Stellar abundances.
+       stellarAbundancesRates=max(zeroAbundances,spheroid%abundancesStellar  ())/globularClusterInfallTimescale
+       call                                      spheroid%abundancesStellarRate(-stellarAbundancesRates,interrupt,functionInterrupt)
+       call                            nuclearStarCluster%abundancesStellarRate(-stellarAbundancesRates,interrupt,functionInterrupt)
+       ! Stellar properties history.
+       historyTransferRate=spheroid%stellarPropertiesHistory()
+       if (historyTransferRate%exists()) then
+        historyTransferRate=historyTransferRate/globularClusterInfallTimescale
+        call           spheroid%stellarPropertiesHistoryRate(-historyTransferRate                            )
+        call nuclearStarCluster%stellarPropertiesHistoryRate(+historyTransferRate,interrupt,functionInterrupt)
+       end if
+       call historyTransferRate%destroy()
+       ! Star formation history.
+       historyTransferRate=spheroid%starFormationHistory()
+       if (historyTransferRate%exists()) then
+        historyTransferRate=historyTransferRate/globularClusterInfallTimescale
+        call           spheroid%starFormationHistoryRate(-historyTransferRate                            )
+        call nuclearStarCluster%starFormationHistoryRate(+historyTransferRate,interrupt,functionInterrupt)
+       end if
+       call historyTransferRate%destroy()
     end select
     return
   end subroutine globularClusterInfallSpheroidDifferentialEvolution

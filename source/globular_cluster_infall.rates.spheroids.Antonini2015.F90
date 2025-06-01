@@ -36,7 +36,7 @@
      private
      class           (darkMatterHaloScaleClass), pointer :: darkMatterHaloScale_ => null()
      double precision                                    :: massMinimumGlobularClusters         , massMaximumGlobularClusters
-     integer                                             :: globularClusterStellarMassSpheroidID
+     integer                                             :: globularClusterStellarMassSpheroidID, globularClusterInfallTimescaleSpheroidID
    contains
      final     ::         globularClusterInfallSpheroidsAntonini2015Destructor
      procedure :: rate => globularClusterInfallSpheroidsAntonini2015Rate
@@ -100,7 +100,8 @@ contains
     !![
     <constructorAssign variables="massMinimumGlobularClusters, massMaximumGlobularClusters, *darkMatterHaloScale_"/>
 
-    <addMetaProperty component="spheroid" name="globularClusterStellarMassSpheroid" id="self%globularClusterStellarMassSpheroidID" isEvolvable="yes" isCreator="no"/>
+    <addMetaProperty component="spheroid" name="globularClusterStellarMassSpheroid"     id="self%globularClusterStellarMassSpheroidID"     isEvolvable="yes" isCreator="no" />
+    <addMetaProperty component="spheroid" name="globularClusterInfallTimescaleSpheroid" id="self%globularClusterInfallTimescaleSpheroidID" isEvolvable="no"  isCreator="yes"/>
     !!]
     return
   end function globularClusterInfallSpheAntonini2015ConstructorInternal
@@ -126,6 +127,7 @@ contains
     use :: Galacticus_Nodes            , only : nodeComponentSpheroid, nodeComponentSpheroidStandard, treeNode
     use :: Mass_Distributions          , only : massDistributionClass
     use :: Numerical_Integration       , only : integrator
+    use :: Numerical_Constants_Prefixes, only : kilo                 , mega
     implicit none
     class           (globularClusterInfallRateSpheroidsAntonini2015), intent(inout), target  :: self
     type            (treeNode                                      ), intent(inout), target  :: node
@@ -134,11 +136,12 @@ contains
     double precision                                                , parameter              :: radiusInnerDimensionless          =1.0d-13, radiusOuterDimensionless=10.0d0
     double precision                                                , parameter              :: dynamicalFrictionTimescale        =15.0d0  ! Gyr
     double precision                                                , parameter              :: dynamicalFrictionMassNormalization=1.0d7   ! M
-    double precision                                                                         :: radiusSpheroid                            , massStellarSpheroid              , &
-         &                                                                                      normalizationIntegral                     , velocityVirial                   , &
-         &                                                                                      massGlobularClusterSpheroid               , radiusInner                      , &
-         &                                                                                      radiusOuter                               , globularClusterMassIntegralResult, &
-         &                                                                                      radialIntegralResult                      , normalizedVelocity
+    double precision                                                                         :: radiusSpheroid                            , massStellarSpheroid               , &
+         &                                                                                      normalizationIntegral                     , velocityVirial                    , &
+         &                                                                                      massGlobularClusterSpheroid               , radiusInner                       , &
+         &                                                                                      radiusOuter                               , globularClusterMassIntegralResult , &
+         &                                                                                      radialIntegralResult                      , normalizedVelocity                , &
+         &                                                                                      normalizationRadius                       , timescaleDynamicalFrictionSpheroid
     type            (integrator                                    )                         :: integrator_
 
     ! Get the spheroid properties.
@@ -164,7 +167,12 @@ contains
             rate=+0.0d0
           else
             velocityVirial       =+self%darkMatterHaloScale_%velocityVirial(node)
-            normalizedVelocity   = 100.0d0/(0.65d0*velocityVirial)
+            normalizedVelocity   =+0.65d0         &
+              &                   *velocityVirial &
+              &                   /100.0d0
+            normalizationRadius  =+5.0d0          &
+              &                   *kilo           &
+              &                   /mega
             normalizationIntegral=+(self%massMaximumGlobularClusters*self%massMinimumGlobularClusters) &
               &                   /(self%massMaximumGlobularClusters-self%massMinimumGlobularClusters)  ! M☉
             ! The integral over the mass of globular clusters can be evaluated analiticaly, let's say
@@ -180,13 +188,28 @@ contains
             ! Integrate over the radius.
             integrator_              =  integrator(radialIntegrand,toleranceRelative=1.0d-3, hasSingularities=.true.)
             radialIntegralResult     =  integrator_%integrate(radiusInner,radiusOuter)
-            
+            ! Here we save the mass-averaged timescale. 
+            timescaleDynamicalFrictionSpheroid=+15.0d0                                               & ! Gyr
+              &                                *1.0d7                                                & ! M☉
+              &                                *(+spheroid%radius()                                  & ! Adimensional
+              &                                  /normalizationRadius                                & ! Adimensional
+              &                                 )**2.0d0                                             & ! Adimensional
+              &                                *normalizedVelocity                                   & ! Adimensional
+              &                                *(+0.5d0                                              &
+              &                                        *(+self%massMaximumGlobularClusters**(-2.0d0) & ! Here we use the analytic solution
+              &                                          -self%massMinimumGlobularClusters**(-2.0d0) & ! Units are M☉⁻¹
+              &                                         )                                            &
+              &                                        /(+self%massMaximumGlobularClusters**(-1.0d0) &
+              &                                          -self%massMinimumGlobularClusters**(-1.0d0) & 
+              &                                         )                                            &
+              &                                 )
+            call spheroid%floatRank0MetaPropertySet(self%globularClusterInfallTimescaleSpheroidID, timescaleDynamicalFrictionSpheroid)
             ! Compute the rate.
             rate   =+normalizationIntegral              & ! M☉
              &      *massGlobularClusterSpheroid        & ! M☉
              &      *globularClusterMassIntegralResult  & ! Adimensional
              &      *radialIntegralResult               & ! M☉
-             &      *normalizedVelocity                 & ! Adimensional
+             &      /normalizedVelocity                 & ! Adimensional
              &      /massStellarSpheroid                & ! M☉⁻¹
              &      /dynamicalFrictionMassNormalization & ! M☉⁻¹
              &      /dynamicalFrictionTimescale           ! Gyr⁻¹
@@ -204,14 +227,12 @@ contains
       double precision function radialIntegrand(radius)
         use :: Coordinates                 , only : coordinateSpherical, assignment(=)
         use :: Numerical_Constants_Math    , only : Pi
-        use :: Numerical_Constants_Prefixes, only : kilo               , mega
         implicit none
         double precision                     , intent(in  ) :: radius
         type            (coordinateSpherical)               :: coordinates
-        double precision                                    :: density    , normalizationRadius
+        double precision                                    :: density    
 
         coordinates        = [radius,0.0d0,0.0d0]
-        normalizationRadius= (5*kilo/mega)
         ! Get stellar density.
         density     = massDistributionStellar_%density(coordinates)
         ! Return the integral in units of M☉.
