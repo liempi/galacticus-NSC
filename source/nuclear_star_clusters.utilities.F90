@@ -35,14 +35,18 @@ module Nuclear_Star_Clusters_Utilities
 
   double precision function nuclearStarClusterKroupaNumberOfStars(massStellar) result(numberOfStars) 
     !!{
-       Returns the number of stars assuming a Kroupa IMF, assuming a minimum star mass M0.001, and maximum M125.
+       Returns the number of stars assuming a Kroupa IMF, assuming a minimum star mass M=0.001, and maximum M=125.
     !!}
     implicit none
     double precision, intent(in   ) :: massStellar
 
-    numberOfStars = +0.380d0     &
-       &            *massStellar &
-       &            /0.079d0
+    if (massStellar>0.0d0) then 
+      numberOfStars = +0.380d0     &
+         &            *massStellar &
+         &            /0.079d0
+    else
+      numberOfStars = 0.0d0 
+    end if
     return
   end function nuclearStarClusterKroupaNumberOfStars
 
@@ -51,21 +55,23 @@ module Nuclear_Star_Clusters_Utilities
     Computes the crossing timescale for a nuclear star cluster. This do not account for gas, the velocity is 
     computed internally here. 
     !!}
-    use :: Numerical_Constants_Astronomical, only : gravitationalConstant_internal
+    use :: Numerical_Constants_Astronomical, only : gravitationalConstant_internal, MpcPerKmPerSToGyr
     implicit none
     double precision, intent(in   ) :: radius 
     double precision, intent(in   ) :: massStellar
     double precision                :: velocity
 
-    if (radius<=0.0d0) then
+    if (radius<=0.0d0.or.massStellar<=0.0d0) then
       crossingTimescale=0.0d0
     else
       velocity         =+sqrt(                                &
         &                     +gravitationalConstant_internal &
         &                     *massStellar                    &
         &                     /radius                         &
-        &                    )
-      crossingTimescale=+radius/velocity
+        &                    )                                  ! Velocity is in units of km s⁻¹
+      crossingTimescale=+MpcPerKmPerSToGyr &
+        &               *radius            & ! Mpc
+        &               /velocity           ! km s⁻¹
     end if
     return
   end function nuclearStarClusterCrossingTimescale
@@ -88,7 +94,13 @@ module Nuclear_Star_Clusters_Utilities
     if (includeGasPotential.and..not.present(massGas)) &
         &   call Error_Report('The gas mass of the nuclear star cluster must be provided'//{introspection:location})
     
-    if (massStellar > 0.0d0) then
+    if (                       &
+      &      massStellar>0.0d0 &
+      & .and.                  &
+      &           radius>0.0d0 &
+      & .and.                  &
+      &          massGas>0.0d0 &
+      & ) then
       ! Let's get the number of stars from the Kroupa IMF.
       numberOfStars     = nuclearStarClusterKroupaNumberOfStars(        massStellar)
       ! Compute the crossing timescale.
@@ -99,15 +111,17 @@ module Nuclear_Star_Clusters_Utilities
        &              /log(         gamma &
        &                   *numberOfStars &
        &                  )               &
-       &              *crossingTimescale
+       &              *crossingTimescale    ! Gyr
       if (includeGasPotential) then
         ! We need to correct the previous value computed to take into account the gas potential.
         ! Let's compute the factor q.
         q = massGas/massStellar
         ! Correct the relaxation time
-        relaxationTime = +relaxationTime &
-          &              *  (1+q)**3.0d0
+        relaxationTime=+relaxationTime &
+          &            *  (1+q)**3.0d0
       end if
+    else
+      relaxationTime=0.0d0
     end if 
     return 
   end function nuclearStarClusterRelaxationTimescale
@@ -121,8 +135,14 @@ module Nuclear_Star_Clusters_Utilities
     double precision, intent(in   )           :: massStellar
     double precision, intent(in   ), optional :: massGas
     logical         , intent(in   ), optional :: includeGasPotential
-   
-    coreCollapseTimescale = 0.2d0*nuclearStarClusterRelaxationTimescale(radius,massStellar,massGas,includeGasPotential)
+    double precision                          :: relaxationTime
+
+    relaxationTime = nuclearStarClusterRelaxationTimescale(radius,massStellar,massGas,includeGasPotential)
+    if (relaxationTime>0.0d0) then
+      coreCollapseTimescale = 0.2d0*relaxationTime ! Gyr.
+    else 
+      coreCollapseTimescale = 0.0d0
+    end if
     return 
   end function nuclearStarClusterCoreCollapseTimescale
 

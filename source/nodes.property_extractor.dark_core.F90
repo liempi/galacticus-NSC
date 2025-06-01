@@ -33,28 +33,29 @@
      A property extractor class for the velocity dispersion at a set of radii.
      !!}
      private
-    integer   :: darkCoreRadiusID            , darkCoreGasMassID  , &
-       &         darkCoreVelocityDispersionID, darkCoreTimescaleID
+    integer   :: darkCoreRadiusID                 , darkCoreGasMassID          , &
+       &         darkCoreVelocityDispersionID     , darkCoreTimescaleID        , &
+       &         nuclearStarClusterNumberOfStarsID, nuclearStarClusterDensityID
    
    contains
-     procedure :: elementCount       => DarkCoresElementCount
-     procedure :: extract            => DarkCoresExtract
-     procedure :: names              => DarkCoresNames
-     procedure :: descriptions       => DarkCoresDescriptions
-     procedure :: unitsInSI          => DarkCoresUnitsInSI
+     procedure :: elementCount       => darkCoresElementCount
+     procedure :: extract            => darkCoresExtract
+     procedure :: names              => darkCoresNames
+     procedure :: descriptions       => darkCoresDescriptions
+     procedure :: unitsInSI          => darkCoresUnitsInSI
   end type nodePropertyExtractorDarkCores
 
   interface nodePropertyExtractorDarkCores
      !!{
      Constructors for the ``DarkCores'' output analysis class.
      !!}
-     module procedure DarkCoresConstructorParameters
-     module procedure DarkCoresConstructorInternal
+     module procedure darkCoresConstructorParameters
+     module procedure darkCoresConstructorInternal
   end interface nodePropertyExtractorDarkCores
 
 contains
 
-  function DarkCoresConstructorParameters(parameters) result(self)
+  function darkCoresConstructorParameters(parameters) result(self)
     !!{
     Constructor for the {\normalfont \ttfamily DarkCores} property extractor class.
     !!}
@@ -68,43 +69,45 @@ contains
     <inputParametersValidate source="parameters"/>
     !!]
     return
-  end function DarkCoresConstructorParameters
+  end function darkCoresConstructorParameters
 
-  function DarkCoresConstructorInternal() result(self)
+  function darkCoresConstructorInternal() result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily DarkCores} property extractor class.
     !!}
     implicit none
     type          (nodePropertyExtractorDarkCores) :: self
     !![
-    <addMetaProperty component="NSC" name="darkCoreRadius"             id="self%darkCoreRadiusID"             isEvolvable="no" isCreator="no"/>
-    <addMetaProperty component="NSC" name="darkCoreGasMass"            id="self%darkCoreGasMassID"            isEvolvable="no" isCreator="no"/>
-    <addMetaProperty component="NSC" name="darkCoreVelocityDispersion" id="self%darkCoreVelocityDispersionID" isEvolvable="no" isCreator="no"/>
-    <addMetaProperty component="NSC" name="darkCoreTimescale"          id="self%darkCoreTimeScaleID"          isEvolvable="no" isCreator="no"/>
+    <addMetaProperty component="NSC" name="darkCoreRadius"                  id="self%darkCoreRadiusID"                  isEvolvable="no" isCreator="no"/>
+    <addMetaProperty component="NSC" name="darkCoreGasMass"                 id="self%darkCoreGasMassID"                 isEvolvable="no" isCreator="no"/>
+    <addMetaProperty component="NSC" name="darkCoreVelocityDispersion"      id="self%darkCoreVelocityDispersionID"      isEvolvable="no" isCreator="no"/>
+    <addMetaProperty component="NSC" name="darkCoreTimescale"               id="self%darkCoreTimeScaleID"               isEvolvable="no" isCreator="no"/>
+    <addMetaProperty component="NSC" name="nuclearStarClusterNumberOfStars" id="self%nuclearStarClusterNumberOfStarsID" isEvolvable="no" isCreator="no"/>
+    <addMetaProperty component="NSC" name="nuclearStarClusterDensity"       id="self%nuclearStarClusterDensityID"       isEvolvable="no" isCreator="no"/> 
     !!]
     return
-  end function DarkCoresConstructorInternal
+  end function darkCoresConstructorInternal
 
-  integer function DarkCoresElementCount(self,time)
+  integer function darkCoresElementCount(self,time)
     !!{
-    Return the number of elements in the {\normalfont \ttfamily DarkCores} property extractors.
+    Return the number of elements in the {\normalfont \ttfamily darkCores} property extractors.
     !!}
     implicit none
     class           (nodePropertyExtractorDarkCores), intent(inout) :: self
     double precision                                , intent(in   ) :: time
     !$GLC attributes unused :: time
 
-    DarkCoresElementCount=4
+    darkCoresElementCount=6
     return
-  end function DarkCoresElementCount
+  end function darkCoresElementCount
 
-  function DarkCoresExtract(self,node,time,instance)
+  function darkCoresExtract(self,node,time,instance)
     !!{
-    Implement a {\normalfont \ttfamily DarkCores} property extractor.
+    Implement a {\normalfont \ttfamily darkCores} property extractor.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentNSC
     implicit none
-    double precision                                , dimension(:) , allocatable :: DarkCoresExtract
+    double precision                                , dimension(:) , allocatable :: darkCoresExtract
     class           (nodePropertyExtractorDarkCores), intent(inout), target      :: self
     type            (treeNode                      ), intent(inout), target      :: node
     double precision                                , intent(in   )              :: time
@@ -113,47 +116,54 @@ contains
 
     !$GLC attributes unused :: time, instance
 
-    allocate(DarkCoresExtract(4))
+    allocate(darkCoresExtract(6))
     nuclearStarCluster => node%NSC()
     select type (nuclearStarCluster)
     type is (nodeComponentNSC)
       ! Nuclear star cluster does not yet exist.
-      DarkCoresExtract=[ & 
+      darkCoresExtract=[ & 
+        &                  0.0d0, &
+        &                  0.0d0, &
         &                  0.0d0, &
         &                  0.0d0, &
         &                  0.0d0, &
         &                  0.0d0  &
         &              ]
     class default
-      DarkCoresExtract=[                                                                                  &
-       &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreRadiusID            ), &
-       &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreGasMassID           ), &
-       &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreVelocityDispersionID), &
-       &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreTimescaleID         )  &
+      darkCoresExtract=[                                                                                       &
+       &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreRadiusID                 ), &
+       &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreGasMassID                ), &
+       &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreVelocityDispersionID     ), &
+       &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreTimescaleID              ), &
+       &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%nuclearStarClusterNumberOfStarsID), &
+       &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%nuclearStarClusterDensityID)        &
        &               ]
     end select
     return
-  end function DarkCoresExtract
+  end function darkCoresExtract
 
-  subroutine DarkCoresNames(self,time,names)
+  subroutine darkCoresNames(self,time,names)
     !!{
     Return the names of the {\normalfont \ttfamily DarkCores} properties.
     !!}
     implicit none
     class           (nodePropertyExtractorDarkCores), intent(inout)                             :: self
-    double precision                                                  , intent(in   )                             :: time
-    type            (varying_string                                  ), intent(inout), dimension(:) , allocatable :: names
+    double precision                                , intent(in   )                             :: time
+    type            (varying_string                ), intent(inout), dimension(:) , allocatable :: names
     !$GLC attributes unused :: self, time
     
-    allocate(names(4))
-    names(1)=var_str('darkCoreRadius'            )
-    names(2)=var_str('darkCoreGasMass'           )
-    names(3)=var_str('darkCoreVelocityDispersion')
-    names(4)=var_str('darkCoreTimescale'         )
-    return
-  end subroutine DarkCoresNames
+    allocate(names(6))
+    names(1)=var_str('darkCoreRadius'                 )
+    names(2)=var_str('darkCoreGasMass'                )
+    names(3)=var_str('darkCoreVelocityDispersion'     )
+    names(4)=var_str('darkCoreTimescale'              )
+    names(5)=var_str('nuclearStarClusterNumberOfStars')
+    names(6)=var_str('nuclearStarClusterDensityGas'   )
 
-  subroutine DarkCoresDescriptions(self,time,descriptions)
+    return
+  end subroutine darkCoresNames
+
+  subroutine darkCoresDescriptions(self,time,descriptions)
     !!{
     Return descriptions of the {\normalfont \ttfamily DarkCores} property.
     !!}
@@ -163,32 +173,37 @@ contains
     type            (varying_string                                  ), intent(inout), dimension(:) , allocatable :: descriptions
     !$GLC attributes unused :: time
 
-    allocate(descriptions(4))
+    allocate(descriptions(6))
     descriptions(1)=var_str('Radius of the dark core [Mpc].'                         )
     descriptions(2)=var_str('Gas mass of the nuclear star cluster enclose in the dark core radius [M⊙].'                                                )
     descriptions(3)=var_str('Velocity dispersion of the dark core[km/s].'                      )
     descriptions(4)=var_str('Dynamical friction timescale of the nuclear star cluster [Gyr].')
-    return
-  end subroutine DarkCoresDescriptions
+    descriptions(5)=var_str('Number of stars of the nuclear star cluster.')
+    descriptions(6)=var_str('Gas density of the nuclear star cluster at the radius [M⊙ Mpc-3].')
 
-  function DarkCoresUnitsInSI(self,time)
+    return
+  end subroutine darkCoresDescriptions
+
+  function darkCoresUnitsInSI(self,time)
     !!{
     Return the units of the {\normalfont \ttfamily DarkCores} properties in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : massSolar, megaParsec, gigayear
     use :: Numerical_Constants_Prefixes    , only : kilo
     implicit none
-    double precision                                , allocatable  , dimension(:) :: DarkCoresUnitsInSI
+    double precision                                , allocatable  , dimension(:) :: darkCoresUnitsInSI
     class           (nodePropertyExtractorDarkCores), intent(inout)               :: self
     double precision                                , intent(in   )               :: time
     !$GLC attributes unused :: time
 
-    allocate(DarkCoresUnitsInSI(4))
-    DarkCoresUnitsInSI = [  &
-     &                        megaParsec, &
-     &                        massSolar , &
-     &                        kilo      , &
-     &                        gigayear    &
-     &                    ]
+    allocate(darkCoresUnitsInSI(6))
+    DarkCoresUnitsInSI=[                       &
+     &                  megaParsec           , &
+     &                  massSolar            , &
+     &                  kilo                 , &
+     &                  gigayear             , &
+     &                  1.0d0                , &
+     &                  1.0d0/megaParsec**3d0  &
+     &                 ]
     return
-  end function DarkCoresUnitsInSI
+  end function darkCoresUnitsInSI

@@ -81,8 +81,8 @@ contains
     implicit none
     type          (nodePropertyExtractorBlackHoleSeedingDarkCores) :: self
     !![
-    <addMetaProperty   component="NSC"  name="blackHoleSeedMassFormed"             id="self%blackHoleSeedMassID"                   isEvolvable="no"  isCreator="no"/>
-    <addMetaProperty   component="NSC"  name="redshiftBlackHoleSeedFormation"      id="self%redshiftBlackHoleSeedFormationID"      isEvolvable="no"  isCreator="no"/>
+    <addMetaProperty   component="NSC"  name="blackHoleSeedMassFormed"        id="self%blackHoleSeedMassID"              isEvolvable="no" isCreator="no"/>
+    <addMetaProperty   component="NSC"  name="redshiftBlackHoleSeedFormation" id="self%redshiftBlackHoleSeedFormationID" isEvolvable="no" isCreator="no"/>
     !!]
     return
   end function blackHoleSeedingDarkCoresConstructorInternal

@@ -74,7 +74,7 @@ contains
     <inputParameter>
       <name>efficiency</name>
       <defaultSource>\citep{antonini_coevolution_2015}</defaultSource>
-      <defaultValue>1.0d-2</defaultValue>
+      <defaultValue>0.00161342601867838d0</defaultValue>
       <description>Parameter controlling the rate of the gas inflow onto the nuclear star cluster.</description>
       <source>parameters</source>
     </inputParameter>

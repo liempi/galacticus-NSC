@@ -99,7 +99,7 @@ contains
     !!{
     Perform mass of the dark core.
     !!}
-    use :: Galacticus_Nodes, only : interruptTask, nodeComponentNSC,  propertyInactive, nodeComponentNSCStandard, &
+    use :: Galacticus_Nodes, only : interruptTask, nodeComponentNSC, propertyInactive, nodeComponentNSCStandard, &
         &                           treeNode
     implicit none
     class           (nodeOperatordarkCoreMassEvolution), intent(inout), target  :: self
@@ -118,7 +118,7 @@ contains
         return
       class is (nodeComponentNSCStandard)
         rateMassDarkCore = self%darkCoreGrowthRates_%rate(node)
-        if (nuclearStarCluster%massStellarBlackHoles()>1.0d2.and.rateMassDarkCore>0.0d0) then
+        if (nuclearStarCluster%massStellarBlackHoles()>1.0d0.and.rateMassDarkCore>0.0d0) then
           call                 nuclearStarCluster%massStellarBlackHolesRate(-rateMassDarkCore)
           call                 nuclearStarCluster%massDarkCoreRate         (+rateMassDarkCore)
         end if 

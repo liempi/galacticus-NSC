@@ -39,7 +39,7 @@
      !!}
      private
      class           (cosmologyFunctionsClass), pointer :: cosmologyFunctions_ => null()
-     double precision                                   :: massFraction                  , maximumAge
+     double precision                                   :: massFraction                    , nuclearStarClusterMaximumAge
      integer                                            :: ageNuclearStarClustersID        , gasMassNuclearStarClustersID , &
        &                                                   stellarMassNuclearStarClustersID, velocityNuclearStarClustersID, &
        &                                                   redshiftBlackHoleSeedFormationID, radiusNuclearStarClustersID  , &
@@ -71,7 +71,7 @@ contains
     type            (blackHoleSeedsVeryMassiveStars)                :: self
     type            (inputParameters               ), intent(inout) :: parameters
     class           (cosmologyFunctionsClass       ), pointer       :: cosmologyFunctions_
-    double precision                                                :: massFraction       , maximumAge 
+    double precision                                                :: massFraction       , nuclearStarClusterMaximumAge 
 
     !![
     <inputParameter>
@@ -81,14 +81,14 @@ contains
       <source>parameters</source>
     </inputParameter>
     <inputParameter>
-      <name>maximumAge</name>
+      <name>nuclearStarClusterMaximumAge</name>
       <defaultValue>5.0d-3</defaultValue>
       <description>Specifies the maximum age (Gyr) of the nuclear star cluster to apply this formation channel.</description>
       <source>parameters</source>
     </inputParameter>
     <objectBuilder class="cosmologyFunctions" name="cosmologyFunctions_" source="parameters"/>
     !!]
-    self=blackHoleSeedsVeryMassiveStars(massFraction,maximumAge,cosmologyFunctions_)
+    self=blackHoleSeedsVeryMassiveStars(massFraction,nuclearStarClusterMaximumAge,cosmologyFunctions_)
     !![
     <inputParametersValidate source="parameters"/>
     <objectDestructor name="cosmologyFunctions_"/>
@@ -96,7 +96,7 @@ contains
     return
   end function veryMassiveStarsConstructorParameters
   
-  function veryMassiveStarsConstructorInternal(massFraction,maximumAge,cosmologyFunctions_) result(self)
+  function veryMassiveStarsConstructorInternal(massFraction,nuclearStarClusterMaximumAge,cosmologyFunctions_) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily veryMassiveStars} node operator class.
     !!}
@@ -104,18 +104,18 @@ contains
     type            (blackHoleSeedsVeryMassiveStars)                        :: self
     class           (cosmologyFunctionsClass       ), intent(in   ), target :: cosmologyFunctions_
     double precision                                , intent(in   )         :: massFraction
-    double precision                                , intent(in   )         :: maximumAge
+    double precision                                , intent(in   )         :: nuclearStarClusterMaximumAge
     !![
-    <constructorAssign variables="massFraction, maximumAge, *cosmologyFunctions_"/>
-    <addMetaProperty component="NSC" name="agesStellarMassFormed"           id="self%stellarMassFormedNSCID"            isEvolvable="yes" isCreator="no" />
-    <addMetaProperty component="NSC" name="agesTimeStellarMassFormed"       id="self%timeStellarMassFormedNSCID"        isEvolvable="yes" isCreator="no" />
-    <addMetaProperty component="NSC" name="blackHoleSeedMassFormed"         id="self%blackHoleSeedMassID"               isEvolvable="no"  isCreator="yes"/>
-    <addMetaProperty component="NSC" name="ageNuclearStarClusters"          id="self%ageNuclearStarClustersID"          isEvolvable="no"  isCreator="yes"/>
-    <addMetaProperty component="NSC" name="radiusNuclearStarClusters"       id="self%radiusNuclearStarClustersID"       isEvolvable="no"  isCreator="yes"/>
-    <addMetaProperty component="NSC" name="gasMassNuclearStarClusters"      id="self%gasMassNuclearStarClustersID"      isEvolvable="no"  isCreator="yes"/>
-    <addMetaProperty component="NSC" name="velocityNuclearStarClusters"     id="self%velocityNuclearStarClustersID"     isEvolvable="no"  isCreator="yes"/>
-    <addMetaProperty component="NSC" name="redshiftBlackHoleSeedFormation"  id="self%redshiftBlackHoleSeedFormationID"  isEvolvable="no"  isCreator="yes"/>
-    <addMetaProperty component="NSC" name="stellarMassNuclearStarClusters"  id="self%stellarMassNuclearStarClustersID"  isEvolvable="no"  isCreator="yes"/>
+    <constructorAssign variables="massFraction, nuclearStarClusterMaximumAge, *cosmologyFunctions_"/>
+    <addMetaProperty component="NSC" name="agesStellarMassFormed"          id="self%stellarMassFormedNSCID"           isEvolvable="yes" isCreator="no" />
+    <addMetaProperty component="NSC" name="agesTimeStellarMassFormed"      id="self%timeStellarMassFormedNSCID"       isEvolvable="yes" isCreator="no" />
+    <addMetaProperty component="NSC" name="blackHoleSeedMassFormed"        id="self%blackHoleSeedMassID"              isEvolvable="no"  isCreator="yes"/>
+    <addMetaProperty component="NSC" name="ageNuclearStarClusters"         id="self%ageNuclearStarClustersID"         isEvolvable="no"  isCreator="yes"/>
+    <addMetaProperty component="NSC" name="radiusNuclearStarClusters"      id="self%radiusNuclearStarClustersID"      isEvolvable="no"  isCreator="yes"/>
+    <addMetaProperty component="NSC" name="gasMassNuclearStarClusters"     id="self%gasMassNuclearStarClustersID"     isEvolvable="no"  isCreator="yes"/>
+    <addMetaProperty component="NSC" name="velocityNuclearStarClusters"    id="self%velocityNuclearStarClustersID"    isEvolvable="no"  isCreator="yes"/>
+    <addMetaProperty component="NSC" name="redshiftBlackHoleSeedFormation" id="self%redshiftBlackHoleSeedFormationID" isEvolvable="no"  isCreator="yes"/>
+    <addMetaProperty component="NSC" name="stellarMassNuclearStarClusters" id="self%stellarMassNuclearStarClustersID" isEvolvable="no"  isCreator="yes"/>
     !!]
     return
   end function veryMassiveStarsConstructorInternal
@@ -161,18 +161,18 @@ contains
       class default
           ! Generic type, do nothing.
           mass=0.0d0
-          return
       class is (nodeComponentNSCStandard)
           ! Standard class, get the properties of the nuclear star cluster component.
-          radiusNuclearStarCluster = nuclearStarCluster%radius()
+          radiusNuclearStarCluster=nuclearStarCluster%radius()
           ! Unphysical nuclear star cluster, do nothing.
-          if   (                                           &
-             &   nuclearStarCluster%massStellar() <= 0.0d0 &
-             &  .or.                                       &
-             &   nuclearStarCluster%radius     () <= 0.0d0 &
+          if   (                                         &
+             &   nuclearStarCluster%massStellar()<=0.0d0 &
+             &  .or.                                     &
+             &   nuclearStarCluster%radius     ()<=0.0d0 &
+             &  .or.                                     &
+             &   nuclearStarCluster%massGas    ()<=0.0d0 &
              & ) then
             mass=0.0d0
-            return
           end if 
           ! Get the age of the nuclear star cluster.
           velocityNuclearStarCluster        =  sqrt(                                                     &
@@ -184,7 +184,7 @@ contains
           massTimeStellarNuclearStarCluster =  nuclearStarCluster%floatRank0MetaPropertyGet(self%timeStellarMassFormedNSCID)
           basic                             => node              %basic                    (                               )
           time                              =  basic             %time                     (                               )
-          if (massStellarNuclearStarCluster > 0.0d0) then
+          if (massStellarNuclearStarCluster>0.0d0) then
              ageNuclearStarCluster=+time                              &
                   &                -massTimeStellarNuclearStarCluster &
                   &                /massStellarNuclearStarCluster
@@ -193,25 +193,25 @@ contains
           end if
           ! Do nothing if the nuclear star cluster has an unphysical age or already collapsed and formed a black hole seed.
           if   (                                 &
-             &  ageNuclearStarCluster <= 0.0d0   &
+             &  ageNuclearStarCluster<=0.0d0     &
              &  .or.                             &
              &  nuclearStarCluster%isCollapsed() &
              & ) then
              mass=0.0d0
-             return
           end if 
-
+          
           coreCollapseTimescale = nuclearStarClusterCoreCollapseTimescale(                                  &
               &                                                                   radiusNuclearStarCluster, &
               &                                                           nuclearStarCluster%massStellar(), &
               &                                                           nuclearStarCluster%massGas    (), &
               &                                                                                     .true.  &
-              &                                                           )    
-
-          if (                                          &
-              &  coreCollapseTimescale>0.0d0            &
-              &  .and.                                  &
-              &  ageNuclearStarCluster<=self%maximumAge &
+              &                                                           )
+          if (                                                            &
+              &  coreCollapseTimescale>0.0d0                              &
+              &  .and.                                                    &
+              &  ageNuclearStarCluster<=self%nuclearStarClusterMaximumAge &
+              &  .and.                                                    &
+              &  coreCollapseTimescale<=ageNuclearStarCluster             &
               & ) then
 
             call nuclearStarCluster%floatRank0MetaPropertySet(self%ageNuclearStarClustersID         ,                                       ageNuclearStarCluster                                                         )

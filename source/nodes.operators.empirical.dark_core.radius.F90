@@ -39,8 +39,15 @@
      integer          :: darkCoreRadiusID      
      double precision :: efficiency
    contains
-     procedure :: differentialEvolutionInactives      => darkCoreDifferentialEvolutionInactives
+     !![
+     <methods>
+       <method method="update" description="Update the dark core radius to be consistent with its host nuclear star cluster."/>
+     </methods>
+     !!]
+     procedure :: update                              => darkCoreRadiusUpdate
+     procedure :: differentialEvolutionInactives      => darkCoreRadiusDifferentialEvolutionInactives
      procedure :: differentialEvolutionSolveAnalytics => darkCoreRadiusDifferentialEvolutionSolveAnalytics
+     procedure :: nodesMerge                          => darkCoreRadiusNodesMerge
   end type nodeOperatorDarkCoreRadius
   
   interface nodeOperatorDarkCoreRadius
@@ -84,8 +91,8 @@ contains
     Internal constructor for the {\normalfont \ttfamily darkCoreRadius} node operator class.
     !!}
     implicit none
-    type            (nodeOperatorDarkCoreRadius)                 :: self
-    double precision                            , intent(in   )  :: efficiency
+    type            (nodeOperatorDarkCoreRadius)                :: self
+    double precision                            , intent(in   ) :: efficiency
     !![
     <constructorAssign variables="efficiency"/>
     <addMetaProperty component="NSC" name="darkCoreRadius" id="self%darkCoreRadiusID" isEvolvable="no" isCreator="yes"/>
@@ -93,7 +100,29 @@ contains
     return
   end function darkCoreRadiusConstructorInternal
   
-  subroutine darkCoreDifferentialEvolutionInactives(self,node)
+  subroutine darkCoreRadiusUpdate(self,node)
+    !!{
+    Update radius of the disk.
+    !!} 
+    use :: Galacticus_Nodes, only : nodeComponentNSC
+    implicit none
+    class           (nodeOperatorDarkCoreRadius), intent(inout) :: self
+    type            (treeNode                  ), intent(inout) :: node
+    class           (nodeComponentNSC          ), pointer       :: nuclearStarCluster
+    double precision                                         :: nuclearStarClusterRadius      , darkCoreRadius, &
+      &                                                         nuclearStarClusterDarkCoreMass
+    nuclearStarCluster             => node              %   NSC()
+    nuclearStarClusterRadius       =  nuclearStarCluster%radius()
+    nuclearStarClusterDarkCoreMass =  nuclearStarCluster%massDarkCore()
+
+    if (nuclearStarClusterRadius> 0.0d0.and.nuclearStarClusterDarkCoreMass>0.0d0) then
+      darkCoreRadius = self%efficiency*nuclearStarClusterRadius
+      call nuclearStarCluster%floatRank0MetaPropertySet(self%darkCoreRadiusID, darkCoreRadius)
+    end if
+    return
+  end subroutine darkCoreRadiusUpdate
+
+  subroutine darkCoreRadiusDifferentialEvolutionInactives(self,node)
     !!{
     Mark radius as inactive for ODE solving.    
     !!}
@@ -113,26 +142,30 @@ contains
        call nuclearStarCluster%floatRank0MetaPropertyInactive(self%darkCoreRadiusID)
     end select
     return
-  end subroutine darkCoreDifferentialEvolutionInactives
+  end subroutine darkCoreRadiusDifferentialEvolutionInactives
   
   subroutine darkCoreRadiusDifferentialEvolutionSolveAnalytics(self,node,time)
       !!{
         Set the radius of the dark core.
       !!}
-    use :: Galacticus_Nodes , only : nodeComponentNSC, nodeComponentNSCStandard, treeNode
     implicit none
-    class(nodeOperatorDarkCoreRadius), intent(inout)         :: self
-    type (treeNode                  ), intent(inout)         :: node
-    double precision                 , intent(in   )         :: time
-    class (nodeComponentNSC         ),                pointer:: nuclearStarCluster
-    double precision                                         :: nuclearStarClusterRadius, darkCoreRadius
+    class(nodeOperatorDarkCoreRadius), intent(inout) :: self
+    type (treeNode                  ), intent(inout) :: node
+    double precision                 , intent(in   ) :: time
     !$GLC attributes unused :: time
-
-    nuclearStarCluster       => node              %   NSC()
-    nuclearStarClusterRadius =  nuclearStarCluster%radius()
-    if (nuclearStarClusterRadius> 0.0d0) then
-      darkCoreRadius = self%efficiency*nuclearStarClusterRadius
-      call nuclearStarCluster%floatRank0MetaPropertySet(self%darkCoreRadiusID, darkCoreRadius)
-    end if 
-    return
+    
+    call self%update(node)
+    return 
   end subroutine darkCoreRadiusDifferentialEvolutionSolveAnalytics
+
+    subroutine darkCoreRadiusNodesMerge(self,node)
+    !!{
+    Update the radius of the dark core after a merger.
+    !!}
+    implicit none
+    class(nodeOperatorDarkCoreRadius), intent(inout) :: self
+    type (treeNode                  ), intent(inout) :: node
+
+    call self%update(node)
+    return
+  end subroutine darkCoreRadiusNodesMerge

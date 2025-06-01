@@ -14,7 +14,7 @@
   <evolveForestsWorkShare value="cyclic"/>
 
   <!-- Output file -->
-  <outputFileName value="darkCoreTest.hdf5"/>
+  <outputFileName value="darkCoreTestSchleicher.hdf5"/>
   
   <!-- Component selection -->
   <componentBasic value="standard"/>
@@ -265,7 +265,7 @@
     </nodeOperator> 
 
     <nodeOperator value="darkCoreMassEvolution">
-      <darkCoreGrowthRates value="coreCollapse"/>
+      <darkCoreGrowthRates value="timescale"/>
     </nodeOperator>
     
     <!--Stellar feedback outflows-->

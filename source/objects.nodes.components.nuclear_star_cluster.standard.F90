@@ -767,10 +767,7 @@ contains
        call nuclearStarCluster%massStellarScale          (mass)
        call nuclearStarCluster%massStellarFormedScale    (mass)
        call nuclearStarCluster%massDarkCoreScale         (                                                        &
-            &                                             max(                                                    &
-            &                                                 fractionTolerance*nuclearStarCluster%massStellar(), &
             &                                                 massMinimum                                         &
-            &                                                )                                                    &
             &                                            )
        call nuclearStarCluster%massStellarBlackHolesScale(                                                        &
             &                                             max(                                                    &

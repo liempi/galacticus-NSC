@@ -40,8 +40,10 @@
      Implementation of the \cite{....} gas inflow rate for galactic \glspl{nsc}.
      !!}
      private
-     integer          :: darkCoreRadiusID            , darkCoreGasMassID  , &
-       &                 darkCoreVelocityDispersionID, darkCoreTimescaleID
+     integer          :: darkCoreRadiusID                 , darkCoreGasMassID           , &
+       &                 darkCoreVelocityDispersionID     , darkCoreTimescaleID         , &
+       &                 nuclearStarClusterNumberOfStarsID, nuclearStarClusterDensityID
+
      double precision :: temperature
    contains
      procedure :: rate  => darkCoreTimescaleRate
@@ -91,10 +93,12 @@ contains
     double precision                              , intent(in   ) :: temperature       
     !![
       <constructorAssign variables="temperature"/>
-      <addMetaProperty component="NSC" name="darkCoreRadius"              id="self%darkCoreRadiusID"                  isEvolvable="no"  isCreator="no"  />
-      <addMetaProperty component="NSC" name="darkCoreGasMass"             id="self%darkCoreGasMassID"                 isEvolvable="no"  isCreator="yes" />
-      <addMetaProperty component="NSC" name="darkCoreVelocityDispersion"  id="self%darkCoreVelocityDispersionID"      isEvolvable="no"  isCreator="yes" />
-      <addMetaProperty component="NSC" name="darkCoreTimescale"           id="self%darkCoreTimescaleID"               isEvolvable="no"  isCreator="yes" />
+      <addMetaProperty component="NSC" name="darkCoreRadius"                  id="self%darkCoreRadiusID"                  isEvolvable="no"  isCreator="no" />
+      <addMetaProperty component="NSC" name="darkCoreGasMass"                 id="self%darkCoreGasMassID"                 isEvolvable="no"  isCreator="yes"/>
+      <addMetaProperty component="NSC" name="darkCoreVelocityDispersion"      id="self%darkCoreVelocityDispersionID"      isEvolvable="no"  isCreator="yes"/>
+      <addMetaProperty component="NSC" name="darkCoreTimescale"               id="self%darkCoreTimescaleID"               isEvolvable="no"  isCreator="yes"/>
+      <addMetaProperty component="NSC" name="nuclearStarClusterNumberOfStars" id="self%nuclearStarClusterNumberOfStarsID" isEvolvable="no"  isCreator="yes"/> 
+      <addMetaProperty component="NSC" name="nuclearStarClusterDensity"       id="self%nuclearStarClusterDensityID"       isEvolvable="no"  isCreator="yes"/> 
     !!]
     return
   end function darkCoreTimescaleConstructorInternal
@@ -138,19 +142,15 @@ contains
     nuclearStarClusterMassBlackHoles=  nuclearStarCluster%    massStellarBlackHoles(                     )
     darkCoreMass                    =  nuclearStarCluster%             massDarkCore(                     )
     darkCoreRadius                  =  nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreRadiusID)
-    nuclearStarClusterNumberOfStars =  0.36d0*(nuclearStarClusterMassStellar/unnormalizedNumberOfStars)*nuclearStarClusterMassStellar
+    nuclearStarClusterNumberOfStars =  0.38d0*(nuclearStarClusterMassStellar/unnormalizedNumberOfStars)
     nuclearStarClusterDynamicalMass =  nuclearStarClusterMassStellar+nuclearStarClusterMassGas
 
     if  (                                         &
-      &   nuclearStarClusterMassStellar   <=1.0d2 &
+      &   nuclearStarClusterMassStellar   <=0.0d0 &
       &   .or.                                    &
-      &   nuclearStarClusterRadius        <=0.0d0 &
-      &   .or.                                    &
-      &   nuclearStarClusterMassGas       <=0.0d0 &
+      &   nuclearStarClusterMassGas       < 0.0d0 &
       &   .or.                                    &
       &   nuclearStarClusterMassBlackHoles<=0.0d0 &
-      &   .or.                                    &
-      &   darkCoreRadius                  <=0.0d0 & 
       & ) then 
        darkCoreTimescaleRate =+0.0d0
        return 
@@ -185,62 +185,71 @@ contains
       & .and.                                   &
       & nuclearStarClusterGasMassEnclosed>0.0d0 &
       & ) then
-      darkCoreVelocityDispersion          = sqrt(                                     &
-        &                                         gravitationalConstant_internal      &
-        &                                        *darkCoreMass                        &
-        &                                        *(                                   &
-        &                                          +darkCoreMass                      &
-        &                                          +nuclearStarClusterGasMassEnclosed &
-        &                                         )                                   &
-        &                                        /(                                   &
-        &                                          +0.5d0                             &
-        &                                          *nuclearStarClusterGasMassEnclosed &
-        &                                          *darkCoreRadius                    &
-        &                                         )                                   &         
-        &                                       )
+      darkCoreVelocityDispersion          = sqrt(                                      &
+        &                                        (                                     &
+        &                                          gravitationalConstant_internal      &
+        &                                         *darkCoreMass                        &
+        &                                         *(                                   &
+        &                                           +darkCoreMass                      &
+        &                                           +nuclearStarClusterGasMassEnclosed &
+        &                                          )                                   &
+        &                                         )                                    &
+        &                                         /(                                   &
+        &                                           +0.5d0                             &
+        &                                           *nuclearStarClusterGasMassEnclosed &
+        &                                           *darkCoreRadius                    &
+        &                                          )                                   &         
+        &                                        )
+    call nuclearStarCluster%floatRank0MetaPropertySet(self%nuclearStarClusterDensityID,nuclearStarClusterDensityGas)
+
     else 
       darkCoreVelocityDispersion= 0.0d0
-    end if 
-    call nuclearStarCluster%floatRank0MetaPropertySet(self%darkCoreVelocityDispersionID,darkCoreVelocityDispersion       )
-    call nuclearStarCluster%floatRank0MetaPropertySet(self%darkCoreGasMassID           ,nuclearStarClusterGasMassEnclosed)
+    end if
+    call nuclearStarCluster%floatRank0MetaPropertySet(self%nuclearStarClusterNumberOfStarsID,nuclearStarClusterNumberOfStars  )
+    call nuclearStarCluster%floatRank0MetaPropertySet(self%darkCoreVelocityDispersionID     ,darkCoreVelocityDispersion       )
+    call nuclearStarCluster%floatRank0MetaPropertySet(self%darkCoreGasMassID                ,nuclearStarClusterGasMassEnclosed)
     !![
        <objectDestructor name="massDistributionNuclearStarCluster_"/>
     !!]    
     soundSpeed        = Ideal_Gas_Sound_Speed(self%temperature)
 
-    ! Estimates the friction force acting on one star due to the gas as in Schleicher et al. 2020 (https://ui.adsabs.harvard.edu/abs/2022MNRAS.512.6192S/abstract)
-    ! The force is in units of M⊙ km s⁻².
-    frictionForceStar = +0.11d0*4.0d0*Pi                         & ! Adimensional
-      &                 *(gravitationalConstant_internal**2.0d0) & ! Mpc² M⊙⁻² (km s⁻¹)⁴
-      &                 *nuclearStarClusterDensityGas            & ! M⊙ Mpc⁻3
-      &                 *(nuclearStarClusterMeanMass**2.0d0)     & ! M⊙²
-      &                 /(soundSpeed**2.0d0)                     & ! km² s⁻²
-      &                 /(megaParsec/kilo)                         ! Convert 1 Mpc to km.
-    ! Determinate the gas contribution to the dynamical friction timescale (Eq. 16, Schleicher et al. 2020)
-    dynamicalFrictionTimescaleGasNuclearStarCluster   =+0.5d0                                         &
-      &                                                *nuclearStarClusterMassGas                     & ! M⊙
-      &                                                *(nuclearStarClusterEffectiveVelocity**2.0d0)  & ! (km s⁻¹)²
-      &                                                /(                                             &
-      &                                                   nuclearStarClusterNumberOfStars             & ! Adimensional 
-      &                                                  *frictionForceStar                           & ! M⊙ (km s⁻¹)²
-      &                                                  *nuclearStarClusterVelocity                  & ! km s⁻¹
-      &                                                  *gigayear                                    & ! Convert from seconds to Gyr.
-      &                                                 )
-    ! Determinate the stellar contribution to the dynamical friction timescale. (Eq. 17, Schleicher et al. 2020)
-    dynamicalFrictionTimescaleStarsNuclearStarCluster =+nuclearStarClusterVelocity        & ! km s⁻¹
-      &                                                *nuclearStarClusterMeanMass        & ! M⊙
-      &                                                /(                                 &
-      &                                                   frictionForceStar               & ! M⊙ km s⁻²
-      &                                                  *gigayear                        & ! Convert to Gyr.
-      &                                                 )
-    ! Compute the dynamical friction timescale in Gyr
-    dynamicalFrictionTimescale                        = (                                                             &
-      &                                                  +dynamicalFrictionTimescaleGasNuclearStarCluster  **(-1.0d0) &
-      &                                                  +dynamicalFrictionTimescaleStarsNuclearStarCluster**(-1.0d0) &
-      &                                                 )**(-1.0d0)
-   
-    call nuclearStarCluster%floatRank0MetaPropertySet(self%darkCoreTimescaleID,dynamicalFrictionTimescale)
+    if (nuclearStarClusterDensityGas> 0.0d0) then
 
+      ! Estimates the friction force acting on one star due to the gas as in Schleicher et al. 2020 (https://ui.adsabs.harvard.edu/abs/2022MNRAS.512.6192S/abstract)
+      ! The force is in units of M⊙ km s⁻².
+      frictionForceStar = (0.11d0*4.0d0*Pi                         & ! Adimensional
+        &                 *(gravitationalConstant_internal**2.0d0) & ! Mpc² M⊙⁻² (km s⁻¹)⁴
+        &                 *nuclearStarClusterDensityGas            & ! M⊙ Mpc⁻3
+        &                 *(nuclearStarClusterMeanMass**2.0d0))    & ! M⊙²
+        &                 /((soundSpeed**2.0d0)*(megaParsec/kilo))   ! km² s⁻²
+      ! Determinate the gas contribution to the dynamical friction timescale (Eq. 16, Schleicher et al. 2020)
+      dynamicalFrictionTimescaleGasNuclearStarCluster   =(+0.5d0                                        &
+        &                                                *nuclearStarClusterMassGas                     & ! M⊙
+        &                                                *(nuclearStarClusterEffectiveVelocity**2.0d0)) & ! (km s⁻¹)²
+        &                                                /(                                             &
+        &                                                   nuclearStarClusterNumberOfStars             & ! Adimensional 
+        &                                                  *frictionForceStar                           & ! M⊙ (km s⁻¹)²
+        &                                                  *nuclearStarClusterVelocity                  & ! km s⁻¹
+        &                                                  *gigayear                                    & ! Convert from seconds to Gyr.
+        &                                                 )
+      ! Determinate the stellar contribution to the dynamical friction timescale. (Eq. 17, Schleicher et al. 2020)
+      dynamicalFrictionTimescaleStarsNuclearStarCluster =(+nuclearStarClusterVelocity        & ! km s⁻¹
+        &                                                *nuclearStarClusterMeanMass)        & ! M⊙
+        &                                                /(                                 &
+        &                                                   frictionForceStar               & ! M⊙ km s⁻²
+        &                                                  *gigayear                        & ! Convert to Gyr.
+        &                                                 )
+      ! Compute the dynamical friction timescale in Gyr
+      dynamicalFrictionTimescale                        = (                                                             &
+        &                                                  +dynamicalFrictionTimescaleGasNuclearStarCluster  **(-1.0d0) &
+        &                                                  +dynamicalFrictionTimescaleStarsNuclearStarCluster**(-1.0d0) &
+        &                                                 )**(-1.0d0)
+    else
+      dynamicalFrictionTimescale =0.0d0
+    end if 
+
+    call nuclearStarCluster%floatRank0MetaPropertySet(self%darkCoreTimescaleID,dynamicalFrictionTimescale)
+    PRINT*, dynamicalFrictionTimescale
     if (dynamicalFrictionTimescale <= 0.0d0) then
       darkCoreTimescaleRate =+0.0d0
     else
