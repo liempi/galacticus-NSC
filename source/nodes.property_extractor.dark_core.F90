@@ -180,7 +180,6 @@ contains
     descriptions(4)=var_str('Dynamical friction timescale of the nuclear star cluster [Gyr].')
     descriptions(5)=var_str('Number of stars of the nuclear star cluster.')
     descriptions(6)=var_str('Gas density of the nuclear star cluster at the radius [M⊙ Mpc-3].')
-
     return
   end subroutine darkCoresDescriptions
 

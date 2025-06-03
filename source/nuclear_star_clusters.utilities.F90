@@ -42,7 +42,7 @@ module Nuclear_Star_Clusters_Utilities
 
     if (massStellar>0.0d0) then 
       numberOfStars = +0.380d0     &
-         &            *massStellar &
+         &            *massStellar & ! M
          &            /0.079d0
     else
       numberOfStars = 0.0d0 
@@ -68,10 +68,10 @@ module Nuclear_Star_Clusters_Utilities
         &                     +gravitationalConstant_internal &
         &                     *massStellar                    &
         &                     /radius                         &
-        &                    )                                  ! Velocity is in units of km s⁻¹
+        &                    )                                  ! Velocity is returned in units of km s⁻¹.
       crossingTimescale=+MpcPerKmPerSToGyr &
         &               *radius            & ! Mpc
-        &               /velocity           ! km s⁻¹
+        &               /velocity            ! km s⁻¹
     end if
     return
   end function nuclearStarClusterCrossingTimescale

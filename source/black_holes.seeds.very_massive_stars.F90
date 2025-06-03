@@ -44,7 +44,7 @@
        &                                                   stellarMassNuclearStarClustersID, velocityNuclearStarClustersID, &
        &                                                   redshiftBlackHoleSeedFormationID, radiusNuclearStarClustersID  , &
        &                                                   blackHoleSeedMassID             , stellarMassFormedNSCID       , &
-       &                                                   timeStellarMassFormedNSCID
+       &                                                   timeStellarMassFormedNSCID      , coreCollapseTimescaleNSCID
    contains
      final     ::                     veryMassiveStarsDestructor              
      procedure :: mass             => veryMassiveStarsMass
@@ -116,6 +116,7 @@ contains
     <addMetaProperty component="NSC" name="velocityNuclearStarClusters"    id="self%velocityNuclearStarClustersID"    isEvolvable="no"  isCreator="yes"/>
     <addMetaProperty component="NSC" name="redshiftBlackHoleSeedFormation" id="self%redshiftBlackHoleSeedFormationID" isEvolvable="no"  isCreator="yes"/>
     <addMetaProperty component="NSC" name="stellarMassNuclearStarClusters" id="self%stellarMassNuclearStarClustersID" isEvolvable="no"  isCreator="yes"/>
+    <addMetaProperty component="NSC" name="coreCollapseTimescaleNSC"       id="self%coreCollapseTimescaleNSCID"       isEvolvable="no"  isCreator="yes"/>   
     !!]
     return
   end function veryMassiveStarsConstructorInternal
@@ -161,6 +162,7 @@ contains
       class default
           ! Generic type, do nothing.
           mass=0.0d0
+          return
       class is (nodeComponentNSCStandard)
           ! Standard class, get the properties of the nuclear star cluster component.
           radiusNuclearStarCluster=nuclearStarCluster%radius()
@@ -173,6 +175,7 @@ contains
              &   nuclearStarCluster%massGas    ()<=0.0d0 &
              & ) then
             mass=0.0d0
+            return
           end if 
           ! Get the age of the nuclear star cluster.
           velocityNuclearStarCluster        =  sqrt(                                                     &
