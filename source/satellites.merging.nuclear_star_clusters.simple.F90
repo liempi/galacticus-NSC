@@ -95,7 +95,7 @@ contains
     !!{
     Destructor for the {\normalfont \ttfamily simple} satellite merger mass movements class
     !!}
-    use :: Events_Hooks, only : calculationResetEvent, satelliteMergerEvent
+    use :: Events_Hooks, only : satelliteMergerEvent
     implicit none
     type(nuclearStarClusterMovementsSimple), intent(inout) :: self
 
@@ -176,13 +176,17 @@ contains
     stellarMassNuclearStarCluster = nuclearStarCluster%massStellar()
 
     ! Compute the tidal radius as defined in I. King. The structure of star clusters. I. an empirical density law. AJ, 67:471, Oct.1962. doi: 10.1086/108756.
-    tidalRadius = + distance                       &
-          &       *(                               &
-          &         stellarMassNuclearStarCluster/ &
-          &         stellarMassHost              / &
-          &         2.0d0                          &
-          &        )                               &
-          &        **(1.0d0/3.0d0)
+    if (stellarMassHost>0.0d0) then
+      tidalRadius = + distance                       &
+            &       *(                               &
+            &         stellarMassNuclearStarCluster/ &
+            &         stellarMassHost              / &
+            &         2.0d0                          &
+            &        )                               &
+            &        **(1.0d0/3.0d0)
+    else
+      tidalRadius = 0.0d0
+    end if 
 
     if (tidalRadius >= radiusNuclearStarCluster) then 
         self%nuclearStarClusterIsDestroyed=.false.
