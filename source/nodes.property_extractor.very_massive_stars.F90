@@ -38,7 +38,7 @@
      integer  :: radiusNuclearStarClustersID          , blackHoleSeedMassID              , &
          &       velocityNuclearStarClustersID        , ageNuclearStarClustersID         , &
          &       gasMassNuclearStarClustersID         , stellarMassNuclearStarClustersID , &
-         &       redshiftBlackHoleSeedFormationID     , coreCollapseTimescaleNSCID
+         &       redshiftBlackHoleSeedFormationVMSID     , coreCollapseTimescaleNuclearStarClusterID
    contains
      procedure :: elementCount       => blackHoleSeedingVMSElementCount
      procedure :: extract            => blackHoleSeedingVMSExtract
@@ -80,14 +80,14 @@ contains
     implicit none
     type          (nodePropertyExtractorBlackHoleSeedingVMS) :: self
     !![
-    <addMetaProperty component="NSC" name="blackHoleSeedMassFormed"        id="self%blackHoleSeedMassID"              isEvolvable="no" isCreator="no"/>
-    <addMetaProperty component="NSC" name="velocityNuclearStarClusters"    id="self%velocityNuclearStarClustersID"    isEvolvable="no" isCreator="no"/>
-    <addMetaProperty component="NSC" name="ageNuclearStarClusters"         id="self%ageNuclearStarClustersID"         isEvolvable="no" isCreator="no"/>
-    <addMetaProperty component="NSC" name="radiusNuclearStarClusters"      id="self%radiusNuclearStarClustersID"      isEvolvable="no" isCreator="no"/>
-    <addMetaProperty component="NSC" name="gasMassNuclearStarClusters"     id="self%gasMassNuclearStarClustersID"     isEvolvable="no" isCreator="no"/>
-    <addMetaProperty component="NSC" name="stellarMassNuclearStarClusters" id="self%stellarMassNuclearStarClustersID" isEvolvable="no" isCreator="no"/>
-    <addMetaProperty component="NSC" name="redshiftBlackHoleSeedFormation" id="self%redshiftBlackHoleSeedFormationID" isEvolvable="no" isCreator="no"/>
-    <addMetaProperty component="NSC" name="coreCollapseTimescaleNSC"       id="self%coreCollapseTimescaleNSCID"       isEvolvable="no" isCreator="no"/>   
+    <addMetaProperty component="NSC" name="blackHoleSeedMassFormed"                 id="self%blackHoleSeedMassID"                       isEvolvable="no" isCreator="no"/>
+    <addMetaProperty component="NSC" name="velocityNuclearStarClusters"             id="self%velocityNuclearStarClustersID"             isEvolvable="no" isCreator="no"/>
+    <addMetaProperty component="NSC" name="ageNuclearStarClusters"                  id="self%ageNuclearStarClustersID"                  isEvolvable="no" isCreator="no"/>
+    <addMetaProperty component="NSC" name="radiusNuclearStarClusters"               id="self%radiusNuclearStarClustersID"               isEvolvable="no" isCreator="no"/>
+    <addMetaProperty component="NSC" name="gasMassNuclearStarClusters"              id="self%gasMassNuclearStarClustersID"              isEvolvable="no" isCreator="no"/>
+    <addMetaProperty component="NSC" name="stellarMassNuclearStarClusters"          id="self%stellarMassNuclearStarClustersID"          isEvolvable="no" isCreator="no"/>
+    <addMetaProperty component="NSC" name="redshiftBlackHoleSeedFormation"          id="self%redshiftBlackHoleSeedFormationVMSID"       isEvolvable="no" isCreator="no"/>
+    <addMetaProperty component="NSC" name="coreCollapseTimescaleNuclearStarCluster" id="self%coreCollapseTimescaleNuclearStarClusterID" isEvolvable="no" isCreator="no"/>   
     !!]
     return
   end function blackHoleSeedingVMSConstructorInternal
@@ -136,15 +136,15 @@ contains
         &                          0.0d0  &
         &                        ]
     class default
-      blackHoleSeedingVMSExtract=[                                                                                       &
-       &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%redshiftBlackHoleSeedFormationID ), &
-       &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%blackHoleSeedMassID              ), &
-       &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%ageNuclearStarClustersID         ), &
-       &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%radiusNuclearStarClustersID      ), &
-       &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%velocityNuclearStarClustersID    ), &
-       &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%gasMassNuclearStarClustersID     ), &
-       &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%stellarMassNuclearStarClustersID ), &
-       &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%coreCollapseTimescaleNSCID       )  &
+      blackHoleSeedingVMSExtract=[                                                                                               &
+       &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%redshiftBlackHoleSeedFormationVMSID      ), &
+       &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%blackHoleSeedMassID                      ), &
+       &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%ageNuclearStarClustersID                 ), &
+       &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%radiusNuclearStarClustersID              ), &
+       &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%velocityNuclearStarClustersID            ), &
+       &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%gasMassNuclearStarClustersID             ), &
+       &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%stellarMassNuclearStarClustersID         ), &
+       &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%coreCollapseTimescaleNuclearStarClusterID)  &
        &                          ]
     end select
     return

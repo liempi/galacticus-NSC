@@ -42,9 +42,9 @@
      double precision                                   :: massFraction                    , nuclearStarClusterMaximumAge
      integer                                            :: ageNuclearStarClustersID        , gasMassNuclearStarClustersID , &
        &                                                   stellarMassNuclearStarClustersID, velocityNuclearStarClustersID, &
-       &                                                   redshiftBlackHoleSeedFormationID, radiusNuclearStarClustersID  , &
+       &                                                   redshiftBlackHoleSeedFormationVMSID, radiusNuclearStarClustersID  , &
        &                                                   blackHoleSeedMassID             , stellarMassFormedNSCID       , &
-       &                                                   timeStellarMassFormedNSCID      , coreCollapseTimescaleNSCID
+       &                                                   timeStellarMassFormedNSCID      , coreCollapseTimescaleNuclearStarClusterID
    contains
      final     ::                     veryMassiveStarsDestructor              
      procedure :: mass             => veryMassiveStarsMass
@@ -107,16 +107,16 @@ contains
     double precision                                , intent(in   )         :: nuclearStarClusterMaximumAge
     !![
     <constructorAssign variables="massFraction, nuclearStarClusterMaximumAge, *cosmologyFunctions_"/>
-    <addMetaProperty component="NSC" name="agesStellarMassFormed"          id="self%stellarMassFormedNSCID"           isEvolvable="yes" isCreator="no" />
-    <addMetaProperty component="NSC" name="agesTimeStellarMassFormed"      id="self%timeStellarMassFormedNSCID"       isEvolvable="yes" isCreator="no" />
-    <addMetaProperty component="NSC" name="blackHoleSeedMassFormed"        id="self%blackHoleSeedMassID"              isEvolvable="no"  isCreator="yes"/>
-    <addMetaProperty component="NSC" name="ageNuclearStarClusters"         id="self%ageNuclearStarClustersID"         isEvolvable="no"  isCreator="yes"/>
-    <addMetaProperty component="NSC" name="radiusNuclearStarClusters"      id="self%radiusNuclearStarClustersID"      isEvolvable="no"  isCreator="yes"/>
-    <addMetaProperty component="NSC" name="gasMassNuclearStarClusters"     id="self%gasMassNuclearStarClustersID"     isEvolvable="no"  isCreator="yes"/>
-    <addMetaProperty component="NSC" name="velocityNuclearStarClusters"    id="self%velocityNuclearStarClustersID"    isEvolvable="no"  isCreator="yes"/>
-    <addMetaProperty component="NSC" name="redshiftBlackHoleSeedFormation" id="self%redshiftBlackHoleSeedFormationID" isEvolvable="no"  isCreator="yes"/>
-    <addMetaProperty component="NSC" name="stellarMassNuclearStarClusters" id="self%stellarMassNuclearStarClustersID" isEvolvable="no"  isCreator="yes"/>
-    <addMetaProperty component="NSC" name="coreCollapseTimescaleNSC"       id="self%coreCollapseTimescaleNSCID"       isEvolvable="no"  isCreator="yes"/>   
+    <addMetaProperty component="NSC" name="agesStellarMassFormed"                   id="self%stellarMassFormedNSCID"                    isEvolvable="yes" isCreator="no" />
+    <addMetaProperty component="NSC" name="agesTimeStellarMassFormed"               id="self%timeStellarMassFormedNSCID"                isEvolvable="yes" isCreator="no" />
+    <addMetaProperty component="NSC" name="blackHoleSeedMassFormed"                 id="self%blackHoleSeedMassID"                       isEvolvable="no"  isCreator="yes"/>
+    <addMetaProperty component="NSC" name="ageNuclearStarClusters"                  id="self%ageNuclearStarClustersID"                  isEvolvable="no"  isCreator="yes"/>
+    <addMetaProperty component="NSC" name="radiusNuclearStarClusters"               id="self%radiusNuclearStarClustersID"               isEvolvable="no"  isCreator="yes"/>
+    <addMetaProperty component="NSC" name="gasMassNuclearStarClusters"              id="self%gasMassNuclearStarClustersID"              isEvolvable="no"  isCreator="yes"/>
+    <addMetaProperty component="NSC" name="velocityNuclearStarClusters"             id="self%velocityNuclearStarClustersID"             isEvolvable="no"  isCreator="yes"/>
+    <addMetaProperty component="NSC" name="redshiftBlackHoleSeedFormation"          id="self%redshiftBlackHoleSeedFormationVMSID"       isEvolvable="no"  isCreator="yes"/>
+    <addMetaProperty component="NSC" name="stellarMassNuclearStarClusters"          id="self%stellarMassNuclearStarClustersID"          isEvolvable="no"  isCreator="yes"/>
+    <addMetaProperty component="NSC" name="coreCollapseTimescaleNuclearStarCluster" id="self%coreCollapseTimescaleNuclearStarClusterID" isEvolvable="no"  isCreator="yes"/>   
     !!]
     return
   end function veryMassiveStarsConstructorInternal
@@ -216,13 +216,14 @@ contains
               &  .and.                                                    &
               &  coreCollapseTimescale<=ageNuclearStarCluster             &
               & ) then
-
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%ageNuclearStarClustersID         ,                                       ageNuclearStarCluster                                                         )
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%gasMassNuclearStarClustersID     ,nuclearStarCluster                    %massGas                       (                                              ))
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%stellarMassNuclearStarClustersID ,nuclearStarCluster                    %massStellar                   (                                              ))
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%velocityNuclearStarClustersID    ,                                       velocityNuclearStarCluster                                                    )
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%redshiftBlackHoleSeedFormationID ,self              %cosmologyFunctions_%redshiftFromExpansionFactor   (self%cosmologyFunctions_%expansionFactor(time)))
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%radiusNuclearStarClustersID      ,                                       radiusNuclearStarCluster                                                      )
+            PRINT*, coreCollapseTimescale
+            call nuclearStarCluster%floatRank0MetaPropertySet(self%ageNuclearStarClustersID                 ,                                       ageNuclearStarCluster                                                         )
+            call nuclearStarCluster%floatRank0MetaPropertySet(self%gasMassNuclearStarClustersID             , nuclearStarCluster                    %massGas                       (                                              ))
+            call nuclearStarCluster%floatRank0MetaPropertySet(self%stellarMassNuclearStarClustersID         , nuclearStarCluster                    %massStellar                   (                                              ))
+            call nuclearStarCluster%floatRank0MetaPropertySet(self%velocityNuclearStarClustersID            ,                                        velocityNuclearStarCluster                                                    )
+            call nuclearStarCluster%floatRank0MetaPropertySet(self%redshiftBlackHoleSeedFormationVMSID      , self              %cosmologyFunctions_%redshiftFromExpansionFactor   (self%cosmologyFunctions_%expansionFactor(time)))
+            call nuclearStarCluster%floatRank0MetaPropertySet(self%radiusNuclearStarClustersID              ,                                       radiusNuclearStarCluster                                                      )
+            call nuclearStarCluster%floatRank0MetaPropertySet(self%coreCollapseTimescaleNuclearStarClusterID, coreCollapseTimescale)
             ! Here, self%massFraction is computed in the following way: 
             ! For a initial mass function  φ(M), asumming the masses of the star in the range min ≤ M [M☉] ≤ max,
             ! the total mass is given by ∫ ₘᵢₙ ᵐᵃˣ  φ(M) M dM. It is possible to estimate the fraction of the 

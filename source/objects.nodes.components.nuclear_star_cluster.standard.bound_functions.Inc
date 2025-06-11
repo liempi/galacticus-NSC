@@ -23,31 +23,6 @@
 Contains custom functions for the standard nuclear star cluster component.
 !!}
 
-double precision function Node_Component_NSC_Standard_Radius(self) result(radius)
-   !!{
-   Return the radius of the standard nuclear star cluster.
-   !!}
-   use :: Node_Component_NSC_Standard_Data, only : radiusNormalization
-   implicit none
-   class           (nodeComponentNSCStandard), intent(inout) :: self
-   double precision                                          :: massNuclearStarCluster
-   double precision                          , parameter     :: massNormalization     = 1.0d6 ! M⊙
-
-   massNuclearStarCluster=+self%massGas    () &
-        &                 +self%massStellar()
-   ! The radius is computed using the radius model from F. Antonini, E. Barausse & J. Silk (2015; https://ui.adsabs.harvard.edu/abs/2015ApJ...812...72A).
-   if (massNuclearStarCluster > 0.0d0) then
-      radius=+radiusNormalization          &
-           & *sqrt(                        &
-           &       +massNuclearStarCluster &
-           &       /massNormalization      &
-           &      )
-   else 
-      radius=+0.0d0
-   end if 
-   return
-end function Node_Component_NSC_Standard_Radius
-
 double precision function Node_Component_NSC_Standard_Velocity(self)
    !!{
    Return the circular velocity of the standard nuclear star cluster.
