@@ -351,7 +351,9 @@ contains
     use :: File_Utilities    , only : File_Exists
     use :: FoX_dom           , only : node                             , getAttribute, setAttribute          , getParentNode, &
          &                            removeChild                      , getNodeName , hasAttribute          , appendChild  , &
-         &                            importNode                       , insertBefore, getNextSibling        , destroy
+         &                            importNode                       , insertBefore, getNextSibling        , destroy      , &
+         &                            getExceptionCode                 , inException , DOMException          , cloneNode    , &
+         &                            getNodeType                      , ELEMENT_NODE
     use :: Error             , only : Error_Report
     use :: IO_XML            , only : XML_Get_First_Element_By_Tag_Name, XML_Parse   , XML_Get_Child_Elements, xmlNodeList  , &
          &                            XML_Path_Exists
@@ -368,10 +370,13 @@ contains
          &                                                               changesDoc           , childNode        , &
          &                                                               changeNode           , changeNodeParent , &
          &                                                               changesNode          , importedNode     , &
-         &                                                               newNode              , changeSiblingNode
+         &                                                               newNode              , changeSiblingNode, &
+         &                                                               targetNode           , clonedNode
     integer                                                           :: errorStatus          , i                , &
          &                                                               j                    , k
-    type     (varying_string )                                        :: changePath
+    logical                                                           :: append
+    type     (varying_string )                                        :: changePath           , targetPath       , &
+         &                                                               valueUpdated
     character(len=32         )                                        :: changeType
 
     ! Check that the file exists.
@@ -460,9 +465,20 @@ contains
                 changeNode       => removeChild  (changeNodeParent,changeNode)
              case ("update")
                 ! Update the value of the identified node.
-                if (.not.hasAttribute(changeNode,"value")) call Error_Report('can not update the `value` in a parameter that has no `value`'//{introspection:location})
-                if (.not.hasAttribute(childNode ,"value")) call Error_Report('`change` element must have the `value` attribute'             //{introspection:location})
-                call setAttribute(changeNode,"value",getAttribute(childNode,"value"))
+                if (.not.hasAttribute(changeNode,"value" )) call Error_Report('can not update the `value` in a parameter that has no `value`'//{introspection:location})
+                if (.not.hasAttribute(childNode ,"value" )) call Error_Report('`change` element must have the `value` attribute'             //{introspection:location})
+                if (     hasAttribute(childNode ,"append")) then
+                   append=getAttribute(childNode,"append") == "true"
+                else
+                   append=.false.
+                end if
+                if (append) then
+                   valueUpdated=getAttribute(changeNode,"value")
+                else
+                   valueUpdated=""
+                end if
+                valueUpdated=valueUpdated//getAttribute(childNode,"value")
+                call setAttribute(changeNode,"value",char(valueUpdated))
              case ("append")
                 ! Append new parameters.
                 call XML_Get_Child_Elements(childNode,newNodes)
@@ -490,6 +506,33 @@ contains
                    end if
                 end do
                 if (trim(changeType) == "replace") changeNode => removeChild(changeNodeParent,changeNode)
+             case ("replaceWith")
+                ! Replace a parameter with another parameter.
+                if (.not.hasAttribute(childNode,"target")) call Error_Report('`change` element with `type="replaceWith"` must have the `target` attribute'//{introspection:location})
+                targetPath=getAttribute(childNode,"target")
+                if (.not.XML_Path_Exists(parameterNode,char(targetPath))) call Error_Report("target path does not exist"//{introspection:location})
+                targetNode       => XML_Get_First_Element_By_Tag_Name(parameterNode,char(targetPath),directChildrenOnly=.true.)
+                clonedNode       => cloneNode    (targetNode                            ,deep=.true.)
+                changeNodeParent => getParentNode(                            changeNode            )
+                clonedNode       => insertBefore (changeNodeParent,clonedNode,changeNode            )
+                changeNode       => removeChild  (changeNodeParent           ,changeNode            )
+             case ("encapsulate")
+                ! Encapsulate the identified node within the provided content.
+                !! First insert all new content before the change node.
+                changeNodeParent => getParentNode(changeNode)
+                call XML_Get_Child_Elements(childNode,newNodes)
+                clonedNode => null()
+                do k=0,size(newNodes)-1
+                   newNode      => newNodes(k)%element
+                   importedNode => importNode(doc,newNode,deep=.true.)
+                   importedNode => insertBefore(changeNodeParent,importedNode,changeNode)
+                   ! Keep a pointer to the first node of the new content - this is where the change node will be encapsulated.
+                   if (.not.associated(clonedNode) .and. getNodeType(importedNode) == ELEMENT_NODE) clonedNode => importedNode
+                end do
+                ! Remove the change node from the document.
+                changeNode => removeChild(changeNodeParent,changeNode)
+                ! Reinsert the change node into the encapsulating node.
+                changeNode => appendChild(clonedNode      ,changeNode)
              case default
                 call Error_Report("unknown change type `"//trim(changeType)//"`"//{introspection:location})
              end select
@@ -2111,6 +2154,7 @@ contains
                    else if (isDouble .and. haveDefault) then
                       ! The parameter does not exist, but a default value is available - use that default.
                       read (defaultValue,*) workValueDouble
+                      deallocate(parentParameters)
                    else
                       !$omp critical (FoX_DOM_Access)
                       expression=getTextContent(valueElement)
