@@ -302,7 +302,7 @@ def linesParse(job):
             linesFile.close()
         if badFile:
             if attempt == attemptsMaximum-1:
-                print("FAIL [unable to find Cloudy output lines file]: "+label+" see ".job['logFileName'])
+                print("FAIL [unable to find Cloudy output lines file]: "+label+" see "+job['logFileName'])
                 if grid['lineData']['status'][indices] == 0:
                     grid['lineData']['status'][indices] = 3
             else:
@@ -539,10 +539,9 @@ def generateJobSSP(grid,args):
         "onCompletion":         linesParse                                          ,
         "jobNumber":            jobNumber                                           ,
         "grid":                 grid                                                ,
- 	"cloudyScriptFileName": cloudyScriptFileName                                ,
+ 	"cloudyScriptFileName": args.workspace+cloudyScriptFileName                 ,
  	"linesFileName":        args.workspace+"lines"        +str(jobNumber)+".out",
  	"continuumFileName":    args.workspace+"continuum"    +str(jobNumber)+".out",
- 	"cloudyScriptFileName": cloudyScriptFileName                                ,
  	"indices":      	( iAge, iMetallicity, iLogHydrogenLuminosity, iLogHydrogenDensity ),
         "command":              "cd "+args.workspace+"; ulimit -c 0\n"+cloudyPath+"/source/cloudy.exe < "+cloudyScriptFileName+"\n"+"if [ $? != 0 ]; then\necho CLOUDY FAILED\nfi\n"
     }
@@ -657,10 +656,9 @@ def generateJobAGN(grid,args):
         "onCompletion":         linesParse                                          ,
         "jobNumber":            jobNumber                                           ,
         "grid":                 grid                                                ,
- 	"cloudyScriptFileName": cloudyScriptFileName                                ,
+ 	"cloudyScriptFileName": args.workspace+cloudyScriptFileName                 ,
  	"linesFileName":        args.workspace+"lines"        +str(jobNumber)+".out",
  	"continuumFileName":    args.workspace+"continuum"    +str(jobNumber)+".out",
- 	"cloudyScriptFileName": cloudyScriptFileName                                ,
  	"indices":      	( iSpectralIndex, iMetallicity, iIonizationParameter, iLogHydrogenDensity ),
         "command":              "cd "+args.workspace+"; ulimit -c 0\n"+cloudyPath+"/source/cloudy.exe < "+cloudyScriptFileName+"\n"+"if [ $? != 0 ]; then\necho CLOUDY FAILED\nfi\n"
     }
@@ -806,8 +804,10 @@ def outputSSP(grid,args):
     # Write the line data to file.
     tableFile = h5py.File(args.workspace+args.outputFileName,"w")
     # Add useful metadata.
-    tableFile.attrs['time'       ] = str(datetime.datetime.now())
-    tableFile.attrs['gitRevision'] = grid['gitRevision']
+    tableFile.attrs['time'         ] = str(datetime.datetime.now())
+    tableFile.attrs['gitRevision'  ] = grid['gitRevision'  ]
+    tableFile.attrs['commandLine'  ] = grid['commandLine'  ]
+    tableFile.attrs['cloudyVersion'] = grid['cloudyVersion']
     # Write parameter grid points and attributes.
     datasetAge                          = tableFile.create_dataset('age'                       ,data=      grid['ages'                   ])
     datasetMetallicity                  = tableFile.create_dataset('metallicity'               ,data=10.0**grid['logMetallicities'       ])
@@ -844,17 +844,19 @@ def outputSSP(grid,args):
         lineName    = lineList[lineLabel]
         datasetLine = lineGroup.create_dataset(lineName,data=np.transpose(grid['lineData'][lineName]['luminosity']))
         datasetLine.attrs['description'] = "Energy radiated by a unit area of cloud into 4 π sr."
-        datasetLine.attrs['lunits'     ] = "erg cm¯² s¯¹"
-        datasetLine.attrs['lunitsInSI' ] = unitsIntensity
-        datasetLine.attrs['lwavelength'] = grid['lineData'][lineName]['wavelength']
+        datasetLine.attrs['units'      ] = "erg cm¯² s¯¹"
+        datasetLine.attrs['unitsInSI'  ] = unitsIntensity
+        datasetLine.attrs['wavelength' ] = grid['lineData'][lineName]['wavelength']
 
 def outputAGN(grid,args):
     # Output the results of the Cloudy calculations for AGN.
     # Write the line data to file.
     tableFile = h5py.File(args.workspace+args.outputFileName,'w')
     # Add useful metadata.
-    tableFile.attrs['time'       ] = str(datetime.datetime.now())
-    tableFile.attrs['gitRevision'] = grid['gitRevision']
+    tableFile.attrs['time'         ] = str(datetime.datetime.now())
+    tableFile.attrs['gitRevision'  ] = grid['gitRevision'  ]
+    tableFile.attrs['commandLine'  ] = grid['commandLine'  ]
+    tableFile.attrs['cloudyVersion'] = grid['cloudyVersion']
     # Write parameter grid points and attributes.
     datasetSpectralIndex       = tableFile.create_dataset('spectralIndex'      ,data=      grid['spectralIndices'        ])
     datasetMetallicity         = tableFile.create_dataset('metallicity'        ,data=10.0**grid['logMetallicities'       ])
@@ -882,9 +884,9 @@ def outputAGN(grid,args):
         lineName    = lineList[lineLabel]
         datasetLine = lineGroup.create_dataset(lineName,data=np.transpose(grid['lineData'][lineName]['luminosity']))
         datasetLine.attrs['description'] = "Energy radiated by a unit area of cloud into 4 π sr."
-        datasetLine.attrs['lunits'     ] = "erg cm¯² s¯¹"
-        datasetLine.attrs['lunitsInSI' ] = unitsIntensity
-        datasetLine.attrs['lwavelength'] = grid['lineData'][lineName]['wavelength']
+        datasetLine.attrs['units'      ] = "erg cm¯² s¯¹"
+        datasetLine.attrs['unitsInSI'  ] = unitsIntensity
+        datasetLine.attrs['wavelength' ] = grid['lineData'][lineName]['wavelength']
 
 
 # Parse command line arguments.
@@ -1190,6 +1192,12 @@ establishGrid(grid,args)
 repo                = Repo(os.environ['GALACTICUS_EXEC_PATH'])
 lastRevision        = repo.head.object.hexsha
 grid['gitRevision'] = lastRevision
+
+# Add the command line arguments for possible output.
+grid['commandLine'] = " ".join(sys.argv)
+
+# Store Cloudy version.
+grid['cloudyVersion'] = cloudyVersion
 
 # Initialize the line luminosity tables.
 dimensions       = list(map(lambda x: grid[x].size,grid['iterables']))

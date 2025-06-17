@@ -3,15 +3,15 @@
 <!-- 06-January-2025                                         -->
 <parameters>
   <formatVersion>2</formatVersion>
-  <lastModified revision="e9236b11f17f9c96b0cdac005d7945ac0febe7d5"/>
+  <lastModified revision="65c7326e2d0e0e85feea12ef933222871f069fb2" time="2025-06-10T15:59:50"/>
 
   <verbosityLevel value="standard"/>
 
   <!-- Include required parameters -->
-  <xi:include href="../../../parameters/reference/cosmologyWMAP9DarkMatterOnly.xml" xpointer="xpointer(parameters/*)" xmlns:xi="http://www.w3.org/2001/XInclude"/>
-  <xi:include href="../../../parameters/reference/powerSpectrumWMAP9.xml"           xpointer="xpointer(parameters/*)" xmlns:xi="http://www.w3.org/2001/XInclude"/>
-  <xi:include href="../../../parameters/reference/structureFormation.xml"           xpointer="xpointer(parameters/*)" xmlns:xi="http://www.w3.org/2001/XInclude"/>
-  <xi:include href="../../../parameters/reference/mergerTrees.xml"                  xpointer="xpointer(parameters/*)" xmlns:xi="http://www.w3.org/2001/XInclude"/>
+  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="../../../parameters/reference/cosmologyWMAP9DarkMatterOnly.xml" xpointer="xpointer(parameters/*)" />
+  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="../../../parameters/reference/powerSpectrumWMAP9.xml"           xpointer="xpointer(parameters/*)" />
+  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="../../../parameters/reference/structureFormation.xml"           xpointer="xpointer(parameters/*)" />
+  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="../../../parameters/reference/mergerTrees.xml"                  xpointer="xpointer(parameters/*)" />
 
   <!-- Random number generation -->
   <randomNumberGenerator value="GSL">
@@ -87,7 +87,7 @@
     </darkMatterProfileDMO>
   </darkMatterProfileDMO>
   <!-- Including heating from both tidal interactions and decaying dark matter. Force monotonic behavior in the heating (as decaying dark matter heating can be non-monotonic). -->
-  <darkMatterProfileHeating value="monotonic">
+  <darkMatterProfileHeating value="monotonicWeak">
     <darkMatterProfileHeating value="summation">
       <darkMatterProfileHeating value="tidal">
 	<!-- The second order term is set based on the results of Du et al. (2024;

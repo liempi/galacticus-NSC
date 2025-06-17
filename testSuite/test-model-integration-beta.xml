@@ -1,5 +1,7 @@
 <?xml version="1.0"?>
 <parameters formatVersion="2" version="0.9.4">
+  <lastModified revision="65c7326e2d0e0e85feea12ef933222871f069fb2" time="2025-06-10T15:59:50"/>
+  <lastModified/>
   <formatVersion>2</formatVersion>
   <version>0.9.4</version>
   <!-- Beta model maximum likelihood model -->
@@ -82,6 +84,7 @@
   <componentSpin value="scalar"/>
 
   <!-- Merger tree construction -->
+  <mergerTreeSeeds value="random"/>
   <mergerTreeConstructor value="build"/>
   <mergerTreeBuilder value="cole2000">
     <accretionLimit value="0.1"/>

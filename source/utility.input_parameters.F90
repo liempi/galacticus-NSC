@@ -126,8 +126,8 @@ module Input_Parameters
      type   (node           ), pointer         :: rootNode               => null()
      type   (hdf5Object     )                  :: outputParameters                 , outputParametersContainer
      type   (inputParameter ), pointer, public :: parameters             => null()
-     type   (inputParameters), pointer, public :: parent                 => null()
-     logical                                   :: outputParametersCopied =  .false., outputParametersTemporary=.false., &
+     type   (inputParameters), pointer, public :: parent                 => null() , original                  => null()
+     logical                                   :: outputParametersCopied =  .false., outputParametersTemporary = .false., &
           &                                       isNull                 =  .false.
      type   (integerHash    ), allocatable     :: warnedDefaults
      type   (ompLock        ), pointer         :: lock                   => null()
@@ -285,7 +285,7 @@ contains
          &                                    getImplementation()             , &
          &                                    qualifiedName      ="parameters", &
          &                                    docType            =null()        &
-         &                                   )
+         &                                 )
     self%rootNode       => getDocumentElement(self%document)
     call setLiveNodeLists(self%document,.false.)
     !$omp end critical (FoX_DOM_Access)
@@ -351,7 +351,9 @@ contains
     use :: File_Utilities    , only : File_Exists
     use :: FoX_dom           , only : node                             , getAttribute, setAttribute          , getParentNode, &
          &                            removeChild                      , getNodeName , hasAttribute          , appendChild  , &
-         &                            importNode                       , insertBefore, getNextSibling        , destroy
+         &                            importNode                       , insertBefore, getNextSibling        , destroy      , &
+         &                            getExceptionCode                 , inException , DOMException          , cloneNode    , &
+         &                            getNodeType                      , ELEMENT_NODE
     use :: Error             , only : Error_Report
     use :: IO_XML            , only : XML_Get_First_Element_By_Tag_Name, XML_Parse   , XML_Get_Child_Elements, xmlNodeList  , &
          &                            XML_Path_Exists
@@ -368,10 +370,13 @@ contains
          &                                                               changesDoc           , childNode        , &
          &                                                               changeNode           , changeNodeParent , &
          &                                                               changesNode          , importedNode     , &
-         &                                                               newNode              , changeSiblingNode
+         &                                                               newNode              , changeSiblingNode, &
+         &                                                               targetNode           , clonedNode
     integer                                                           :: errorStatus          , i                , &
          &                                                               j                    , k
-    type     (varying_string )                                        :: changePath
+    logical                                                           :: append
+    type     (varying_string )                                        :: changePath           , targetPath       , &
+         &                                                               valueUpdated
     character(len=32         )                                        :: changeType
 
     ! Check that the file exists.
@@ -460,9 +465,20 @@ contains
                 changeNode       => removeChild  (changeNodeParent,changeNode)
              case ("update")
                 ! Update the value of the identified node.
-                if (.not.hasAttribute(changeNode,"value")) call Error_Report('can not update the `value` in a parameter that has no `value`'//{introspection:location})
-                if (.not.hasAttribute(childNode ,"value")) call Error_Report('`change` element must have the `value` attribute'             //{introspection:location})
-                call setAttribute(changeNode,"value",getAttribute(childNode,"value"))
+                if (.not.hasAttribute(changeNode,"value" )) call Error_Report('can not update the `value` in a parameter that has no `value`'//{introspection:location})
+                if (.not.hasAttribute(childNode ,"value" )) call Error_Report('`change` element must have the `value` attribute'             //{introspection:location})
+                if (     hasAttribute(childNode ,"append")) then
+                   append=getAttribute(childNode,"append") == "true"
+                else
+                   append=.false.
+                end if
+                if (append) then
+                   valueUpdated=getAttribute(changeNode,"value")
+                else
+                   valueUpdated=""
+                end if
+                valueUpdated=valueUpdated//getAttribute(childNode,"value")
+                call setAttribute(changeNode,"value",char(valueUpdated))
              case ("append")
                 ! Append new parameters.
                 call XML_Get_Child_Elements(childNode,newNodes)
@@ -490,6 +506,33 @@ contains
                    end if
                 end do
                 if (trim(changeType) == "replace") changeNode => removeChild(changeNodeParent,changeNode)
+             case ("replaceWith")
+                ! Replace a parameter with another parameter.
+                if (.not.hasAttribute(childNode,"target")) call Error_Report('`change` element with `type="replaceWith"` must have the `target` attribute'//{introspection:location})
+                targetPath=getAttribute(childNode,"target")
+                if (.not.XML_Path_Exists(parameterNode,char(targetPath))) call Error_Report("target path does not exist"//{introspection:location})
+                targetNode       => XML_Get_First_Element_By_Tag_Name(parameterNode,char(targetPath),directChildrenOnly=.true.)
+                clonedNode       => cloneNode    (targetNode                            ,deep=.true.)
+                changeNodeParent => getParentNode(                            changeNode            )
+                clonedNode       => insertBefore (changeNodeParent,clonedNode,changeNode            )
+                changeNode       => removeChild  (changeNodeParent           ,changeNode            )
+             case ("encapsulate")
+                ! Encapsulate the identified node within the provided content.
+                !! First insert all new content before the change node.
+                changeNodeParent => getParentNode(changeNode)
+                call XML_Get_Child_Elements(childNode,newNodes)
+                clonedNode => null()
+                do k=0,size(newNodes)-1
+                   newNode      => newNodes(k)%element
+                   importedNode => importNode(doc,newNode,deep=.true.)
+                   importedNode => insertBefore(changeNodeParent,importedNode,changeNode)
+                   ! Keep a pointer to the first node of the new content - this is where the change node will be encapsulated.
+                   if (.not.associated(clonedNode) .and. getNodeType(importedNode) == ELEMENT_NODE) clonedNode => importedNode
+                end do
+                ! Remove the change node from the document.
+                changeNode => removeChild(changeNodeParent,changeNode)
+                ! Reinsert the change node into the encapsulating node.
+                changeNode => appendChild(clonedNode      ,changeNode)
              case default
                 call Error_Report("unknown change type `"//trim(changeType)//"`"//{introspection:location})
              end select
@@ -513,14 +556,14 @@ contains
     !!{
     Constructor for the {\normalfont \ttfamily inputParameters} class from an existing parameters object.
     !!}
-    use :: ISO_Varying_String, only : char
     implicit none
-    type (inputParameters)                :: self
-    type (inputParameters), intent(in   ) :: parameters
+    type(inputParameters)                :: self
+    type(inputParameters), intent(in   ) :: parameters
 
-    self               =  inputParameters(parameters%rootNode  ,noOutput=.true.,noBuild=.true.)
-    self%parameters    =>                 parameters%parameters
-    self%parent        =>                 parameters%parent
+    self            =  inputParameters(parameters%rootNode  ,noOutput=.true.,noBuild=.true.)
+    self%parameters =>                 parameters%parameters
+    self%parent     =>                 parameters%parent
+    self%original   =>                 parameters%original       
     if (allocated(parameters%warnedDefaults)) then
        if (allocated(self%warnedDefaults)) deallocate(self%warnedDefaults)
        allocate(self%warnedDefaults)
@@ -536,7 +579,7 @@ contains
 
   function inputParametersConstructorNode(parametersNode,allowedParameterNames,outputParametersGroup,noOutput,noBuild,fileName) result(self)
     !!{
-    Constructor for the {\normalfont \ttfamily inputParameters} class from an FoX node.
+    Constructor for the {\normalfont \ttfamily inputParameters} class from a FoX node.
     !!}
     use            :: Display           , only : displayGreen                     , displayMessage  , displayMagenta  , displayReset  , &
          &                                       verbosityLevelSilent
@@ -586,12 +629,12 @@ contains
     allocate(self%warnedDefaults)
     allocate(self%lock          )
     self%isNull         =  .false.
-    self%rootNode       =>                  parametersNode
-    self%parent         => null            (              )
-    self%warnedDefaults =  integerHash     (              )
-    self%lock           =  ompLock         (              )
+    self%rootNode       =>             parametersNode
+    self%parent         => null       (              )
+    self%warnedDefaults =  integerHash(              )
+    self%lock           =  ompLock    (              )
     !$omp critical (FoX_DOM_Access)
-    self%document       => getOwnerDocument(parametersNode)
+    self%document         => getOwnerDocument(parametersNode)
     call setLiveNodeLists(self%document,.false.)
     !$omp end critical (FoX_DOM_Access)
     if (.not.noBuild_) then
@@ -1170,7 +1213,8 @@ contains
     !!{
     Reset objects associated with this parameter and any sub-parameters.
     !!}
-    use    :: FoX_DOM, only : destroy
+    use :: iso_varying_string, only : char
+    use    :: FoX_DOM, only : destroy, getNodeName
     !$ use :: OMP_Lib, only : OMP_Get_Thread_Num, OMP_Get_Level, OMP_In_Parallel
     implicit none
     class  (inputParameter), intent(inout), target   :: self
@@ -1771,16 +1815,20 @@ contains
     allocate(parameterNames(countNames))
     call String_Split_Words(parameterNames,parameterPath,":")
     parameterName  =  parameterNames(countNames)
-    rootParameters => self
     subParameters  => null          (          )
     if (trim(parameterNames(1)) /= "." .and. trim(parameterNames(1)) /= "..") then
-       ! Path is absolute - move to the root parameter.
-       do while (associated(rootParameters%parent))
-          rootParameters => rootParameters%parent
-       end do
+       ! Path is absolute - start from the original parameters.
+       if (associated(self%original)) then
+          rootParameters => self%original
+       else
+          rootParameters => self
+       end if
+    else
+       ! Path is relative - simply start from the current parameter.
+       rootParameters => self
     end if
     do i=1,countNames-1
-       if (trim(parameterNames(i)) == ".") then
+       if      (trim(parameterNames(i)) == "." ) then
           ! Self - no need to move.
           if (i == 1) then
              allocate(subParameters)
@@ -1791,11 +1839,11 @@ contains
           if (i == 1) then
              if (.not.associated(rootParameters%parent)) call Error_Report('no parent parameter exists'//{introspection:location})
              allocate(subParameters)
-             subParameters=inputParameters(rootParameters%parent)
+             subParameters    =inputParameters(rootParameters%parent)
           else
              if (.not.associated( subParameters%parent)) call Error_Report('no parent parameter exists'//{introspection:location})
              allocate(subParametersNext)
-             subParametersNext=inputParameters(subParameters%parent)
+             subParametersNext=inputParameters(subParameters %parent)
              deallocate(subParameters)
              subParameters => subParametersNext
           end if
@@ -1853,15 +1901,20 @@ contains
        else
           inputParametersSubParameters=inputParameters()
        end if
-       copyCount                               =  1
+       copyCount                                  =  1
     else
-       copyCount                               =  self%copiesCount(parameterName        ,requireValue=requireValue                          )
-       parameterNode                           => self%node       (parameterName        ,requireValue=requireValue,copyInstance=copyInstance)
+       copyCount                                  =  self%copiesCount(parameterName        ,requireValue=requireValue                          )
+       parameterNode                              => self%node       (parameterName        ,requireValue=requireValue,copyInstance=copyInstance)
        if (associated(parameterNode%referenced)) parameterNode => parameterNode%referenced
-       inputParametersSubParameters            =  inputParameters (parameterNode%content,noOutput    =.true.      ,noBuild     =.true.      )
-       inputParametersSubParameters%parameters => parameterNode
+       inputParametersSubParameters               =  inputParameters (parameterNode%content,noOutput    =.true.      ,noBuild     =.true.      )
+       inputParametersSubParameters%parameters    => parameterNode
     end if
-    inputParametersSubParameters%parent        => self
+    inputParametersSubParameters%parent           => self
+    if (associated(self%original)) then
+       inputParametersSubParameters%original => self%original
+    else
+       inputParametersSubParameters%original => self
+    end if
     !$ call hdf5Access%set()
     if (self%outputParameters%isOpen()) then
        groupName=parameterName
@@ -2101,6 +2154,7 @@ contains
                    else if (isDouble .and. haveDefault) then
                       ! The parameter does not exist, but a default value is available - use that default.
                       read (defaultValue,*) workValueDouble
+                      deallocate(parentParameters)
                    else
                       !$omp critical (FoX_DOM_Access)
                       expression=getTextContent(valueElement)
