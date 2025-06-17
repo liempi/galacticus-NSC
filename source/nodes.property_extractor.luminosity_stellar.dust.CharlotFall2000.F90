@@ -52,7 +52,7 @@ Implements a stellar luminosity output analysis property extractor class which a
 
   interface nodePropertyExtractorLmnstyStllrCF2000
      !!{
-     Constructors for the {\normalfont \ttfamily lmnstyStllrChrltFll2000} output analysis class.
+     Constructors for the \refClass{nodePropertyExtractorLmnstyStllrCF2000} output analysis class.
      !!}
      module procedure lmnstyStllrChrltFll2000ConstructorParameters
      module procedure lmnstyStllrChrltFll2000ConstructorInternal
@@ -62,7 +62,7 @@ contains
 
   function lmnstyStllrChrltFll2000ConstructorParameters(parameters) result(self)
     !!{
-    Constructor for the {\normalfont \ttfamily lmnstyStllrChrltFll2000} output analysis property extractor class which takes a parameter set as input.
+    Constructor for the \refClass{nodePropertyExtractorLmnstyStllrCF2000} output analysis property extractor class which takes a parameter set as input.
     !!}
     use :: Input_Parameters, only : inputParameter, inputParameters
     implicit none
@@ -131,7 +131,7 @@ contains
 
   function lmnstyStllrChrltFll2000ConstructorInternal(filterName,filterType,depthOpticalISMCoefficient,depthOpticalCloudsCoefficient,wavelengthExponent,outputTimes_,redshiftBand,outputMask) result(self)
     !!{
-    Internal constructor for the {\normalfont \ttfamily lmnstyStllrChrltFll2000} output analysis property extractor class.
+    Internal constructor for the \refClass{nodePropertyExtractorLmnstyStllrCF2000} output analysis property extractor class.
     !!}
     use, intrinsic :: ISO_C_Binding                 , only : c_size_t
     use            :: Instruments_Filters           , only : Filter_Get_Index       , Filter_Wavelength_Effective
@@ -176,7 +176,7 @@ contains
 
   subroutine lmnstyStllrChrltFll2000Destructor(self)
     !!{
-    Destructor for the {\normalfont \ttfamily lmnstyStllrChrltFll2000} output analysis property extractor class.
+    Destructor for the \refClass{nodePropertyExtractorLmnstyStllrCF2000} output analysis property extractor class.
     !!}
     implicit none
     type(nodePropertyExtractorLmnstyStllrCF2000), intent(inout) :: self
@@ -255,27 +255,35 @@ contains
     luminositySpheroid             =                          luminositiesStellar%luminosity         (self%luminosityIndex      (i))
     luminositySpheroidRecent       =                          luminositiesStellar%luminosity         (self%luminosityRecentIndex(i))
     ! Compute surface densities of metals in units of M☉/pc².
-    if (disk%radius() > 0.0d0) then
-       densitySurfaceMetalsDisk    =+metallicityDisk     &
-            &                            * disk    %massGas() &
-            &                            /2.0d0               &
-            &                            /Pi                  &
-            &                            /(                   &
-            &                             +mega               &
-            &                             *disk    %radius () &
-            &                            )**2
+    if     (                            &
+         &   disk    %radius () > 0.0d0 &
+         &  .and.                       &
+         &   disk    %massGas() > 0.0d0 &
+         & ) then
+       densitySurfaceMetalsDisk    =+metallicityDisk      &
+            &                       *  disk    %massGas() &
+            &                       /2.0d0                &
+            &                       /Pi                   &
+            &                       /(                    &
+            &                         +mega               &
+            &                         *disk    %radius () &
+            &                        )**2
     else
        densitySurfaceMetalsDisk    =+0.0d0
     end if
-    if (spheroid%radius() > 0.0d0) then
-       densitySurfaceMetalsSpheroid=+metallicitySpheroid &
-            &                            * spheroid%massGas() &
-            &                            /2.0d0               &
-            &                            /Pi                  &
-            &                            /(                   &
-            &                             +mega               &
-            &                             *spheroid%radius()  &
-            &                            )**2
+    if     (                            &
+         &   spheroid%radius () > 0.0d0 &
+         &  .and.                       &
+         &   spheroid%massGas() > 0.0d0 &
+         & ) then
+       densitySurfaceMetalsSpheroid=+metallicitySpheroid  &
+            &                       *  spheroid%massGas() &
+            &                       /2.0d0                &
+            &                       /Pi                   &
+            &                       /(                    &
+            &                         +mega               &
+            &                         *spheroid%radius () &
+            &                        )**2
     else
        densitySurfaceMetalsSpheroid=+0.0d0
     end if

@@ -2,7 +2,7 @@
 <!-- Regression test for non-monotonic behavior in decaying dark matter mass profiles -->
 <parameters>
   <formatVersion>2</formatVersion>
-  <version>0.9.4</version>
+  <lastModified revision="65c7326e2d0e0e85feea12ef933222871f069fb2" time="2025-06-10T15:59:50"/>
 
   <verbosityLevel value="2"/>
 
@@ -443,9 +443,7 @@
   <mergingStatistics value="standard"/>
   <outputFileName value="testSuite/outputs/decayingDM-non-monotonic-mass-profile.hdf5"/>
   <outputTimes value="list">
-    <redshifts>
-      <value>0.0 0.5 1.0 2.0 5.0</value>
-    </redshifts>
+    <redshifts value="0.0 0.5 1.0 2.0 5.0"/>
   </outputTimes>
 
 </parameters>
