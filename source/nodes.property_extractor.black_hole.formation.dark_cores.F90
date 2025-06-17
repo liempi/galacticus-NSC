@@ -50,7 +50,7 @@
 
   interface nodePropertyExtractorBlackHoleSeedingDarkCores
      !!{
-     Constructors for the ``BlackHoleSeedingVergara2023'' output analysis class.
+     Constructors for the ``BlackHoleSeedingDarkCores'' output analysis class.
      !!}
      module procedure blackHoleSeedingDarkCoresConstructorParameters
      module procedure blackHoleSeedingDarkCoresConstructorInternal
@@ -60,7 +60,7 @@ contains
 
   function blackHoleSeedingDarkCoresConstructorParameters(parameters) result(self)
     !!{
-    Constructor for the {\normalfont \ttfamily BlackHoleSeedingVergara2023} property extractor class.
+    Constructor for the {\normalfont \ttfamily BlackHoleSeedingDarkCores} property extractor class.
     !!}
     use :: Input_Parameters, only : inputParameters
     implicit none
@@ -76,7 +76,7 @@ contains
 
   function blackHoleSeedingDarkCoresConstructorInternal() result(self)
     !!{
-    Internal constructor for the {\normalfont \ttfamily BlackHoleSeedingVergara2023} property extractor class.
+    Internal constructor for the {\normalfont \ttfamily BlackHoleSeedingDarkCores} property extractor class.
     !!}
     implicit none
     type          (nodePropertyExtractorBlackHoleSeedingDarkCores) :: self
@@ -89,7 +89,7 @@ contains
 
   integer function blackHoleSeedingDarkCoresElementCount(self,time)
     !!{
-    Return the number of elements in the {\normalfont \ttfamily BlackHoleSeedingVergara2023} property extractors.
+    Return the number of elements in the {\normalfont \ttfamily BlackHoleSeedingDarkCores} property extractors.
     !!}
     implicit none
     class           (nodePropertyExtractorBlackHoleSeedingDarkCores), intent(inout) :: self
@@ -102,7 +102,7 @@ contains
 
   function blackHoleSeedingDarkCoresExtract(self,node,time,instance)
     !!{
-    Implement a {\normalfont \ttfamily BlackHoleSeedingVergara2023} property extractor.
+    Implement a {\normalfont \ttfamily BlackHoleSeedingDarkCores} property extractor.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentNSC
     implicit none
@@ -132,7 +132,7 @@ contains
 
   subroutine blackHoleSeedingDarkCoresNames(self,time,names)
     !!{
-    Return the names of the {\normalfont \ttfamily BlackHoleSeedingVergara2023} properties.
+    Return the names of the {\normalfont \ttfamily BlackHoleSeedingDarkCores} properties.
     !!}
     implicit none
     class           (nodePropertyExtractorBlackHoleSeedingDarkCores), intent(inout)                             :: self
@@ -148,7 +148,7 @@ contains
 
   subroutine blackHoleSeedingDarkCoresDescriptions(self,time,descriptions)
     !!{
-    Return descriptions of the {\normalfont \ttfamily blackHoleSeedingVergara2023} property.
+    Return descriptions of the {\normalfont \ttfamily BlackHoleSeedingDarkCores} property.
     !!}
     implicit none
     class           (nodePropertyExtractorBlackHoleSeedingDarkCores), intent(inout)                             :: self
@@ -158,15 +158,15 @@ contains
 
     allocate(descriptions(2))
     descriptions(1)=var_str('Redshift at the formation of the black hole seed in dark cores.')
-    descriptions(2)=var_str('Black hole seed mass in dark cores[M⊙].'                       )
+    descriptions(2)=var_str('Black hole seed mass [M⊙].'                       )
     return
   end subroutine blackHoleSeedingDarkCoresDescriptions
 
   function blackHoleSeedingDarkCoresUnitsInSI(self,time)
     !!{
-    Return the units of the {\normalfont \ttfamily BlackHoleSeedingVergara2023} properties in the SI system.
+    Return the units of the {\normalfont \ttfamily BlackHoleSeedingDarkCores} properties in the SI system.
     !!}
-    use :: Numerical_Constants_Astronomical, only : massSolar, megaParsec, gigayear
+    use :: Numerical_Constants_Astronomical, only : massSolar
     use :: Numerical_Constants_Prefixes    , only : kilo
     implicit none
     double precision                                                , allocatable  , dimension(:) :: blackHoleSeedingDarkCoresUnitsInSI

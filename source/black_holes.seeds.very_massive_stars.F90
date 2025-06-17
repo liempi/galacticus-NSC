@@ -39,12 +39,12 @@
      !!}
      private
      class           (cosmologyFunctionsClass), pointer :: cosmologyFunctions_ => null()
-     double precision                                   :: massFraction                    , nuclearStarClusterMaximumAge
-     integer                                            :: ageNuclearStarClustersID        , gasMassNuclearStarClustersID , &
-       &                                                   stellarMassNuclearStarClustersID, velocityNuclearStarClustersID, &
-       &                                                   redshiftBlackHoleSeedFormationVMSID, radiusNuclearStarClustersID  , &
-       &                                                   blackHoleSeedMassID             , stellarMassFormedNSCID       , &
-       &                                                   timeStellarMassFormedNSCID      , coreCollapseTimescaleNuclearStarClusterID
+     double precision                                   :: massFraction                       , nuclearStarClusterMaximumAge
+     integer                                            :: ageNuclearStarClustersID           , gasMassNuclearStarClustersID             , &
+       &                                                   stellarMassNuclearStarClustersID   , velocityNuclearStarClustersID            , &
+       &                                                   redshiftBlackHoleSeedFormationVMSID, radiusNuclearStarClustersID              , &
+       &                                                   blackHoleSeedMassID                , stellarMassFormedNSCID                   , &
+       &                                                   timeStellarMassFormedNSCID         , coreCollapseTimescaleNuclearStarClusterID
    contains
      final     ::                     veryMassiveStarsDestructor              
      procedure :: mass             => veryMassiveStarsMass
@@ -165,7 +165,6 @@ contains
           return
       class is (nodeComponentNSCStandard)
           ! Standard class, get the properties of the nuclear star cluster component.
-          radiusNuclearStarCluster=nuclearStarCluster%radius()
           ! Unphysical nuclear star cluster, do nothing.
           if   (                                         &
              &   nuclearStarCluster%massStellar()<=0.0d0 &
@@ -176,13 +175,7 @@ contains
              & ) then
             mass=0.0d0
             return
-          end if 
-          ! Get the age of the nuclear star cluster.
-          velocityNuclearStarCluster        =  sqrt(                                                     &
-               &                                    +                   gravitationalConstant_internal   &
-               &                                    *nuclearStarCluster%massStellar                   () & 
-               &                                    /                   radiusNuclearStarCluster         &
-               &                                   )
+          end if
           massStellarNuclearStarCluster     =  nuclearStarCluster%floatRank0MetaPropertyGet(self%    stellarMassFormedNSCID)
           massTimeStellarNuclearStarCluster =  nuclearStarCluster%floatRank0MetaPropertyGet(self%timeStellarMassFormedNSCID)
           basic                             => node              %basic                    (                               )
@@ -201,7 +194,15 @@ contains
              &  nuclearStarCluster%isCollapsed() &
              & ) then
              mass=0.0d0
-          end if 
+          end if
+
+          radiusNuclearStarCluster=nuclearStarCluster%radius()
+          ! Get the age of the nuclear star cluster.
+          velocityNuclearStarCluster        =  sqrt(                                                     &
+               &                                    +                   gravitationalConstant_internal   &
+               &                                    *nuclearStarCluster%massStellar                   () & 
+               &                                    /                   radiusNuclearStarCluster         &
+               &                                   ) 
           
           coreCollapseTimescale = nuclearStarClusterCoreCollapseTimescale(                                  &
               &                                                                   radiusNuclearStarCluster, &
