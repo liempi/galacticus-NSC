@@ -18,7 +18,7 @@
 !!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
 
 !!{
-Implements a star Dissolution rate property extractor class.
+Implements a globular cluster dissolution rate property extractor class.
 !!}
 
   use :: Globular_Cluster_Infall_Rates_Disks    , only : globularClusterInfallRateDisksClass
@@ -34,21 +34,20 @@ Implements a star Dissolution rate property extractor class.
    </description>
   </nodePropertyExtractor>
   !!]
-  type, extends(nodePropertyExtractorScalar) :: nodePropertyExtractorGlobularClusterInfallRate
+  type, extends(nodePropertyExtractorTuple) :: nodePropertyExtractorGlobularClusterInfallRate
      !!{
      A star Dissolution rate property extractor class.
      !!}
      private
      class(globularClusterInfallRateDisksClass    ), pointer :: globularClusterInfallRateDisks_    => null()
      class(globularClusterInfallRateSpheroidsClass), pointer :: globularClusterInfallRateSpheroids_=> null()
-     type (varying_string                         )          :: name_                                            , description_, &
-          &                                                    component
    contains
-     final     ::                globularClusterInfallRateDestructor
-     procedure :: extract     => globularClusterInfallRateExtract
-     procedure :: name        => globularClusterInfallRateName
-     procedure :: description => globularClusterInfallRateDescription
-     procedure :: unitsInSI   => globularClusterInfallRateUnitsInSI
+     final     ::                 globularClusterInfallRateDestructor
+     procedure :: elementCount => globularClusterInfallRateElementCount
+     procedure :: extract      => globularClusterInfallRateExtract
+     procedure :: names        => globularClusterInfallRateNames
+     procedure :: descriptions => globularClusterInfallRateDescriptions
+     procedure :: unitsInSI    => globularClusterInfallRateUnitsInSI
   end type nodePropertyExtractorGlobularClusterInfallRate
 
   interface nodePropertyExtractorGlobularClusterInfallRate
@@ -71,34 +70,11 @@ contains
     type (inputParameters                               ), intent(inout) :: parameters
     class(globularClusterInfallRateDisksClass           ), pointer       :: globularClusterInfallRateDisks_
     class(globularClusterInfallRateSpheroidsClass       ), pointer       :: globularClusterInfallRateSpheroids_
-    type (varying_string                                )                :: component
-    type (enumerationGalacticComponentType              )                :: component_
 
     !![
-    <inputParameter>
-      <name>component</name>
-      <source>parameters</source>
-      <description>The component from which to extract star Dissolution rate.</description>
-    </inputParameter>
+    <objectBuilder class="globularClusterInfallRateDisks"     name="globularClusterInfallRateDisks_"     source="parameters"/>
+    <objectBuilder class="globularClusterInfallRateSpheroids" name="globularClusterInfallRateSpheroids_" source="parameters"/>
     !!]
-    component_=enumerationGalacticComponentEncode(char(component),includesPrefix=.false.)
-    select case (component_%ID)
-    case (galacticComponentDisk    %ID)
-       !![
-       <objectBuilder class="globularClusterInfallRateDisks"     name="globularClusterInfallRateDisks_"     source="parameters"/>
-       !!]
-       globularClusterInfallRateSpheroids_ => null()
-    case (galacticComponentSpheroid%ID)
-       !![
-       <objectBuilder class="globularClusterInfallRateSpheroids" name="globularClusterInfallRateSpheroids_" source="parameters"/>
-       !!]
-       globularClusterInfallRateDisks_     => null()
-    case (galacticComponentTotal   %ID)
-       !![
-       <objectBuilder class="globularClusterInfallRateDisks"     name="globularClusterInfallRateDisks_"     source="parameters"/>
-       <objectBuilder class="globularClusterInfallRateSpheroids" name="globularClusterInfallRateSpheroids_" source="parameters"/>
-       !!]
-    end select
     self=nodePropertyExtractorGlobularClusterInfallRate(globularClusterInfallRateDisks_,globularClusterInfallRateSpheroids_)
     !![
     <inputParametersValidate source="parameters"/>
@@ -108,11 +84,23 @@ contains
     return
   end function globularClusterInfallRateConstructorParameters
 
+  integer function globularClusterInfallRateElementCount(self,time)
+    !!{
+    Return the number of elements in the {\normalfont \ttfamily radiiHalfLightProperties} property extractor class.
+    !!}
+    implicit none
+    class           (nodePropertyExtractorGlobularClusterInfallRate), intent(inout) :: self
+    double precision                                                , intent(in   ) :: time
+    !$GLC attributes unused :: self
+
+    globularClusterInfallRateElementCount=2
+    return
+  end function globularClusterInfallRateElementCount
+
   function globularClusterInfallRateConstructorInternal(globularClusterInfallRateDisks_,globularClusterInfallRateSpheroids_) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily globularClusterInfallRate} property extractor class.
     !!}
-    use :: Error, only : Error_Report
     implicit none
     type (nodePropertyExtractorGlobularClusterInfallRate)                        :: self
     class(globularClusterInfallRateDisksClass           ), intent(in   ), target :: globularClusterInfallRateDisks_
@@ -120,22 +108,6 @@ contains
     !![
     <constructorAssign variables="*globularClusterInfallRateDisks_, *globularClusterInfallRateSpheroids_"/>
     !!]
-
-    if      (associated(self%globularClusterInfallRateDisks_).and.associated(self%globularClusterInfallRateSpheroids_)) then
-       self%name_       ="totalglobularClusterInfallRate"
-       self%description_="Total (disk + spheroid) globular cluster infall rate [M☉ Gyr⁻¹]."
-       self%component   ="total"
-    else if (associated(self%globularClusterInfallRateDisks_)                                                                                                            ) then
-       self%name_       ="diskglobularClusterInfallRate"
-       self%description_="Disk globular cluster infall rate [M☉ Gyr⁻¹]."
-       self%component   ="disk"
-    else if (                                                          associated(self%globularClusterInfallRateSpheroids_)                                                           ) then
-       self%name_       ="spheroidglobularClusterInfallRate"
-       self%description_="Spheroid globular cluster infall rate [M☉ Gyr⁻¹]."
-       self%component   ="spheroid"
-    else
-       call Error_Report('No star infall rate specified.'//{introspection:location})
-    end if
     return
   end function globularClusterInfallRateConstructorInternal
 
@@ -153,55 +125,64 @@ contains
     return
   end subroutine globularClusterInfallRateDestructor
 
-  double precision function globularClusterInfallRateExtract(self,node,instance)
+  double precision function globularClusterInfallRateExtract(self,node,time,instance)
     !!{
     Implement a star Dissolution rate output analysis property extractor.
     !!}
     implicit none
-    class(nodePropertyExtractorGlobularClusterInfallRate), intent(inout), target   :: self
-    type (treeNode                                           ), intent(inout), target   :: node
-    type (multiCounter                                       ), intent(inout), optional :: instance
-    !$GLC attributes unused :: instance
-
-    globularClusterInfallRateExtract=0.0d0
-    if (associated(self%globularClusterInfallRateDisks_    )) globularClusterInfallRateExtract=globularClusterInfallRateExtract+self%globularClusterInfallRateDisks_    %rate(node)
-    if (associated(self%globularClusterInfallRateSpheroids_)) globularClusterInfallRateExtract=globularClusterInfallRateExtract+self%globularClusterInfallRateSpheroids_%rate(node)
+    double precision                                                , dimension(:) , allocatable :: globularClusterInfallRateExtract
+    class           (nodePropertyExtractorGlobularClusterInfallRate), intent(inout), target      :: self
+    type            (treeNode                                      ), intent(inout), target      :: node
+    double precision                                                , intent(in   )              :: time
+    type            (multiCounter                                  ), intent(inout), optional    :: instance
+    !$GLC attributes unused ::self, instance
+    allocate(globularClusterInfallRateExtract(2))
+    globularClusterInfallRateExtract(0)=+self%globularClusterInfallRateDisks_    %rate(node)
+    globularClusterInfallRateExtract(1)=+self%globularClusterInfallRateSpheroids_%rate(node)
     return
   end function globularClusterInfallRateExtract
 
-  function globularClusterInfallRateName(self)
+  subroutine globularClusterInfallRateNames(self,time,names)
     !!{
     Return the name of the globularClusterInfallRate property.
     !!}
     implicit none
-    type (varying_string                                )                :: globularClusterInfallRateName
-    class(nodePropertyExtractorGlobularClusterInfallRate), intent(inout) :: self
-
-    globularClusterInfallRateName=self%name_
+    class           (nodePropertyExtractorGlobularClusterInfallRate), intent(inout)                             :: self
+    double precision                                                , intent(in   )                             :: time
+    type            (varying_string                                ), intent(inout), dimension(:) , allocatable :: names
+    !$GLC attributes unused :: self, time
+    allocate(names(2))
+    names(0)=var_str('diskGlobularClusterInfallRate'    )
+    names(1)=var_str('spheroidGlobularClusterInfallRate')
     return
-  end function globularClusterInfallRateName
+  end subroutine globularClusterInfallRateNames
 
-  function globularClusterInfallRateDescription(self)
+  subroutine globularClusterInfallRateDescriptions(self,time,descriptions)
     !!{
     Return a description of the globularClusterInfallRate property.
     !!}
     implicit none
-    type (varying_string                                )                :: globularClusterInfallRateDescription
     class(nodePropertyExtractorGlobularClusterInfallRate), intent(inout) :: self
-
-    globularClusterInfallRateDescription=self%description_
+    double precision                                     , intent(in   )                             :: time
+    type            (varying_string                     ), intent(inout), dimension(:) , allocatable :: descriptions
+    !$GLC attributes unused :: self, time
+    allocate(descriptions(2))
+    descriptions(0)=var_str('Disk globular clusters infall rate [M☉ Gyr⁻¹].')
+    descriptions(1)=var_str('Spheroidal globular clusters infall rate [M☉ Gyr⁻¹].')
     return
-  end function globularClusterInfallRateDescription
+  end subroutine globularClusterInfallRateDescriptions
 
-  double precision function globularClusterInfallRateUnitsInSI(self)
+  double precision function globularClusterInfallRateUnitsInSI(self, time)
     !!{
     Return the units of the globularClusterInfallRate property in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : massSolar, gigaYear
     implicit none
-    class(nodePropertyExtractorGlobularClusterInfallRate), intent(inout) :: self
-    !$GLC attributes unused :: self
-
-    globularClusterInfallRateUnitsInSI=massSolar/gigaYear
+    double precision                                                , allocatable  , dimension(:) :: globularClusterInfallRateUnitsInSI
+    class           (nodePropertyExtractorGlobularClusterInfallRate), intent(inout)               :: self
+    double precision                                                , intent(in   )               :: time
+    !$GLC attributes unused :: self, time
+    allocate(globularClusterInfallRateUnitsInSI(2))
+    globularClusterInfallRateUnitsInSI=[massSolar/gigaYear, massSolar/gigaYear]
     return
   end function globularClusterInfallRateUnitsInSI

@@ -34,20 +34,19 @@ Implements a star Evaporation rate property extractor class.
    </description>
   </nodePropertyExtractor>
   !!]
-  type, extends(nodePropertyExtractorScalar) :: nodePropertyExtractorGlobularClusterEvaporationRate
+  type, extends(nodePropertyExtractorTuple) :: nodePropertyExtractorGlobularClusterEvaporationRate
      !!{
      A star Evaporation rate property extractor class.
      !!}
      private
      class(globularClusterEvaporationRateDisksClass    ), pointer :: globularClusterEvaporationRateDisks_    => null()
      class(globularClusterEvaporationRateSpheroidsClass), pointer :: globularClusterEvaporationRateSpheroids_=> null()
-     type (varying_string                              )          :: name_                                            , description_, &
-          &                                                          component
    contains
      final     ::                globularClusterEvaporationRateDestructor
+     procedure :: elementCount=> globularClusterEvaporationRateElementCount
      procedure :: extract     => globularClusterEvaporationRateExtract
-     procedure :: name        => globularClusterEvaporationRateName
-     procedure :: description => globularClusterEvaporationRateDescription
+     procedure :: names       => globularClusterEvaporationRateNames
+     procedure :: descriptions=> globularClusterEvaporationRateDescriptions
      procedure :: unitsInSI   => globularClusterEvaporationRateUnitsInSI
   end type nodePropertyExtractorGlobularClusterEvaporationRate
 
@@ -71,34 +70,11 @@ contains
     type (inputParameters                                    ), intent(inout) :: parameters
     class(globularClusterEvaporationRateDisksClass           ), pointer       :: globularClusterEvaporationRateDisks_
     class(globularClusterEvaporationRateSpheroidsClass       ), pointer       :: globularClusterEvaporationRateSpheroids_
-    type (varying_string                                     )                :: component
-    type (enumerationGalacticComponentType                   )                :: component_
 
     !![
-    <inputParameter>
-      <name>component</name>
-      <source>parameters</source>
-      <description>The component from which to extract globular cluster evaporation rate.</description>
-    </inputParameter>
+    <objectBuilder class="globularClusterEvaporationRateDisks"     name="globularClusterEvaporationRateDisks_"     source="parameters"/>
+    <objectBuilder class="globularClusterEvaporationRateSpheroids" name="globularClusterEvaporationRateSpheroids_" source="parameters"/>
     !!]
-    component_=enumerationGalacticComponentEncode(char(component),includesPrefix=.false.)
-    select case (component_%ID)
-    case (galacticComponentDisk    %ID)
-       !![
-       <objectBuilder class="globularClusterEvaporationRateDisks"     name="globularClusterEvaporationRateDisks_"               source="parameters"/>
-       !!]
-       globularClusterEvaporationRateSpheroids_ => null()
-    case (galacticComponentSpheroid%ID)
-       !![
-       <objectBuilder class="globularClusterEvaporationRateSpheroids" name="globularClusterEvaporationRateSpheroids_"           source="parameters"/>
-       !!]
-       globularClusterEvaporationRateDisks_     => null()
-    case (galacticComponentTotal   %ID)
-       !![
-       <objectBuilder class="globularClusterEvaporationRateDisks"     name="globularClusterEvaporationRateDisks_"               source="parameters"/>
-       <objectBuilder class="globularClusterEvaporationRateSpheroids" name="globularClusterEvaporationRateSpheroids_"           source="parameters"/>
-       !!]
-    end select
     self=nodePropertyExtractorGlobularClusterEvaporationRate(globularClusterEvaporationRateDisks_,globularClusterEvaporationRateSpheroids_)
     !![
     <inputParametersValidate source="parameters"/>
@@ -108,11 +84,23 @@ contains
     return
   end function globularClusterEvaporationRateConstructorParameters
 
+  integer function globularClusterEvaporationRateElementCount(self,time)
+    !!{
+    Return the number of elements in the {\normalfont \ttfamily radiiHalfLightProperties} property extractor class.
+    !!}
+    implicit none
+    class           (nodePropertyExtractorGlobularClusterEvaporationRate), intent(inout) :: self
+    double precision                                                     , intent(in   ) :: time
+    !$GLC attributes unused :: self
+
+    globularClusterEvaporationRateElementCount=2
+    return
+  end function globularClusterEvaporationRateElementCount
+
   function globularClusterEvaporationRateConstructorInternal(globularClusterEvaporationRateDisks_,globularClusterEvaporationRateSpheroids_) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily globularClusterEvaporationRate} property extractor class.
     !!}
-    use :: Error, only : Error_Report
     implicit none
     type (nodePropertyExtractorGlobularClusterEvaporationRate)                        :: self
     class(globularClusterEvaporationRateDisksClass           ), intent(in   ), target :: globularClusterEvaporationRateDisks_
@@ -120,22 +108,6 @@ contains
     !![
     <constructorAssign variables="*globularClusterEvaporationRateDisks_, *globularClusterEvaporationRateSpheroids_"/>
     !!]
-
-    if      (associated(self%globularClusterEvaporationRateDisks_).and.associated(self%globularClusterEvaporationRateSpheroids_)) then
-       self%name_       ="totalglobularClusterEvaporationRate"
-       self%description_="Total (disk + spheroid) globular cluster evaporation rate [M☉ Gyr⁻¹]."
-       self%component   ="total"
-    else if (associated(self%globularClusterEvaporationRateDisks_)                                                                                                            ) then
-       self%name_       ="diskglobularClusterEvaporationRate"
-       self%description_="Disk globular cluster evaporation rate [M☉ Gyr⁻¹]."
-       self%component   ="disk"
-    else if (                                                          associated(self%globularClusterEvaporationRateSpheroids_)                                                           ) then
-       self%name_       ="spheroidglobularClusterEvaporationRate"
-       self%description_="Spheroid globular cluster evaporation rate [M☉ Gyr⁻¹]."
-       self%component   ="spheroid"
-    else
-       call Error_Report('No globular clusuter evaporation rate specified.'//{introspection:location})
-    end if
     return
   end function globularClusterEvaporationRateConstructorInternal
 
@@ -153,55 +125,65 @@ contains
     return
   end subroutine globularClusterEvaporationRateDestructor
 
-  double precision function globularClusterEvaporationRateExtract(self,node,instance)
+  double precision function globularClusterEvaporationRateExtract(self,node,time,instance)
     !!{
     Implement a star Evaporation rate output analysis property extractor.
     !!}
     implicit none
-    class(nodePropertyExtractorGlobularClusterEvaporationRate), intent(inout), target   :: self
-    type (treeNode                                           ), intent(inout), target   :: node
-    type (multiCounter                                       ), intent(inout), optional :: instance
-    !$GLC attributes unused :: instance
-
-    globularClusterEvaporationRateExtract=0.0d0
-    if (associated(self%globularClusterEvaporationRateDisks_    )) globularClusterEvaporationRateExtract=globularClusterEvaporationRateExtract+self%globularClusterEvaporationRateDisks_    %rate(node)
-    if (associated(self%globularClusterEvaporationRateSpheroids_)) globularClusterEvaporationRateExtract=globularClusterEvaporationRateExtract+self%globularClusterEvaporationRateSpheroids_%rate(node)
-    return
+    double precision                                                     , dimension(:) , allocatable :: globularClusterEvaporationRateExtract
+    class           (nodePropertyExtractorGlobularClusterEvaporationRate), intent(inout), target      :: self
+    type            (treeNode                                           ), intent(inout), target      :: node
+    double precision                                                     , intent(in   )              :: time
+    type            (multiCounter                                       ), intent(inout), optional    :: instance
+    !$GLC attributes unused ::self, instance
+    
+    allocate(globularClusterEvaporationRateExtract(2))
+    globularClusterEvaporationRateExtract(0)=+self%globularClusterEvaporationRateDisks_    %rate(node)
+    globularClusterEvaporationRateExtract(1)=+self%globularClusterEvaporationRateSpheroids_%rate(node)
+    return 
   end function globularClusterEvaporationRateExtract
 
-  function globularClusterEvaporationRateName(self)
+  subroutine globularClusterEvaporationRateNames(self,time,names)
     !!{
     Return the name of the globularClusterEvaporationRate property.
     !!}
     implicit none
-    type (varying_string                                     )                :: globularClusterEvaporationRateName
-    class(nodePropertyExtractorGlobularClusterEvaporationRate), intent(inout) :: self
-
-    globularClusterEvaporationRateName=self%name_
+    class           (nodePropertyExtractorGlobularClusterEvaporationRate), intent(inout)                             :: self
+    double precision                                                     , intent(in   )                             :: time
+    type            (varying_string                                     ), intent(inout), dimension(:) , allocatable :: names
+    !$GLC attributes unused :: self, time
+    allocate(names(2))
+    names(0)=var_str('diskGlobularClusterEvaporationRate'    )
+    names(1)=var_str('spheroidGlobularClusterEvapotationRate')
     return
-  end function globularClusterEvaporationRateName
+  end subroutine globularClusterEvaporationRateNames
 
-  function globularClusterEvaporationRateDescription(self)
+  subroutine globularClusterEvaporationRateDescriptions(self,time,descriptions)
     !!{
     Return a description of the globularClusterEvaporationRate property.
     !!}
     implicit none
-    type (varying_string                                     )                :: globularClusterEvaporationRateDescription
-    class(nodePropertyExtractorGlobularClusterEvaporationRate), intent(inout) :: self
-
-    globularClusterEvaporationRateDescription=self%description_
+    class(nodePropertyExtractorGlobularClusterEvaporationRate), intent(inout)                             :: self
+    double precision                                          , intent(in   )                             :: time
+    type            (varying_string                          ), intent(inout), dimension(:) , allocatable :: descriptions
+    !$GLC attributes unused :: self, time
+    allocate(descriptions(2))
+    descriptions(0)=var_str('Disk globular cluster evaporation rate [M☉ Gyr⁻¹].')
+    descriptions(1)=var_str('Spheroidal globular cluster evaporation rate [M☉ Gyr⁻¹].')
     return
-  end function globularClusterEvaporationRateDescription
+  end subroutine globularClusterEvaporationRateDescriptions
 
-  double precision function globularClusterEvaporationRateUnitsInSI(self)
+  double precision function globularClusterEvaporationRateUnitsInSI(self, time)
     !!{
     Return the units of the globularClusterEvaporationRate property in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : massSolar, gigaYear
     implicit none
-    class(nodePropertyExtractorGlobularClusterEvaporationRate), intent(inout) :: self
-    !$GLC attributes unused :: self
-
-    globularClusterEvaporationRateUnitsInSI=massSolar/gigaYear
+    double precision                                                     , allocatable  , dimension(:) :: globularClusterEvaporationRateUnitsInSI
+    class           (nodePropertyExtractorGlobularClusterEvaporationRate), intent(inout)               :: self
+    double precision                                                     , intent(in   )               :: time
+    !$GLC attributes unused :: self, time
+    allocate(globularClusterEvaporationRateUnitsInSI(2))
+    globularClusterEvaporationRateUnitsInSI=[massSolar/gigaYear, massSolar/gigaYear]
     return
   end function globularClusterEvaporationRateUnitsInSI

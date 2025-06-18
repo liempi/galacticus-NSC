@@ -92,8 +92,8 @@ contains
     !!}
     implicit none
     type            (globularClusterEvaporationRateDisksAntonini2015)                :: self
-    double precision                                             , intent(in   ) :: massMinimumGlobularClusters
-    double precision                                             , intent(in   ) :: massMaximumGlobularClusters
+    double precision                                                 , intent(in   ) :: massMinimumGlobularClusters
+    double precision                                                 , intent(in   ) :: massMaximumGlobularClusters
 
     !![
     <constructorAssign variables="massMinimumGlobularClusters, massMaximumGlobularClusters"/>

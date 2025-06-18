@@ -34,20 +34,19 @@ Implements a star formation rate property extractor class.
    </description>
   </nodePropertyExtractor>
   !!]
-  type, extends(nodePropertyExtractorScalar) :: nodePropertyExtractorGlobularClusterFormationRate
+  type, extends(nodePropertyExtractorTuple) :: nodePropertyExtractorGlobularClusterFormationRate
      !!{
      A star formation rate property extractor class.
      !!}
      private
      class(globularClusterFormationRateDisksClass    ), pointer :: globularClusterFormationRateDisks_    => null()
      class(globularClusterFormationRateSpheroidsClass), pointer :: globularClusterFormationRateSpheroids_=> null()
-     type (varying_string                            )          :: name_                                          , description_, &
-          &                                                        component
    contains
      final     ::                globularClusterFormationRateDestructor
+     procedure :: elementCount=> globularClusterFormationRateElementCount
      procedure :: extract     => globularClusterFormationRateExtract
-     procedure :: name        => globularClusterFormationRateName
-     procedure :: description => globularClusterFormationRateDescription
+     procedure :: names       => globularClusterFormationRateNames
+     procedure :: descriptions=> globularClusterFormationRateDescriptions
      procedure :: unitsInSI   => globularClusterFormationRateUnitsInSI
   end type nodePropertyExtractorGlobularClusterFormationRate
 
@@ -71,34 +70,11 @@ contains
     type (inputParameters                                  ), intent(inout) :: parameters
     class(globularClusterFormationRateDisksClass           ), pointer       :: globularClusterFormationRateDisks_
     class(globularClusterFormationRateSpheroidsClass       ), pointer       :: globularClusterFormationRateSpheroids_
-    type (varying_string                                   )                :: component
-    type (enumerationGalacticComponentType                 )                :: component_
 
     !![
-    <inputParameter>
-      <name>component</name>
-      <source>parameters</source>
-      <description>The component from which to extract star formation rate.</description>
-    </inputParameter>
+    <objectBuilder class="globularClusterFormationRateDisks"     name="globularClusterFormationRateDisks_"      source="parameters"/>
+    <objectBuilder class="globularClusterFormationRateSpheroids" name="globularClusterFormationRateSpheroids_"  source="parameters"/>
     !!]
-    component_=enumerationGalacticComponentEncode(char(component),includesPrefix=.false.)
-    select case (component_%ID)
-    case (galacticComponentDisk    %ID)
-       !![
-       <objectBuilder class="globularClusterFormationRateDisks"     name="globularClusterFormationRateDisks_"               source="parameters"/>
-       !!]
-       globularClusterFormationRateSpheroids_ => null()
-    case (galacticComponentSpheroid%ID)
-       !![
-       <objectBuilder class="globularClusterFormationRateSpheroids" name="globularClusterFormationRateSpheroids_"           source="parameters"/>
-       !!]
-       globularClusterFormationRateDisks_     => null()
-    case (galacticComponentTotal   %ID)
-       !![
-       <objectBuilder class="globularClusterFormationRateDisks"     name="globularClusterFormationRateDisks_"               source="parameters"/>
-       <objectBuilder class="globularClusterFormationRateSpheroids" name="globularClusterFormationRateSpheroids_"           source="parameters"/>
-       !!]
-    end select
     self=nodePropertyExtractorGlobularClusterFormationRate(globularClusterFormationRateDisks_,globularClusterFormationRateSpheroids_)
     !![
     <inputParametersValidate source="parameters"/>
@@ -108,34 +84,31 @@ contains
     return
   end function globularClusterFormationRateConstructorParameters
 
+  integer function globularClusterFormationRateElementCount(self,time)
+    !!{
+    Return the number of elements in the {\normalfont \ttfamily radiiHalfLightProperties} property extractor class.
+    !!}
+    implicit none
+    class           (nodePropertyExtractorGlobularClusterFormationRate), intent(inout) :: self
+    double precision                                                   , intent(in   ) :: time
+    !$GLC attributes unused :: self
+
+    globularClusterFormationRateElementCount=2
+    return
+  end function globularClusterFormationRateElementCount
+
   function globularClusterFormationRateConstructorInternal(globularClusterFormationRateDisks_,globularClusterFormationRateSpheroids_) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily globularClusterFormationRate} property extractor class.
     !!}
     use :: Error, only : Error_Report
     implicit none
-    type (nodePropertyExtractorGlobularClusterFormationRate   )                        :: self
-    class(globularClusterFormationRateDisksClass              ), intent(in   ), target :: globularClusterFormationRateDisks_
-    class(globularClusterFormationRateSpheroidsClass          ), intent(in   ), target :: globularClusterFormationRateSpheroids_
+    type (nodePropertyExtractorGlobularClusterFormationRate)                        :: self
+    class(globularClusterFormationRateDisksClass           ), intent(in   ), target :: globularClusterFormationRateDisks_
+    class(globularClusterFormationRateSpheroidsClass       ), intent(in   ), target :: globularClusterFormationRateSpheroids_
     !![
     <constructorAssign variables="*globularClusterFormationRateDisks_, *globularClusterFormationRateSpheroids_"/>
     !!]
-
-    if      (associated(self%globularClusterFormationRateDisks_).and.associated(self%globularClusterFormationRateSpheroids_)) then
-       self%name_       ="totalglobularClusterFormationRate"
-       self%description_="Total (disk + spheroid) globular cluster formation rate [M☉ Gyr⁻¹]."
-       self%component   ="total"
-    else if (associated(self%globularClusterFormationRateDisks_)                                                                                                            ) then
-       self%name_       ="diskglobularClusterFormationRate"
-       self%description_="Disk globular cluster formation rate [M☉ Gyr⁻¹]."
-       self%component   ="disk"
-    else if (                                                        associated(self%globularClusterFormationRateSpheroids_)                                                           ) then
-       self%name_       ="spheroidglobularClusterFormationRate"
-       self%description_="Spheroid globular cluster formation rate [M☉ Gyr⁻¹]."
-       self%component   ="spheroid"
-    else
-       call Error_Report('No star formation rate specified.'//{introspection:location})
-    end if
     return
   end function globularClusterFormationRateConstructorInternal
 
@@ -153,55 +126,64 @@ contains
     return
   end subroutine globularClusterFormationRateDestructor
 
-  double precision function globularClusterFormationRateExtract(self,node,instance)
+  double precision function globularClusterFormationRateExtract(self,node,time,instance)
     !!{
     Implement a star formation rate output analysis property extractor.
     !!}
     implicit none
-    class(nodePropertyExtractorGlobularClusterFormationRate), intent(inout), target   :: self
-    type (treeNode                                         ), intent(inout), target   :: node
-    type (multiCounter                                     ), intent(inout), optional :: instance
-    !$GLC attributes unused :: instance
-
-    globularClusterFormationRateExtract=0.0d0
-    if (associated(self%globularClusterFormationRateDisks_    )) globularClusterFormationRateExtract=globularClusterFormationRateExtract+self%globularClusterFormationRateDisks_    %rate(node)
-    if (associated(self%globularClusterFormationRateSpheroids_)) globularClusterFormationRateExtract=globularClusterFormationRateExtract+self%globularClusterFormationRateSpheroids_%rate(node)
+    double precision                                                   , dimension(:) , allocatable :: globularClusterFormationRateExtract
+    class           (nodePropertyExtractorGlobularClusterFormationRate), intent(inout), target      :: self
+    type            (treeNode                                         ), intent(inout), target      :: node
+    double precision                                                   , intent(in   )              :: time
+    type            (multiCounter                                     ), intent(inout), optional    :: instance
+    !$GLC attributes unused ::self, instance
+    allocate(globularClusterFormationRateExtract(2))
+    globularClusterFormationRateExtract(0)=self%globularClusterFormationRateDisks_    %rate(node)
+    globularClusterFormationRateExtract(1)=self%globularClusterFormationRateSpheroids_%rate(node)
     return
   end function globularClusterFormationRateExtract
 
-  function globularClusterFormationRateName(self)
+  subroutine globularClusterFormationRateNames(self,time,names)
     !!{
     Return the name of the globularClusterFormationRate property.
     !!}
     implicit none
-    type (varying_string                                   )                :: globularClusterFormationRateName
-    class(nodePropertyExtractorGlobularClusterFormationRate), intent(inout) :: self
-
-    globularClusterFormationRateName=self%name_
+    class           (nodePropertyExtractorGlobularClusterFormationRate), intent(inout)                             :: self
+    double precision                                                   , intent(in   )                             :: time
+    type            (varying_string                                   ), intent(inout), dimension(:) , allocatable :: names
+    !$GLC attributes unused :: self, time
+    allocate(names(2))
+    names(0)=var_str('diskGlobularClusterFormationRate'    )
+    names(1)=var_str('spheroidGlobularClusterFormationRate')
     return
-  end function globularClusterFormationRateName
+  end subroutine globularClusterFormationRateNames
 
-  function globularClusterFormationRateDescription(self)
+  subroutine globularClusterFormationRateDescriptions(self,time,descriptions)
     !!{
     Return a description of the globularClusterFormationRate property.
     !!}
     implicit none
-    type (varying_string                                   )                :: globularClusterFormationRateDescription
-    class(nodePropertyExtractorGlobularClusterFormationRate), intent(inout) :: self
-
-    globularClusterFormationRateDescription=self%description_
+    class           (nodePropertyExtractorGlobularClusterFormationRate), intent(inout)                             :: self
+    double precision                                                   , intent(in   )                             :: time
+    type            (varying_string                                   ), intent(inout), dimension(:) , allocatable :: descriptions
+    !$GLC attributes unused :: self, time
+    allocate(descriptions(2))
+    descriptions(0)=var_str('Disk globular cluster formation rate [M☉ Gyr⁻¹].')
+    descriptions(1)=var_str('Spheroidal globular cluster formation rate [M☉ Gyr⁻¹].')
     return
-  end function globularClusterFormationRateDescription
+  end subroutine globularClusterFormationRateDescriptions
 
-  double precision function globularClusterFormationRateUnitsInSI(self)
+  double precision function globularClusterFormationRateUnitsInSI(self,time)
     !!{
     Return the units of the globularClusterFormationRate property in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : massSolar, gigaYear
     implicit none
-    class(nodePropertyExtractorGlobularClusterFormationRate), intent(inout) :: self
-    !$GLC attributes unused :: self
-
-    globularClusterFormationRateUnitsInSI=massSolar/gigaYear
+    double precision                                                   , allocatable  , dimension(:) :: globularClusterFormationRateUnitsInSI
+    class           (nodePropertyExtractorGlobularClusterFormationRate), intent(inout)               :: self
+    double precision                                                   , intent(in   )               :: time
+    !$GLC attributes unused :: self, time
+    allocate(globularClusterFormationRateUnitsInSI(2))
+    globularClusterFormationRateUnitsInSI=[massSolar/gigaYear, massSolar/gigaYear]
     return
   end function globularClusterFormationRateUnitsInSI

@@ -243,7 +243,7 @@ contains
         velocityDispersionStellar = 0.29d0*rotationCurveMaximum      ! km s⁻¹
         ! Use Eq. in  A. Dutton and F. C. van den Bosch. The impact of feedback on disc galaxy scaling relations. MNRAS, 396(1):141–164, June 2009. doi: 10.1111/j.1365-2966.2009. 14742.x.
         velocityDispersionGas     = 0.10d0*velocityDispersionStellar ! km s⁻¹
-        ! Define the integrand. The result it is originaly in km s⁻¹, but we transform from km to Mpc to by consistent with the units
+        ! Define the integrand. The result it is originaly in km s⁻¹, but we transform from km to Mpc to be consistent with the units
         ! of dr. The final unit is s⁻¹.
         radialIntegrand=+2.0d0*Pi*radius                                                   & ! Mpc
            &            *surfaceDensityStellar                                             & ! M☉ Mpc⁻²
