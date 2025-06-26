@@ -101,7 +101,7 @@ contains
     <constructorAssign variables="massMinimumGlobularClusters, massMaximumGlobularClusters, *darkMatterHaloScale_"/>
 
     <addMetaProperty component="spheroid" name="globularClusterStellarMassSpheroid"     id="self%globularClusterStellarMassSpheroidID"     isEvolvable="yes" isCreator="no" />
-    <addMetaProperty component="spheroid" name="globularClusterInfallTimescaleSpheroid" id="self%globularClusterInfallTimescaleSpheroidID" isEvolvable="no"  isCreator="yes"/>
+    <addMetaProperty component="spheroid" name="globularClusterInfallTimescaleSpheroid" id="self%globularClusterInfallTimescaleSpheroidID" isEvolvable="yes" isCreator="yes"/>
     !!]
     return
   end function globularClusterInfallSpheAntonini2015ConstructorInternal

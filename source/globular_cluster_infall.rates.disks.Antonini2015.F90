@@ -101,7 +101,7 @@ contains
     !![
     <constructorAssign variables="massMinimumGlobularClusters, massMaximumGlobularClusters,*darkMatterHaloScale_"/>
     <addMetaProperty component="disk" name="globularClusterStellarMassDisk"     id="self%globularClusterStellarMassDiskID"     isEvolvable="yes" isCreator="no" />
-    <addMetaProperty component="disk" name="globularClusterInfallTimescaleDisk" id="self%globularClusterInfallTimescaleDiskID" isEvolvable="no"  isCreator="yes"/>
+    <addMetaProperty component="disk" name="globularClusterInfallTimescaleDisk" id="self%globularClusterInfallTimescaleDiskID" isEvolvable="yes"  isCreator="yes"/>
     !!]
     return
   end function globularClusterInfallDisksAntonini2015ConstructorInternal

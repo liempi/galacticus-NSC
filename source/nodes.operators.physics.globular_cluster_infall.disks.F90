@@ -92,7 +92,7 @@ contains
     !![
     <constructorAssign variables="fraction,*globularClusterInfallRateDisks_"/>
     <addMetaProperty component="disk" name="globularClusterStellarMassDisk"     id="self%globularClusterStellarMassDiskID"     isEvolvable="yes" isCreator="no"/>
-    <addMetaProperty component="disk" name="globularClusterInfallTimescaleDisk" id="self%globularClusterInfallTimescaleDiskID" isEvolvable="yes" isCreator="yes"/>
+    <addMetaProperty component="disk" name="globularClusterInfallTimescaleDisk" id="self%globularClusterInfallTimescaleDiskID" isEvolvable="yes"  isCreator="no"/>
     !!]
     return
   end function globularClusterInfallDisksConstructorInternal
