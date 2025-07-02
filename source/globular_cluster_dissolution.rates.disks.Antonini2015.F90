@@ -110,7 +110,7 @@ contains
     class           (massDistributionClass                          ), pointer                :: massDistributionStellar_
     class           (nodeComponentDisk                              ), pointer                :: disk
     double precision                                                 , parameter              :: radiusInnerDimensionless         =1.0d-13 , radiusOuterDimensionless=10.0d0
-    double precision                                                 , parameter              :: rotationPeriodNormalization      =41.4d-3  ! Mpc⁻¹
+    double precision                                                 , parameter              :: rotationPeriodNormalization      =41.4d3  ! Mpc⁻¹
     double precision                                                 , parameter              :: dissolutionTimescaleNormalization=10.0d0   ! Gyr
     double precision                                                 , parameter              :: globularClusterMassNormalization =2.0d5    ! M☉ 
     double precision                                                                          :: radiusDisk                                , massStellar                    , &
