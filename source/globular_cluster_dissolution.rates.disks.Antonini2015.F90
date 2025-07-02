@@ -100,14 +100,14 @@ contains
     !!{
     Returns the globular dissolution rate (in $\mathrm{M}_\odot$ Gyr$^{-1}$) in the galactic disk of {\normalfont \ttfamily node}
     !!}
-    use :: Galactic_Structure_Options, only : componentTypeDisk    , massTypeStellar          , massTypeGalactic
+    use :: Galactic_Structure_Options, only : componentTypeDisk    , massTypeStellar
     use :: Galacticus_Nodes          , only : nodeComponentDisk    , nodeComponentDiskStandard, treeNode
     use :: Mass_Distributions        , only : massDistributionClass
     use :: Numerical_Integration     , only : integrator
     implicit none
     class           (globularClusterDissolutionRateDisksAntonini2015), intent(inout), target  :: self
     type            (treeNode                                       ), intent(inout), target  :: node
-    class           (massDistributionClass                          ), pointer                :: massDistributionStellar_                  , massDistributionGalactic_
+    class           (massDistributionClass                          ), pointer                :: massDistributionStellar_
     class           (nodeComponentDisk                              ), pointer                :: disk
     double precision                                                 , parameter              :: radiusInnerDimensionless         =1.0d-13 , radiusOuterDimensionless=10.0d0
     double precision                                                 , parameter              :: rotationPeriodNormalization      =41.4d-3  ! Mpc⁻¹
@@ -158,7 +158,6 @@ contains
             radiusOuter=radiusDisk*radiusOuterDimensionless
             ! Get the mass distributions to use in the radial integrand function.
             massDistributionStellar_ => node%massDistribution(componentType=componentTypeDisk,massType=massTypeStellar )
-            massDistributionGalactic_=> node%massDistribution(                                massType=massTypeGalactic)
             ! Integrate over the radius.
             integrator_         =integrator(radialIntegrand,toleranceRelative=1.0d-3, hasSingularities=.true.)
             radialIntegralResult=integrator_%integrate(radiusInner,radiusOuter) ! M☉ Mpc⁻¹
@@ -173,7 +172,6 @@ contains
              &   *globularClusterIntegralResult                     ! M☉⁻⁵/³  
             !![
               <objectDestructor name="massDistributionStellar_"/>
-              <objectDestructor name="massDistributionGalactic_"/>
             !!]                                                
           end if
         end if
@@ -193,8 +191,8 @@ contains
         ! Define coordinates.
         coordinates    = [radius,0.0d0,0.0d0]
         ! Get the galactic rotation curve at the radius.
-        velocityRotation=massDistributionGalactic_%rotationCurve (     radius) ! km s⁻¹
-        surfaceDensity  =massDistributionStellar_ %surfaceDensity(coordinates) ! M☉ Mpc⁻²
+        velocityRotation=massDistributionStellar_%rotationCurve (     radius) ! km s⁻¹
+        surfaceDensity  =massDistributionStellar_%surfaceDensity(coordinates) ! M☉ Mpc⁻²
         ! The result of the integral is M☉ Mpc⁻¹.
         radialIntegrand =+2.0d0*Pi                                 & ! Adimensional
           &              *surfaceDensity                           & ! M☉ Mpc⁻²
