@@ -140,8 +140,8 @@ contains
     !$GLC attributes unused ::self, instance
     
     allocate(globularClusterDissolutionRateExtract(2))
-    globularClusterDissolutionRateExtract(0)=+self%globularClusterDissolutionRateDisks_    %rate(node)
-    globularClusterDissolutionRateExtract(1)=+self%globularClusterDissolutionRateSpheroids_%rate(node)
+    globularClusterDissolutionRateExtract(1)=+self%globularClusterDissolutionRateDisks_    %rate(node)
+    globularClusterDissolutionRateExtract(2)=+self%globularClusterDissolutionRateSpheroids_%rate(node)
     return
   end function globularClusterDissolutionRateExtract
 
@@ -155,8 +155,8 @@ contains
     type            (varying_string                                     ), intent(inout), dimension(:) , allocatable :: names
     !$GLC attributes unused :: self, time
     allocate(names(2))
-    names(0)=var_str('diskGlobularClusterDissolutionRate'    )
-    names(1)=var_str('spheroidGlobularClusterDissolutionRate')
+    names(1)=var_str('diskGlobularClusterDissolutionRate'    )
+    names(2)=var_str('spheroidGlobularClusterDissolutionRate')
     return
   end subroutine globularClusterDissolutionRateNames
 
@@ -170,8 +170,8 @@ contains
     type            (varying_string                                     ), intent(inout), dimension(:) , allocatable :: descriptions
     !$GLC attributes unused :: self, time
     allocate(descriptions(2))
-    descriptions(0)=var_str('Disk globular cluster dissolution rate [M☉ Gyr⁻¹].')
-    descriptions(1)=var_str('Spheroidal globular cluster dissolution rate [M☉ Gyr⁻¹].')
+    descriptions(1)=var_str('Disk globular cluster dissolution rate [M☉ Gyr⁻¹].')
+    descriptions(2)=var_str('Spheroidal globular cluster dissolution rate [M☉ Gyr⁻¹].')
     return
   end subroutine globularClusterDissolutionRateDescriptions
 

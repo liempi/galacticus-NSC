@@ -147,8 +147,8 @@ contains
     !$GLC attributes unused :: self, time
 
     allocate(names(2))
-    names(1)=var_str('diskGlobularClusterMass'              )
-    names(2)=var_str('spheroidGlobularClusterMass'          )
+    names(1)=var_str('diskGlobularClusterMass'    )
+    names(2)=var_str('spheroidGlobularClusterMass')
     return
   end subroutine globularClusterMassNames
 
@@ -163,8 +163,8 @@ contains
     !$GLC attributes unused :: self, time
 
     allocate(descriptions(2))
-    descriptions(1)=var_str('Stellar mass of globular clusters in the disk [M].'    )
-    descriptions(2)=var_str('Stellar mass of globular clusters in the spheroid [M].')
+    descriptions(1)=var_str('Stellar mass of globular clusters in the disk [M☉].'    )
+    descriptions(2)=var_str('Stellar mass of globular clusters in the spheroid [M☉].')
     return
   end subroutine globularClusterMassDescriptions
 
@@ -180,7 +180,7 @@ contains
    !$GLC attributes unused :: self, time
 
     allocate(globularClusterMassUnitsInSI(2))
-    globularClusterMassUnitsInSI=massSolar
+    globularClusterMassUnitsInSI=[massSolar, massSolar]
     return
   end function globularClusterMassUnitsInSI
 

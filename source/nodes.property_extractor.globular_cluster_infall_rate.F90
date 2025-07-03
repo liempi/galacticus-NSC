@@ -137,8 +137,8 @@ contains
     type            (multiCounter                                  ), intent(inout), optional    :: instance
     !$GLC attributes unused ::self, instance
     allocate(globularClusterInfallRateExtract(2))
-    globularClusterInfallRateExtract(0)=+self%globularClusterInfallRateDisks_    %rate(node)
-    globularClusterInfallRateExtract(1)=+self%globularClusterInfallRateSpheroids_%rate(node)
+    globularClusterInfallRateExtract(1)=+self%globularClusterInfallRateDisks_    %rate(node)
+    globularClusterInfallRateExtract(2)=+self%globularClusterInfallRateSpheroids_%rate(node)
     return
   end function globularClusterInfallRateExtract
 
@@ -152,8 +152,8 @@ contains
     type            (varying_string                                ), intent(inout), dimension(:) , allocatable :: names
     !$GLC attributes unused :: self, time
     allocate(names(2))
-    names(0)=var_str('diskGlobularClusterInfallRate'    )
-    names(1)=var_str('spheroidGlobularClusterInfallRate')
+    names(1)=var_str('diskGlobularClusterInfallRate'    )
+    names(2)=var_str('spheroidGlobularClusterInfallRate')
     return
   end subroutine globularClusterInfallRateNames
 
@@ -167,8 +167,8 @@ contains
     type            (varying_string                     ), intent(inout), dimension(:) , allocatable :: descriptions
     !$GLC attributes unused :: self, time
     allocate(descriptions(2))
-    descriptions(0)=var_str('Disk globular clusters infall rate [M☉ Gyr⁻¹].')
-    descriptions(1)=var_str('Spheroidal globular clusters infall rate [M☉ Gyr⁻¹].')
+    descriptions(1)=var_str('Disk globular clusters infall rate [M☉ Gyr⁻¹].')
+    descriptions(2)=var_str('Spheroidal globular clusters infall rate [M☉ Gyr⁻¹].')
     return
   end subroutine globularClusterInfallRateDescriptions
 
