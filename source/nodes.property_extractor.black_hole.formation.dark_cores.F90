@@ -30,22 +30,20 @@
    </description>
   </nodePropertyExtractor>
   !!]
-  type, extends(nodePropertyExtractorTuple) :: nodePropertyExtractorBlackHoleSeedingDarkCores
+  type, extends(nodePropertyExtractorScalar) :: nodePropertyExtractorBlackHoleSeedingDarkCores
      !!{
      A property extractor class for the velocity dispersion at a set of radii.
      !!}
      private
-     integer  :: radiusNuclearStarClustersID          , blackHoleSeedMassID              , &
-         &       velocityNuclearStarClustersID        , ageNuclearStarClustersID         , &
-         &       gasMassNuclearStarClustersID         , criticalMassNuclearStarClustersID, &
-         &       redshiftBlackHoleSeedFormationID     , stellarMassNuclearStarClustersID , &                                                                    
-         &       mergerTreeWeightNuclearStarClustersID   
+     integer  :: radiusNuclearStarClustersID     , blackHoleSeedMassID              , &
+         &       velocityNuclearStarClustersID   , ageNuclearStarClustersID         , &
+         &       gasMassNuclearStarClustersID    , criticalMassNuclearStarClustersID, &
+         &       stellarMassNuclearStarClustersID                                                      
    contains
-     procedure :: elementCount       => blackHoleSeedingDarkCoresElementCount
-     procedure :: extract            => blackHoleSeedingDarkCoresExtract
-     procedure :: names              => blackHoleSeedingDarkCoresNames
-     procedure :: descriptions       => blackHoleSeedingDarkCoresDescriptions
-     procedure :: unitsInSI          => blackHoleSeedingDarkCoresUnitsInSI
+     procedure :: extract      => blackHoleSeedingDarkCoresExtract
+     procedure :: name         => blackHoleSeedingDarkCoresName
+     procedure :: description  => blackHoleSeedingDarkCoresDescription
+     procedure :: unitsInSI    => blackHoleSeedingDarkCoresUnitsInSI
   end type nodePropertyExtractorBlackHoleSeedingDarkCores
 
   interface nodePropertyExtractorBlackHoleSeedingDarkCores
@@ -65,7 +63,7 @@ contains
     use :: Input_Parameters, only : inputParameters
     implicit none
     type (nodePropertyExtractorBlackHoleSeedingDarkCores)                :: self
-    type (inputParameters                                 ), intent(inout) :: parameters
+    type (inputParameters                               ), intent(inout) :: parameters
 
     self=nodePropertyExtractorBlackHoleSeedingDarkCores()
     !![
@@ -81,100 +79,68 @@ contains
     implicit none
     type          (nodePropertyExtractorBlackHoleSeedingDarkCores) :: self
     !![
-    <addMetaProperty   component="NSC"  name="blackHoleSeedMassFormed"        id="self%blackHoleSeedMassID"              isEvolvable="no" isCreator="no"/>
-    <addMetaProperty   component="NSC"  name="redshiftBlackHoleSeedFormation" id="self%redshiftBlackHoleSeedFormationID" isEvolvable="no" isCreator="no"/>
+    <addMetaProperty component="NSC" name="blackHoleSeedMassFormed" id="self%blackHoleSeedMassID" isEvolvable="no" isCreator="no"/>
     !!]
     return
   end function blackHoleSeedingDarkCoresConstructorInternal
 
-  integer function blackHoleSeedingDarkCoresElementCount(self,time)
-    !!{
-    Return the number of elements in the {\normalfont \ttfamily BlackHoleSeedingDarkCores} property extractors.
-    !!}
-    implicit none
-    class           (nodePropertyExtractorBlackHoleSeedingDarkCores), intent(inout) :: self
-    double precision                                                , intent(in   ) :: time
-    !$GLC attributes unused :: time
-
-    blackHoleSeedingDarkCoresElementCount=2
-    return
-  end function blackHoleSeedingDarkCoresElementCount
-
-  function blackHoleSeedingDarkCoresExtract(self,node,time,instance)
+  function blackHoleSeedingDarkCoresExtract(self,node,instance)
     !!{
     Implement a {\normalfont \ttfamily BlackHoleSeedingDarkCores} property extractor.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentNSC
     implicit none
-    double precision                                                , dimension(:) , allocatable :: blackHoleSeedingDarkCoresExtract
+    double precision                                                                             :: blackHoleSeedingDarkCoresExtract
     class           (nodePropertyExtractorBlackHoleSeedingDarkCores), intent(inout), target      :: self
     type            (treeNode                                      ), intent(inout), target      :: node
-    double precision                                                , intent(in   )              :: time
     type            (multiCounter                                  ), intent(inout), optional    :: instance
     class           (nodeComponentNSC                              )               , pointer     :: nuclearStarCluster
+    !$GLC attributes unused :: instance
 
-    !$GLC attributes unused :: time, instance
-
-    allocate(blackHoleSeedingDarkCoresExtract(2))
     nuclearStarCluster => node%NSC()
     select type (nuclearStarCluster)
     type is (nodeComponentNSC)
       ! Nuclear star cluster does not yet exist.
-      blackHoleSeedingDarkCoresExtract=[0.0d0, 0.0d0]
+      blackHoleSeedingDarkCoresExtract=0.0d0
     class default
-      blackHoleSeedingDarkCoresExtract=[                                                                                        &
-       &                                  nuclearStarCluster%floatRank0MetaPropertyGet(self%redshiftBlackHoleSeedFormationID ), &
-       &                                  nuclearStarCluster%floatRank0MetaPropertyGet(self%blackHoleSeedMassID              )  &
-       &                                ]
+      blackHoleSeedingDarkCoresExtract=nuclearStarCluster%floatRank0MetaPropertyGet(self%blackHoleSeedMassID)
     end select
     return
   end function blackHoleSeedingDarkCoresExtract
 
-  subroutine blackHoleSeedingDarkCoresNames(self,time,names)
+  function blackHoleSeedingDarkCoresName(self)
     !!{
     Return the names of the {\normalfont \ttfamily BlackHoleSeedingDarkCores} properties.
     !!}
     implicit none
-    class           (nodePropertyExtractorBlackHoleSeedingDarkCores), intent(inout)                             :: self
-    double precision                                                , intent(in   )                             :: time
-    type            (varying_string                                ), intent(inout), dimension(:) , allocatable :: names
-    !$GLC attributes unused :: self, time
+    class (nodePropertyExtractorBlackHoleSeedingDarkCores), intent(inout) :: self
+    type  (varying_string                                )                :: blackHoleSeedingDarkCoresName
+    !$GLC attributes unused :: self
     
-    allocate(names(2))
-    names(1)=var_str('blackHoleFormationRedshift')
-    names(2)=var_str('blackHoleSeedMass'         )
+    blackHoleSeedingDarkCoresName=var_str('blackHoleSeedMass')
     return
-  end subroutine blackHoleSeedingDarkCoresNames
+  end function blackHoleSeedingDarkCoresName
 
-  subroutine blackHoleSeedingDarkCoresDescriptions(self,time,descriptions)
+  function blackHoleSeedingDarkCoresDescription(self)
     !!{
     Return descriptions of the {\normalfont \ttfamily BlackHoleSeedingDarkCores} property.
     !!}
     implicit none
-    class           (nodePropertyExtractorBlackHoleSeedingDarkCores), intent(inout)                             :: self
-    double precision                                                , intent(in   )                             :: time
-    type            (varying_string                                ), intent(inout), dimension(:) , allocatable :: descriptions
-    !$GLC attributes unused :: time
+    class (nodePropertyExtractorBlackHoleSeedingDarkCores), intent(inout) :: self
+    type  (varying_string                                )                :: blackHoleSeedingDarkCoresDescription
 
-    allocate(descriptions(2))
-    descriptions(1)=var_str('Redshift at the formation of the black hole seed in dark cores.')
-    descriptions(2)=var_str('Black hole seed mass [M⊙].'                       )
+    blackHoleSeedingDarkCoresDescription=var_str('Black hole seed mass [M⊙].')
     return
-  end subroutine blackHoleSeedingDarkCoresDescriptions
+  end function blackHoleSeedingDarkCoresDescription
 
-  function blackHoleSeedingDarkCoresUnitsInSI(self,time)
+  double precision function blackHoleSeedingDarkCoresUnitsInSI(self)
     !!{
     Return the units of the {\normalfont \ttfamily BlackHoleSeedingDarkCores} properties in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : massSolar
-    use :: Numerical_Constants_Prefixes    , only : kilo
     implicit none
-    double precision                                                , allocatable  , dimension(:) :: blackHoleSeedingDarkCoresUnitsInSI
-    class           (nodePropertyExtractorBlackHoleSeedingDarkCores), intent(inout)               :: self
-    double precision                                                , intent(in   )               :: time
-    !$GLC attributes unused :: time
-
-    allocate(blackHoleSeedingDarkCoresUnitsInSI(2))
-    blackHoleSeedingDarkCoresUnitsInSI = [1.0d0, massSolar]
+    class (nodePropertyExtractorBlackHoleSeedingDarkCores), intent(inout):: self
+    !$GLC attributes unused :: self
+    blackHoleSeedingDarkCoresUnitsInSI = massSolar
     return
   end function blackHoleSeedingDarkCoresUnitsInSI

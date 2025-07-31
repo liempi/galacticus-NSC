@@ -65,6 +65,12 @@ module Black_Hole_Seeds
     <pass>yes</pass>
     <argument>type(treeNode), intent(inout) :: node</argument>
    </method>
+   <method name="redshift">
+    <description>Returns the formation redshift of the seed in the given {\normalfont \ttfamily node}.</description>
+    <type>double precision</type>
+    <pass>yes</pass>
+    <argument>type(treeNode), intent(inout) :: node</argument>
+   </method> 
    <method name="formationChannel">
     <description>Returns the formation channel of the seed in the given {\normalfont \ttfamily node}.</description>
     <type>type(enumerationBlackHoleFormationChannelType)</type>
@@ -77,5 +83,10 @@ module Black_Hole_Seeds
    </method>
   </functionClass>
   !!]
-  
+
+  type, public :: seedsList
+     class(blackHoleSeedsClass), pointer :: blackHoleSeeds_ => null()
+     type (seedsList          ), pointer :: next            => null()
+  end type seedsList
+
 end module Black_Hole_Seeds

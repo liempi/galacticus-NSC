@@ -63,8 +63,8 @@ contains
     !!}
     use :: Input_Parameters, only : inputParameter, inputParameters
     implicit none
-    type            (darkCoreGrowthRatesCoreCollapse)                :: self
-    type            (inputParameters                ), intent(inout) :: parameters
+    type (darkCoreGrowthRatesCoreCollapse)                :: self
+    type (inputParameters                ), intent(inout) :: parameters
 
     self=darkCoreGrowthRatesCoreCollapse()
     !![
@@ -105,8 +105,7 @@ contains
     class           (darkCoreGrowthRatesCoreCollapse), intent(inout), target  :: self
     type            (treeNode                       ), intent(inout)          :: node
     class           (nodeComponentNSC               ),                pointer :: nuclearStarCluster
-    class           (massDistributionClass          ), pointer                :: massDistributionStellarNuclearStarCluster_, massDistributionGasNuclearStarCluster_ 
-    class           (kinematicsDistributionClass    ), pointer                :: kinematicsNuclearStarClusterStellar_
+    class           (massDistributionClass          ), pointer                :: massDistributionGasNuclearStarCluster_ 
     type            (coordinateSpherical            )                         :: coordinates
     double precision                                 , parameter              :: unnormalizedNumberOfStars = 0.079d0, nuclearStarClusterMeanMass=0.21d0     
     double precision                                                          :: darkCoreRadius                     , darkCoreMass                        , &
@@ -114,9 +113,7 @@ contains
       &                                                                          nuclearStarClusterRadius           , nuclearStarClusterGasMassEnclosed   , &
       &                                                                          nuclearStarClusterMassGas          , darkCoreVelocityDispersion          , &
       &                                                                          coreCollapseTimescale              , nuclearStarClusterDensityGas        , &
-      &                                                                          nuclearStarClusterNumberOfStars    , velocityDispersionNuclearStarCluster, &
-      &                                                                          nuclearStarClusterVelDisp          , nuclearStarClusterStellarMassEnclosed
-      
+      &                                                                          nuclearStarClusterNumberOfStars
       ! Get the nuclear star cluster component.
     nuclearStarCluster              => node              %                      NSC(                     )
     nuclearStarClusterRadius        =  nuclearStarCluster%                   radius(                     ) !Mpc
@@ -138,38 +135,37 @@ contains
        return 
     end if 
 
-    if (       nuclearStarClusterRadius>0.0d0 &
-      &   .and.          darkCoreRadius>0.0d0 &
-      &   .and.            darkCoreMass>0.0d0 &
+    if (        nuclearStarClusterRadius>0.0d0 &
+      &   .and.           darkCoreRadius>0.0d0 &
+      &   .and.             darkCoreMass>0.0d0 &
       & ) then
 
-      coordinates                                =  [nuclearStarClusterRadius,0.0d0,0.0d0]
-      massDistributionGasNuclearStarCluster_     => node                                  %massDistribution    (componentTypeNuclearStarCluster,massTypeGaseous)
-      nuclearStarClusterDensityGas               =  massDistributionGasNuclearStarCluster_%density             (coordinates                                    )
-      nuclearStarClusterGasMassEnclosed          =  massDistributionGasNuclearStarCluster_%massEnclosedBySphere(darkCoreRadius                                 ) 
-    
-      massDistributionStellarNuclearStarCluster_ => node                                      %massDistribution      (componentTypeNuclearStarCluster,massTypeStellar)
-      kinematicsNuclearStarClusterStellar_       => massDistributionStellarNuclearStarCluster_%kinematicsDistribution(                                               )
-      nuclearStarClusterStellarMassEnclosed      =  massDistributionStellarNuclearStarCluster_%massEnclosedBySphere  (darkCoreRadius                                 ) 
-      nuclearStarClusterVelDisp                  = sqrt(gravitationalConstant_internal*nuclearStarClusterStellarMassEnclosed/darkCoreRadius)*(1+nuclearStarClusterGasMassEnclosed/nuclearStarClusterStellarMassEnclosed)
+      coordinates                            =  [nuclearStarClusterRadius,0.0d0,0.0d0]
+      massDistributionGasNuclearStarCluster_ => node                                  %massDistribution    (componentTypeNuclearStarCluster,massTypeGaseous)
+      nuclearStarClusterDensityGas           =  massDistributionGasNuclearStarCluster_%density             (coordinates                                    )
+      nuclearStarClusterGasMassEnclosed      =  massDistributionGasNuclearStarCluster_%massEnclosedBySphere(darkCoreRadius                                 ) 
 
-      coordinates                                =  [darkCoreRadius,0.0d0,0.0d0]
-      velocityDispersionNuclearStarCluster       =  kinematicsNuclearStarClusterStellar_      %velocityDispersion1D  (coordinates, massDistributionStellarNuclearStarCluster_, &
-        &                                                                                                                          massDistributionStellarNuclearStarCluster_   )
+      darkCoreVelocityDispersion          = sqrt(                                      &
+        &                                        (                                     &
+        &                                          gravitationalConstant_internal      & ! Mpc M⊙⁻¹ (km s⁻¹)²
+        &                                         *(                                   &
+        &                                           +darkCoreMass                      & ! M⊙
+        &                                           +nuclearStarClusterGasMassEnclosed & ! M⊙
+        &                                          )**2                                &
+        &                                         )                                    &
+        &                                         /(                                   &
+        &                                           +darkCoreMass                      & ! M⊙
+        &                                           *darkCoreRadius                    & ! Mpc
+        &                                          )                                   &         
+        &                                        )
       !![
         <objectDestructor name="massDistributionGasNuclearStarCluster_"/>
-        <objectDestructor name="massDistributionStellarNuclearStarCluster_"/>
-        <objectDestructor name="kinematicsNuclearStarClusterStellar_"/>
       !!]
     else
-       nuclearStarClusterVelDisp = 0.0d0
+       darkCoreVelocityDispersion = 0.0d0
     end if
 
-    if (nuclearStarClusterVelDisp>0.0d0) then
-      darkCoreVelocityDispersion = 26.0d0*nuclearStarClusterVelDisp
-    else 
-      darkCoreVelocityDispersion = 0.0d0
-    end if 
+    call nuclearStarCluster%floatRank0MetaPropertySet(self%darkCoreVelocityDispersionID,darkCoreVelocityDispersion       )
 
     coreCollapseTimescale = nuclearStarClusterCoreCollapseTimescale(                               &
       &                                                             nuclearStarClusterRadius     , &
@@ -181,10 +177,8 @@ contains
     call nuclearStarCluster%floatRank0MetaPropertySet(self%darkCoreTimescaleID              , coreCollapseTimescale)
     call nuclearStarCluster%floatRank0MetaPropertySet(self%nuclearStarClusterNumberOfStarsID, nuclearStarClusterNumberOfStars  )
     call nuclearStarCluster%floatRank0MetaPropertySet(self%nuclearStarClusterDensityID      , nuclearStarClusterDensityGas     )
-    call nuclearStarCluster%floatRank0MetaPropertySet(self%darkCoreVelocityDispersionID     , darkCoreVelocityDispersion       )
     call nuclearStarCluster%floatRank0MetaPropertySet(self%darkCoreGasMassID                , nuclearStarClusterGasMassEnclosed)
     
-
     if (coreCollapseTimescale <= 0.0d0) then
       darkCoreCoreCollapseRate =+0.0d0
     else

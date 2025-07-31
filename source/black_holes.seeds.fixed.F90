@@ -21,6 +21,8 @@
   Implements fixed mass and spin black hole seeds.
   !!}
 
+  use :: Cosmology_Functions, only : cosmologyFunctionsClass
+
   !![
   <blackHoleSeeds name="blackHoleSeedsFixed">
    <description>
@@ -33,10 +35,13 @@
      A model of black hole seeds in which seeds have fixed mass and spin, independent of the halo in which they form.
      !!}
      private
-     double precision :: mass_, spin_   
+     class           (cosmologyFunctionsClass), pointer :: cosmologyFunctions_ => null()
+     double precision                                   :: mass_                        , spin_   
    contains
+     final     ::                     fixedDestructor
      procedure :: mass             => fixedMass
      procedure :: spin             => fixedSpin
+     procedure :: redshift         => fixedRedshift
      procedure :: formationChannel => fixedFormationChannel
   end type blackHoleSeedsFixed
   
@@ -56,9 +61,10 @@ contains
     !!}
     use :: Input_Parameters, only : inputParameters
     implicit none
-    type            (blackHoleSeedsFixed)                :: self
-    type            (inputParameters    ), intent(inout) :: parameters
-    double precision                                     :: mass      , spin
+    type            (blackHoleSeedsFixed    )                :: self
+    type            (inputParameters        ), intent(inout) :: parameters
+    class           (cosmologyFunctionsClass), pointer       :: cosmologyFunctions_
+    double precision                                         :: mass      , spin
     
     !![
     <inputParameter>
@@ -73,27 +79,43 @@ contains
       <description>The spin of seed black holes.</description>
       <source>parameters</source>
     </inputParameter>
+    <objectBuilder class="cosmologyFunctions" name="cosmologyFunctions_" source="parameters"/>
     !!]
-    self=blackHoleSeedsFixed(mass,spin)
+    self=blackHoleSeedsFixed(mass,spin, cosmologyFunctions_)
     !![
     <inputParametersValidate source="parameters"/>
+    <objectDestructor name="cosmologyFunctions_"/>
     !!]
     return
   end function standardConstructorParameters
 
-  function standardConstructorInternal(mass_,spin_) result(self)
+  function standardConstructorInternal(mass_,spin_,cosmologyFunctions_) result(self)
     !!{
     Internal constructor for the \refClass{blackHoleSeedsFixed} black hole seed class.
     !!}
     implicit none
-    type            (blackHoleSeedsFixed)                :: self
-    double precision                     , intent(in   ) :: mass_, spin_
+    type            (blackHoleSeedsFixed      )                        :: self
+    class           (cosmologyFunctionsClass  ), intent(in   ), target :: cosmologyFunctions_
+    double precision                           , intent(in   )         :: mass_              , spin_
     !![
-    <constructorAssign variables="mass_, spin_"/>
+    <constructorAssign variables="mass_, spin_, *cosmologyFunctions_"/>
     !!]
 
     return
   end function standardConstructorInternal
+
+  subroutine fixedDestructor(self)
+      !!{
+      Destructor for the \refClass{blackHoleSeedsVergara2023} black hole seeds class.
+      !!}
+      implicit none 
+      type(blackHoleSeedsFixed), intent(inout) :: self
+      
+      !![
+      <objectDestructor name="self%cosmologyFunctions_"/>
+      !!]
+      return
+  end subroutine fixedDestructor
 
   double precision function fixedMass(self,node) result(mass)
     !!{
@@ -120,6 +142,23 @@ contains
     spin=self%spin_
     return
   end function fixedSpin
+
+  double precision function fixedRedshift(self,node) result(redshift)
+    !!{
+    Compute the formation redshift of the seed black hole.
+    !!}
+    use :: Galacticus_Nodes, only : nodeComponentBasic, treeNode  
+    implicit none
+    class           (blackHoleSeedsFixed), intent(inout) :: self
+    type            (treeNode           ), intent(inout) :: node
+    class           (nodeComponentBasic ), pointer       :: basic
+    double precision                                     :: time
+
+    basic => node %basic()
+    time  =  basic%time ()
+    redshift=self%cosmologyFunctions_%redshiftFromExpansionFactor(self%cosmologyFunctions_%expansionFactor(time))
+    return
+  end function fixedRedshift
 
   function fixedFormationChannel(self,node) result(channel)
     !!{

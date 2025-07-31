@@ -40,12 +40,12 @@
      private
      class           (cosmologyFunctionsClass), pointer :: cosmologyFunctions_ => null()
      double precision                                   :: massEfficiency               , velocityThreshold
-     integer                                            :: blackHoleSeedMassID          , redshiftBlackHoleSeedFormationID, &
-        &                                                  darkCoreVelocityDispersionID 
+     integer                                            :: blackHoleSeedMassID          , darkCoreVelocityDispersionID 
     contains
      final     ::                     darkCoresDestructor              
      procedure :: mass             => darkCoresMass
      procedure :: spin             => darkCoresSpin
+     procedure :: redshift         => darkCoresRedshift
      procedure :: formationChannel => darkCoresFormationChannel
   end type blackHoleSeedsDarkCores
   
@@ -53,13 +53,13 @@
      !!{
      Constructors for the {\normalfont \ttfamily DarkCores} black hole seeds class.
      !!}
-     module procedure DarkCoresConstructorParameters
-     module procedure DarkCoresConstructorInternal
+     module procedure darkCoresConstructorParameters
+     module procedure darkCoresConstructorInternal
   end interface blackHoleSeedsDarkCores
 
 contains
 
-  function DarkCoresConstructorParameters(parameters) result(self)
+  function darkCoresConstructorParameters(parameters) result(self)
     !!{
     Constructor for the {\normalfont \ttfamily DarkCores} node operator class which takes a parameter set as input.
     !!}
@@ -90,9 +90,9 @@ contains
     <objectDestructor name="cosmologyFunctions_"/>
     !!]
     return
-  end function DarkCoresConstructorParameters
+  end function darkCoresConstructorParameters
   
-  function DarkCoresConstructorInternal(massEfficiency, velocityThreshold,cosmologyFunctions_) result(self)
+  function darkCoresConstructorInternal(massEfficiency, velocityThreshold,cosmologyFunctions_) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily DarkCores} node operator class.
     !!}
@@ -105,12 +105,11 @@ contains
     <constructorAssign variables="massEfficiency, velocityThreshold, *cosmologyFunctions_"/>
     !!]
     !![
-    <addMetaProperty component="NSC" name="darkCoreVelocityDispersion"      id="self%darkCoreVelocityDispersionID"     isEvolvable="no" isCreator="no" />
-    <addMetaProperty component="NSC" name="blackHoleSeedMassFormed"         id="self%blackHoleSeedMassID"              isEvolvable="no" isCreator="yes"/>
-    <addMetaProperty component="NSC" name="redshiftBlackHoleSeedFormation"  id="self%redshiftBlackHoleSeedFormationID" isEvolvable="no" isCreator="yes"/>
+    <addMetaProperty component="NSC" name="darkCoreVelocityDispersion" id="self%darkCoreVelocityDispersionID" isEvolvable="no" isCreator="no" />
+    <addMetaProperty component="NSC" name="blackHoleSeedMassFormed"    id="self%blackHoleSeedMassID"          isEvolvable="no" isCreator="yes"/>
     !!]
     return
-  end function DarkCoresConstructorInternal
+  end function darkCoresConstructorInternal
 
   subroutine darkCoresDestructor(self)
       !!{
@@ -136,15 +135,17 @@ contains
     type            (treeNode               ), intent(inout)          :: node
     class           (nodeComponentNSC       )               , pointer :: nuclearStarCluster
     class           (nodeComponentBasic     )               , pointer :: basic
-    double precision                                                  :: velocityDispersionDarkCore, time
+    double precision                                                  :: velocityDispersionDarkCore
+    double precision                                      , parameter :: minimumMass=1.0d0
     
     ! Get the nuclear star cluster component.
     nuclearStarCluster => node%NSC()
+    ! Assume zero mass.
+    mass=+0.0d0
     ! Detect the type of the nuclear star cluster component.
     select type (nuclearStarCluster)
       class default
           ! Generic type, do nothing.
-          mass=0.0d0
           return
       class is (nodeComponentNSCStandard)
           ! Standard class, get the properties of the nuclear star cluster component.
@@ -153,29 +154,22 @@ contains
              &   nuclearStarCluster%massStellar() <= 0.0d0 &
              &  .or.                                       &
              &   nuclearStarCluster%radius     () <= 0.0d0 &
-             & ) then
-            mass=0.0d0
-            return
-          end if 
-        
-          basic => node %basic()
-          time  =  basic%time ()
+             & ) return
 
           ! Get the velocity dispersion of the dark core.
           velocityDispersionDarkCore = nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreVelocityDispersionID)
 
           ! Generic type - interrupt and create a black hole if velocity dispersion is greater than the threshold.
-          if ( self%velocityThreshold <= velocityDispersionDarkCore) then
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%redshiftBlackHoleSeedFormationID,self%cosmologyFunctions_%redshiftFromExpansionFactor   (self%cosmologyFunctions_%expansionFactor(time)))
-            mass   = max(                                                        &
-              &          +self%massEfficiency*nuclearStarCluster%massDarkCore(), & 
-              &          +8.0d0                                                  & 
-              &         )
+          if ( self%velocityThreshold <= velocityDispersionDarkCore .and. nuclearStarCluster%massDarkCore()>= minimumMass) then
+            mass= max(                                                        &
+              &       +self%massEfficiency*nuclearStarCluster%massDarkCore(), & 
+              &       +8.0d0                                                  & 
+              &      )
             ! Adjust black hole stellar mass of the nuclear star cluster
             call nuclearStarCluster%massDarkCoreSet          (+nuclearStarCluster%massDarkCore()  -mass)
             call nuclearStarCluster%floatRank0MetaPropertySet(+self%blackHoleSeedMassID         , +mass)            
           else
-            mass   =+0.0d0
+            mass=+0.0d0
           end if 
     end select
     return
@@ -194,6 +188,23 @@ contains
     spin=0.0d0
     return
   end function darkCoresSpin
+
+  double precision function darkCoresRedshift(self,node) result(redshift)
+    !!{
+    Compute the formation redshift of the seed black hole.
+    !!}
+    use :: Galacticus_Nodes, only : nodeComponentBasic, treeNode  
+    implicit none
+    class           (blackHoleSeedsDarkCores), intent(inout) :: self
+    type            (treeNode               ), intent(inout) :: node
+    class           (nodeComponentBasic     ), pointer       :: basic
+    double precision                                         :: time
+
+    basic => node %basic()
+    time  =  basic%time ()
+    redshift=self%cosmologyFunctions_%redshiftFromExpansionFactor(self%cosmologyFunctions_%expansionFactor(time))
+    return
+  end function darkCoresRedshift
 
   function darkCoresFormationChannel (self,node) result(channel)
     !!{

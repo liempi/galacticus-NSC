@@ -54,6 +54,7 @@
      final     ::                     vergara2023Destructor              
      procedure :: mass             => vergara2023Mass
      procedure :: spin             => vergara2023Spin
+     procedure :: redshift         => vergara2023Redshift
      procedure :: formationChannel => vergara2023FormationChannel
   end type blackHoleSeedsVergara2023
   
@@ -289,7 +290,7 @@ contains
             call nuclearStarCluster%floatRank0MetaPropertySet(self%gasMassNuclearStarClustersID     ,nuclearStarCluster                    %massGas                       (                                              ))
             call nuclearStarCluster%floatRank0MetaPropertySet(self%stellarMassNuclearStarClustersID ,nuclearStarCluster                    %massStellar                   (                                              ))
             call nuclearStarCluster%floatRank0MetaPropertySet(self%velocityNuclearStarClustersID    ,                                       velocityNuclearStarCluster                                                    )
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%redshiftBlackHoleSeedFormationID ,self              %cosmologyFunctions_%redshiftFromExpansionFactor   (self%cosmologyFunctions_%expansionFactor(time)))
+            !call nuclearStarCluster%floatRank0MetaPropertySet(self%redshiftBlackHoleSeedFormationID ,self              %cosmologyFunctions_%redshiftFromExpansionFactor   (self%cosmologyFunctions_%expansionFactor(time)))
             call nuclearStarCluster%floatRank0MetaPropertySet(self%criticalMassNuclearStarClustersID,                                       massCriticalNuclearStarCluster                                                )
             call nuclearStarCluster%floatRank0MetaPropertySet(self%radiusNuclearStarClustersID      ,                                       radiusNuclearStarCluster                                                      )
 
@@ -334,6 +335,23 @@ contains
     spin=0.0d0
     return
   end function vergara2023Spin
+
+  double precision function vergara2023Redshift(self,node) result(redshift)
+    !!{
+    Compute the formation redshift of the seed black hole.
+    !!}
+    use :: Galacticus_Nodes, only : nodeComponentBasic, treeNode  
+    implicit none
+    class           (blackHoleSeedsVergara2023), intent(inout) :: self
+    type            (treeNode                 ), intent(inout) :: node
+    class           (nodeComponentBasic       ), pointer       :: basic
+    double precision                                           :: time
+
+    basic => node %basic()
+    time  =  basic%time ()
+    redshift=self%cosmologyFunctions_%redshiftFromExpansionFactor(self%cosmologyFunctions_%expansionFactor(time))
+    return
+  end function vergara2023Redshift
 
   function vergara2023FormationChannel (self,node) result(channel)
     !!{

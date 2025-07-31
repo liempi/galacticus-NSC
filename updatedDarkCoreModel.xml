@@ -14,7 +14,7 @@
   <evolveForestsWorkShare value="cyclic"/>
 
   <!-- Output file -->
-  <outputFileName value="darkCoreTest.hdf5"/>
+  <outputFileName value="darkCoreSeeds.hdf5"/>
   
   <!-- Component selection -->
   <componentBasic value="standard"/>
@@ -46,7 +46,6 @@
   </componentSpheroid>
   <componentSpin value="scalar"/>
   <componentNSC value="standard">
-    <radiusNorm value="3.3d-6"/>
       <massDistributionNSC value="sersic">
       <index value="2.28"/>
       <dimensionless value="true"/>
@@ -201,7 +200,7 @@
   <!-- Black hole options -->
   <blackHoleBinaryMerger value="rezzolla2008"/>
   <blackHoleAccretionRate value="standard"/>
-  <!--<blackHoleSeeds value="veryMassiveStars"/>-->
+  <blackHoleSeeds value="darkCores"/>
 
   <blackHoleCGMHeating value="jetPower">
   <efficiencyRadioMode value="1.0"/>
@@ -237,10 +236,7 @@
      <nodePropertyExtractor value="jetPowerBlackHoles"/>
      <nodePropertyExtractor value="radiativeEfficiencyBlackHoles"/>
     <nodePropertyExtractor value="darkCores"/>
-  <!--   <nodePropertyExtractor value="densityProfile">
-      <radiusSpecifiers value="nuclearStarClusterRadius:nuclearStarCluster:gaseous:1.0"/>
-     </nodePropertyExtractor>-->
-   <!--<nodePropertyExtractor value="blackHoleSeedingDarkCores"/>-->
+    <nodePropertyExtractor value="blackHoleSeedingDarkCores"/>
 </nodePropertyExtractor>
 
   <!-- Node evolution and physics -->
@@ -260,7 +256,7 @@
         </nuclearStarClusterStellarBlackHoleGrowthRates>
     </nodeOperator>
 
-<nodeOperator value="darkCoreRadius">
+  <nodeOperator value="darkCoreRadius">
       <efficiency value="0.1"/>
     </nodeOperator> 
 
@@ -268,6 +264,7 @@
       <darkCoreGrowthRates value="coreCollapse"/>
     </nodeOperator>
     
+    <nodeOperator value="nuclearStarClusterRadiusGeorgiev2016"/>
     <!--Stellar feedback outflows-->
     <nodeOperator value="stellarFeedbackDisks">
       <stellarFeedbackOutflows value="rateLimit">

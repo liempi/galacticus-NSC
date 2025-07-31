@@ -94,6 +94,7 @@ contains
     <objectDestructor name="starFormationRateSpheroids_"          />
     <objectDestructor name="starFormationRateNuclearStarClusters_"/>
     <objectDestructor name="mergerMassMovements_"                 />
+    <objectDestructor name="nuclearStarClusterMovements_"         />
     !!]
     return
   end function agesStellarMassWeightedConstructorParameters
@@ -310,9 +311,11 @@ contains
 
     ! Find the node to merge with.
     nodeHost               => node    %mergesWith(                 )
+    ! Components of the satellite node.
     disk                   => node    %disk      (autoCreate=.true.)
     spheroid               => node    %spheroid  (autoCreate=.true.)
     nuclearStarCluster     => node    %NSC       (                 )
+    ! Components of the host node.
     diskHost               => nodeHost%disk      (autoCreate=.true.)
     spheroidHost           => nodeHost%spheroid  (autoCreate=.true.)
     nuclearStarClusterHost => nodeHost%NSC       (                 )

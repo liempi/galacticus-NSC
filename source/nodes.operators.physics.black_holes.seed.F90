@@ -36,7 +36,7 @@
      !!}
      private
      class(blackHoleSeedsClass), pointer :: blackHoleSeeds_                  => null()
-     integer                             :: blackHoleSeedsFormationChannelID
+     integer                             :: blackHoleSeedsFormationChannelID          , blackHoleSeedsFormationRedshiftID
    contains
      final     ::                          blackHolesSeedDestructor
      procedure :: autoHook              => blackHolesSeedAutoHook
@@ -54,8 +54,9 @@
 
   ! Submodule-scope variable used in create function.
   class           (nodeOperatorBlackHolesSeed), pointer :: self_     => null()
-  double precision                                      :: massSeed_          , spinSeed_
-  !$omp threadprivate(self_,massSeed_,spinSeed_)
+  double precision                                      :: massSeed_          , spinSeed_, &
+    &                                                      redshiftSeed_
+  !$omp threadprivate(self_,massSeed_,spinSeed_,redshiftSeed_)
 
 contains
 
@@ -92,7 +93,8 @@ contains
     !!]
 
     !![
-    <addMetaProperty component="blackHole" type="integer" name="blackHoleSeedsFormationChannel" id="self%blackHoleSeedsFormationChannelID" isEvolvable="no" isCreator="yes"/>
+    <addMetaProperty component="blackHole" type="integer" name="blackHoleSeedsFormationChannel"  id="self%blackHoleSeedsFormationChannelID"  isEvolvable="no" isCreator="yes"/>
+    <addMetaProperty component="blackHole" type="float"   name="blackHoleSeedsFormationRedshift" id="self%blackHoleSeedsFormationRedshiftID" isEvolvable="no" isCreator="yes"/>
     !!]
     return
   end function blackHolesSeedConstructorInternal
@@ -142,10 +144,11 @@ contains
     if (massSeed > 0.0d0) then
        blackHole        => node                %blackHole       (autoCreate=.true.)
        formationChannel =  self%blackHoleSeeds_%formationChannel(           node  )
-       call        blackHole%massSet                    (                                                                       massSeed  )
-       call        blackHole%integerRank0MetaPropertySet(self%blackHoleSeedsFormationChannelID,formationChannel                %ID        )
+       call        blackHole%massSet                    (                                                                        massSeed      )
+       call        blackHole%integerRank0MetaPropertySet(self%blackHoleSeedsFormationChannelID ,formationChannel                %ID            )
+       call        blackHole%  floatRank0MetaPropertySet(self%blackHoleSeedsFormationRedshiftID,self            %blackHoleSeeds_%redshift(node))
        if (blackHole%spinIsSettable()) &
-            & call blackHole%spinSet                    (                                      self            %blackHoleSeeds_%spin(node))
+            & call blackHole%spinSet                    (                                       self            %blackHoleSeeds_%spin    (node))
     end if
     return
   end subroutine blackHolesSeedNodeInitialize
@@ -162,18 +165,21 @@ contains
     procedure       (interruptTask             ), intent(inout), pointer :: functionInterrupt
     integer                                     , intent(in   )          :: propertyType
     class           (nodeComponentBlackHole    )               , pointer :: blackHole
-    double precision                                                     :: massSeed         , spinSeed
+    double precision                                                     :: massSeed         , spinSeed, &
+        &                                                                   redshiftSeed
     
     blackHole => node%blackHole()
     select type (blackHole)
     type is (nodeComponentBlackHole)
-       massSeed=self%blackHoleSeeds_%mass(node)
-       spinSeed=self%blackHoleSeeds_%spin(node)
+       massSeed    =self%blackHoleSeeds_%mass    (node)
+       spinSeed    =self%blackHoleSeeds_%spin    (node)
+       redshiftSeed=self%blackHoleSeeds_%redshift(node)
        ! Create a black hole component only if the seed mass is non-zero and no black hole currently exists.
        if (massSeed > 0.0d0) then
           self_             => self
           massSeed_         =  massSeed
           spinSeed_         =  spinSeed
+          redshiftSeed_     =  redshiftSeed
           interrupt         =  .true.
           functionInterrupt => blackHoleCreate
        end if
@@ -198,10 +204,11 @@ contains
 
     blackHole        => node                 %blackHole       (autoCreate=.true.)
     formationChannel =  self_%blackHoleSeeds_%formationChannel(           node  )
-    call        blackHole%                    massSet(                                       massSeed_          )
-    call        blackHole%integerRank0MetaPropertySet(self_%blackHoleSeedsFormationChannelID,formationChannel%ID)
+    call        blackHole%                    massSet(                                        massSeed_          )
+    call        blackHole%integerRank0MetaPropertySet(self_%blackHoleSeedsFormationChannelID ,formationChannel%ID)
+    call        blackHole%  floatRank0MetaPropertySet(self_%blackHoleSeedsFormationRedshiftID,redshiftSeed_      )
     if (blackHole%spinIsSettable()) &
-         & call blackHole%                    spinSet(                                       spinSeed_          )
+         & call blackHole%                    spinSet(                                        spinSeed_          )
     return 
   end subroutine blackHoleCreate
 
@@ -220,9 +227,11 @@ contains
     class is (nodeOperatorBlackHolesSeed)
        ! Set the formation channel to that of the more massive black hole.
        if (blackHole1%mass() > blackHole2%mass()) then
-          call blackHoleMerged%integerRank0MetaPropertySet(self%blackHoleSeedsFormationChannelID,blackHole1%integerRank0MetaPropertyGet(self%blackHoleSeedsFormationChannelID))
+          call blackHoleMerged%integerRank0MetaPropertySet(self%blackHoleSeedsFormationChannelID ,blackHole1%integerRank0MetaPropertyGet(self%blackHoleSeedsFormationChannelID ))
+          call blackHoleMerged%  floatRank0MetaPropertySet(self%blackHoleSeedsFormationRedshiftID,blackHole1%  floatRank0MetaPropertyGet(self%blackHoleSeedsFormationRedshiftID))
       else
-         call blackHoleMerged%integerRank0MetaPropertySet(self%blackHoleSeedsFormationChannelID,blackHole2%integerRank0MetaPropertyGet(self%blackHoleSeedsFormationChannelID))
+         call blackHoleMerged%integerRank0MetaPropertySet(self%blackHoleSeedsFormationChannelID ,blackHole2%integerRank0MetaPropertyGet(self%blackHoleSeedsFormationChannelID ))
+         call blackHoleMerged%  floatRank0MetaPropertySet(self%blackHoleSeedsFormationRedshiftID,blackHole2%  floatRank0MetaPropertyGet(self%blackHoleSeedsFormationRedshiftID))      
       end if
     class default
        call Error_Report('incorrect class'//{introspection:location})
