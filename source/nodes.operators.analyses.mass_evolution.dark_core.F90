@@ -99,8 +99,10 @@ contains
     !!{
     Perform mass of the dark core.
     !!}
-    use :: Galacticus_Nodes, only : interruptTask, nodeComponentNSC, propertyInactive, nodeComponentNSCStandard, &
-        &                           treeNode
+    use :: Galacticus_Nodes    , only : interruptTask, nodeComponentNSC, propertyInactive, nodeComponentNSCStandard, &
+           &                            treeNode
+    use :: Histories           , only : operator(*)  , history
+    use :: Abundances_Structure, only : operator(*)
     implicit none
     class           (nodeOperatordarkCoreMassEvolution), intent(inout), target  :: self
     type            (treeNode                         ), intent(inout), target  :: node
@@ -109,6 +111,8 @@ contains
     integer                                            , intent(in   )          :: propertyType
     class           (nodeComponentNSC                 )               , pointer :: nuclearStarCluster
     double precision                                                            :: rateMassDarkCore
+    type            (history                          )                         :: historyTransferRate
+
     if (propertyInactive(propertyType)) return
     
     nuclearStarCluster => node%NSC     ()
@@ -119,7 +123,26 @@ contains
       class is (nodeComponentNSCStandard)
         rateMassDarkCore = self%darkCoreGrowthRates_%rate(node)
         if (rateMassDarkCore>0.0d0) then
-          call  nuclearStarCluster%massDarkCoreRate(+rateMassDarkCore)
+          call nuclearStarCluster%massDarkCoreRate     (+rateMassDarkCore)
+          call nuclearStarCluster% massStellarRate     (-rateMassDarkCore)
+          call nuclearStarCluster%abundancesStellarRate(                                        &
+        &                                               -rateMassDarkCore                       & 
+        &                                               *nuclearStarCluster%abundancesStellar() &
+        &                                               /nuclearStarCluster%massStellar()       &
+        &                                              )
+          historyTransferRate=nuclearStarCluster%stellarPropertiesHistory()
+          if (historyTransferRate%exists()) &
+              & call nuclearStarCluster%stellarPropertiesHistoryRate(-rateStellarMassBlackHoleGrowth &
+                   &                                                 *historyTransferRate            &
+                   &                                                )
+          call historyTransferRate%destroy()
+           !! Star formation history.
+           historyTransferRate=nuclearStarCluster%starFormationHistory()
+          if (historyTransferRate%exists()) &
+              & call nuclearStarCluster%starFormationHistoryRate    (-rateStellarMassBlackHoleGrowth &
+                   &                                                 *historyTransferRate            &
+             &                                                      )
+          call historyTransferRate%destroy()
         end if 
       end select
       return
