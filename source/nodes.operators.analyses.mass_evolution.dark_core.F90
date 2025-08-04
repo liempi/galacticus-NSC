@@ -118,9 +118,8 @@ contains
         return
       class is (nodeComponentNSCStandard)
         rateMassDarkCore = self%darkCoreGrowthRates_%rate(node)
-        if (nuclearStarCluster%massStellarBlackHoles()>1.0d0.and.rateMassDarkCore>0.0d0) then
-          call                 nuclearStarCluster%massStellarBlackHolesRate(-rateMassDarkCore)
-          call                 nuclearStarCluster%massDarkCoreRate         (+rateMassDarkCore)
+        if (rateMassDarkCore>0.0d0) then
+          call  nuclearStarCluster%massDarkCoreRate(+rateMassDarkCore)
         end if 
       end select
       return
