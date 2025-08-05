@@ -36,6 +36,7 @@ module Galacticus_Nodes
   use            :: ISO_Varying_String                 , only : varying_string
   use            :: Kepler_Orbits                      , only : keplerOrbit
   use            :: Kind_Numbers                       , only : kind_int8
+  use            :: Locks                              , only : ompLock
   use            :: Mass_Distributions                 , only : massDistributionClass
   use            :: Merger_Trees_Evolve_Deadlock_Status, only : enumerationDeadlockStatusType
   use            :: Numerical_Constants_Astronomical   , only : gigaYear                     , luminosityZeroPointAB         , massSolar             , megaParsec
@@ -141,11 +142,12 @@ module Galacticus_Nodes
      !!{
      The universe object class.
      !!}
-     type   (mergerTreeList), pointer         :: trees         => null()
-     logical                                  :: allTreesBuilt =  .false.
-     type   (universeEvent ), pointer, public :: event         => null()
-     type   (genericHash   )                  :: attributes
-     integer(kind_int8     )                  :: uniqueID
+     type   (mergerTreeList), pointer             :: trees         => null()
+     logical                                      :: allTreesBuilt =  .false.
+     type   (universeEvent ), pointer    , public :: event         => null()
+     type   (genericHash   )                      :: attributes
+     integer(kind_int8     )                      :: uniqueID
+     type   (ompLock       ), allocatable         :: lock
    contains
      !![
      <methods>
@@ -1485,9 +1487,11 @@ module Galacticus_Nodes
     universeUniqueIdCount=universeUniqueIdCount+1
     self%uniqueID        =universeUniqueIdCount
     !$omp end critical(universeUniqueIDAssign)
-    self%trees         => null()
-    self%event         => null()
+    allocate(self%lock)
+    self%trees         => null   ()
+    self%event         => null   ()
     self%allTreesBuilt =  .false.
+    self%lock          =  ompLock()
     call self%attributes%initialize()
     return
   end function universeConstructor
