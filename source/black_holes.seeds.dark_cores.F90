@@ -39,7 +39,8 @@
      !!}
      private
      class           (cosmologyFunctionsClass), pointer :: cosmologyFunctions_ => null()
-     double precision                                   :: massEfficiency               , velocityThreshold
+     double precision                                   :: massEfficiency               , velocityThreshold           , &
+      &                                                    massDarkCoreThreshold
      integer                                            :: blackHoleSeedMassID          , darkCoreVelocityDispersionID 
     contains
      final     ::                     darkCoresDestructor              
@@ -68,7 +69,8 @@ contains
     type            (blackHoleSeedsDarkCores)                :: self
     type            (inputParameters        ), intent(inout) :: parameters
     class           (cosmologyFunctionsClass), pointer       :: cosmologyFunctions_
-    double precision                                         :: massEfficiency              , velocityThreshold
+    double precision                                         :: massEfficiency       , velocityThreshold, &
+      &                                                         massDarkCoreThreshold
     !![
     <inputParameter>
       <name>massEfficiency</name>
@@ -82,9 +84,15 @@ contains
       <description>Specifies the velocity dispersion of the dark core to apply the seeding prescription.</description>
       <source>parameters</source>
     </inputParameter>
+    <inputParameter>
+      <name>massDarkCoreThreshold</name>
+      <defaultValue>1.0d2</defaultValue>
+      <description>Specifies the minimum mass of the dark core to apply the seeding prescription.</description>
+      <source>parameters</source>
+    </inputParameter>
     <objectBuilder class="cosmologyFunctions" name="cosmologyFunctions_" source="parameters"/>
     !!]
-    self=blackHoleSeedsDarkCores(massEfficiency, velocityThreshold, cosmologyFunctions_)
+    self=blackHoleSeedsDarkCores(massEfficiency, velocityThreshold, massDarkCoreThreshold, cosmologyFunctions_)
     !![
     <inputParametersValidate source="parameters"/>
     <objectDestructor name="cosmologyFunctions_"/>
@@ -92,7 +100,7 @@ contains
     return
   end function darkCoresConstructorParameters
   
-  function darkCoresConstructorInternal(massEfficiency, velocityThreshold,cosmologyFunctions_) result(self)
+  function darkCoresConstructorInternal(massEfficiency,velocityThreshold,massDarkCoreThreshold,cosmologyFunctions_) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily DarkCores} node operator class.
     !!}
@@ -101,8 +109,9 @@ contains
     class           (cosmologyFunctionsClass), intent(in   ), target :: cosmologyFunctions_
     double precision                         , intent(in   )         :: massEfficiency
     double precision                         , intent(in   )         :: velocityThreshold
+    double precision                         , intent(in   )         :: massDarkCoreThreshold
     !![
-    <constructorAssign variables="massEfficiency, velocityThreshold, *cosmologyFunctions_"/>
+    <constructorAssign variables="massEfficiency, velocityThreshold, massDarkCoreThreshold, *cosmologyFunctions_"/>
     !!]
     !![
     <addMetaProperty component="NSC" name="darkCoreVelocityDispersion" id="self%darkCoreVelocityDispersionID" isEvolvable="no" isCreator="no" />
@@ -131,12 +140,11 @@ contains
     use :: Galacticus_Nodes                , only : nodeComponentNSC               , nodeComponentBasic, nodeComponentNSCStandard, treeNode  
     use :: Galactic_Structure_Options      , only : componentTypenuclearStarCluster, massTypeStellar
     implicit none
-    class           (blackHoleSeedsDarkCores), intent(inout)          :: self
-    type            (treeNode               ), intent(inout)          :: node
-    class           (nodeComponentNSC       )               , pointer :: nuclearStarCluster
-    class           (nodeComponentBasic     )               , pointer :: basic
-    double precision                                                  :: velocityDispersionDarkCore
-    double precision                                      , parameter :: minimumMass=1.0d0
+    class           (blackHoleSeedsDarkCores), intent(inout)            :: self
+    type            (treeNode               ), intent(inout)            :: node
+    class           (nodeComponentNSC       )               , pointer   :: nuclearStarCluster
+    class           (nodeComponentBasic     )               , pointer   :: basic
+    double precision                                                    :: velocityDispersionDarkCore
     
     ! Get the nuclear star cluster component.
     nuclearStarCluster => node%NSC()
@@ -160,7 +168,7 @@ contains
           velocityDispersionDarkCore = nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreVelocityDispersionID)
 
           ! Generic type - interrupt and create a black hole if velocity dispersion is greater than the threshold.
-          if ( self%velocityThreshold <= velocityDispersionDarkCore .and. nuclearStarCluster%massDarkCore()>= minimumMass) then
+          if ( self%velocityThreshold <= velocityDispersionDarkCore .and. nuclearStarCluster%massDarkCore()>= self%massDarkCoreThreshold) then
             mass= max(                                                        &
               &       +self%massEfficiency*nuclearStarCluster%massDarkCore(), & 
               &       +8.0d0                                                  & 

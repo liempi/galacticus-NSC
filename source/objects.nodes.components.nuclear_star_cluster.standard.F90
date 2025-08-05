@@ -75,13 +75,6 @@ module Node_Component_NSC_Standard
       <attributes isSettable="true" isGettable="true" isEvolvable="true" />
     </property>
     <property>
-      <name>massStellarBlackHoles</name>
-      <type>double</type>
-      <rank>0</rank>
-      <attributes isSettable="true" isGettable="true" isEvolvable="true"/>
-      <output unitsInSI="massSolar" comment="Mass of the stellar black holes formed due to stellar evolution in the standard Nuclear Star Cluster."/>
-    </property>
-    <property>
       <name>massDarkCore</name>
       <type>double</type>
       <rank>0</rank>
@@ -765,12 +758,6 @@ contains
        call nuclearStarCluster%massDarkCoreScale         (                                                        &
             &                                                 massMinimum                                         &
             &                                            )
-       call nuclearStarCluster%massStellarBlackHolesScale(                                                        &
-            &                                             max(                                                    &
-            &                                                 fractionTolerance*nuclearStarCluster%massStellar(), &
-            &                                                 massMinimum                                         &
-            &                                                )                                                    &
-            &                                            )
        ! Set scales for abundances if necessary.
        if (abundancesCount > 0) then
           ! Set scale for abundances.
@@ -1233,10 +1220,6 @@ contains
                     &                                               +nuclearStarClusterHost%  luminositiesStellar                    () &
                     &                                               +nuclearStarCluster    %  luminositiesStellar                    () &
                     &                                              )
-               call nuclearStarClusterHost%massStellarBlackHolesSet(                                                                    &
-                    &                                               +nuclearStarClusterHost%massStellarBlackHoles                    () &
-                    &                                               +nuclearStarCluster    %massStellarBlackHoles                    () &
-                    &                                              )
                call nuclearStarClusterHost%         massDarkCoreSet(                                                                    &
                     &                                               +nuclearStarClusterHost%         massDarkCore                    () &
                     &                                               +nuclearStarCluster    %         massDarkCore                    () &
@@ -1249,9 +1232,6 @@ contains
                     &                                              )
                call nuclearStarCluster    %  luminositiesStellarSet(                                                                    &
                     &                                               zeroStellarLuminosities                                             &
-                    &                                              )
-               call nuclearStarCluster    %massStellarBlackHolesSet(                                                                    &
-                    &                                               +0.0d0                                                              &
                     &                                              )
                call nuclearStarCluster    %         massDarkCoreSet(                                                                    &
                     &                                               +0.0d0                                                              &
@@ -1296,7 +1276,6 @@ contains
           call nuclearStarCluster%    abundancesStellarSet(         zeroAbundances)
           call nuclearStarCluster%  luminositiesStellarSet(zeroStellarLuminosities)
           call nuclearStarCluster%      angularMomentumSet(                  0.0d0)
-          call nuclearStarCluster%massStellarBlackHolesSet(                  0.0d0)
           call nuclearStarCluster%         massDarkCoreSet(                  0.0d0)
           call nuclearStarCluster%          isCollapsedSet(                .false.)
        end if

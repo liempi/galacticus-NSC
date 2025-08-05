@@ -35,7 +35,7 @@ module Dark_Core_Growth_Rates
    <name>darkCoreGrowthRates</name>
    <descriptiveName>Rates for the dark core mass within nuclear star clusters</descriptiveName>
    <description>Class providing models of rates for the dark core mass within nuclear star clusters.</description>
-   <default>timescale</default>
+   <default>massSegregation</default>
    <method name="rate" >
     <description>Returns the rate (in units of $\mathrm{M}_\odot$ Gyr$^{-1}$) of stellar mass black holes for falling into the dark core within nuclear star clusters {\normalfont \ttfamily node}.</description>
     <type>double precision</type>

@@ -122,7 +122,7 @@ contains
         return
       class is (nodeComponentNSCStandard)
         rateMassDarkCore = self%darkCoreGrowthRates_%rate(node)
-        if (rateMassDarkCore>0.0d0) then
+        if (rateMassDarkCore>0.0d0.and.nuclearStarCluster%massStellar()>0.0d0) then
           call nuclearStarCluster%massDarkCoreRate     (+rateMassDarkCore)
           call nuclearStarCluster% massStellarRate     (-rateMassDarkCore)
           call nuclearStarCluster%abundancesStellarRate(                                        &
@@ -132,15 +132,15 @@ contains
         &                                              )
           historyTransferRate=nuclearStarCluster%stellarPropertiesHistory()
           if (historyTransferRate%exists()) &
-              & call nuclearStarCluster%stellarPropertiesHistoryRate(-rateStellarMassBlackHoleGrowth &
-                   &                                                 *historyTransferRate            &
+              & call nuclearStarCluster%stellarPropertiesHistoryRate(-rateMassDarkCore     &
+                   &                                                 *historyTransferRate  &
                    &                                                )
           call historyTransferRate%destroy()
            !! Star formation history.
            historyTransferRate=nuclearStarCluster%starFormationHistory()
           if (historyTransferRate%exists()) &
-              & call nuclearStarCluster%starFormationHistoryRate    (-rateStellarMassBlackHoleGrowth &
-                   &                                                 *historyTransferRate            &
+              & call nuclearStarCluster%starFormationHistoryRate    (-rateMassDarkCore    &
+                   &                                                 *historyTransferRate &
              &                                                      )
           call historyTransferRate%destroy()
         end if 
