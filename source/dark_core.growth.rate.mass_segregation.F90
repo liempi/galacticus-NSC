@@ -205,7 +205,8 @@ contains
       & ) then
       darkCoreVelocityDispersion          = sqrt(                                      &
         &                                        (                                     &
-        &                                          gravitationalConstant_internal      &
+	&                                         +2.0d0                               &
+        &                                         *gravitationalConstant_internal      &
         &                                         *darkCoreMass                        &
         &                                         *(                                   &
         &                                           +darkCoreMass                      &
