@@ -106,8 +106,8 @@ contains
     !!{
     Compute the growth rate of \gls{nsc} due to accretion from the spheroid.
     !!}
-    use :: Galacticus_Nodes    , only : interruptTask   , nodeComponentNSC, nodeComponentNSCStandard, nodeComponentSpheroid, &
-       &                                propertyInactive, treeNode
+    use :: Galacticus_Nodes    , only : interruptTask     , nodeComponentNSC, nodeComponentNSCStandard, nodeComponentSpheroid, &
+       &                                nodeComponentBasic, propertyInactive, treeNode
     use :: Abundances_Structure, only : operator(*)
     implicit none
     class           (nodeOperatorNuclearStarClusterGrowth), intent(inout), target :: self
@@ -117,12 +117,17 @@ contains
     integer                                               , intent(in   )         :: propertyType
     class           (nodeComponentNSC                    ),                pointer:: nuclearStarCluster
     class           (nodeComponentSpheroid               ),                pointer:: spheroid
-    double precision                                                              :: rateMassAccretionGas
+    class           (nodeComponentBasic                  ),                pointer:: basic
+    double precision                                                              :: rateMassAccretionGas, time
 
     ! Return immediately if inactive variables are requested.
     if (propertyInactive(propertyType)) return
+
+    ! Find the current cosmic time.
+    basic => node %basic()
+    time  =  basic%time ()
     ! Find the rate of gas accretion.
-    rateMassAccretionGas=self%nuclearStarClusterGrowthRates_%rate(node)
+    rateMassAccretionGas=self%nuclearStarClusterGrowthRates_%rate(node,time)
     ! Finish if there is no gas inflow onto the nuclear star cluster.
     if (rateMassAccretionGas <= 0.0d0) return
     ! Get the spheroid and nuclear star cluster component.

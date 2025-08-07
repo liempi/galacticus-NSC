@@ -41,7 +41,8 @@ module Nuclear_Star_Cluster_Growth_Rates
     <type>double precision</type>
     <pass>yes</pass>
     <selfTarget>yes</selfTarget>
-    <argument>type(treeNode), intent(inout) :: node</argument>
+    <argument>type            (treeNode), intent(inout) :: node</argument>
+    <argument>double precision          , intent(in   ) :: time</argument>
    </method>
   </functionClass>
   !!]
