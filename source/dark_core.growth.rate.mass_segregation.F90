@@ -50,7 +50,7 @@
        &                                                           nuclearStarClusterNumberOfStarsID              , nuclearStarClusterDensityID, &
        &                                                           darkCoreTimescaleID
      double precision                                           :: efficiencyBlackHoleFormation                   , boostFactorIMF              , &
-       &                                                           fractionBlackHoles
+       &                                                           fractionBlackHoles                             , contractionFactor
    contains
      final     ::          darkCoreMassSegregationDestructor
      procedure :: rate  => darkCoreMassSegregationRate
@@ -75,8 +75,8 @@ contains
     type            (darkCoreGrowthRatesMassSegregation       )                :: self
     type            (inputParameters                          ), intent(inout) :: parameters
     class           (starFormationRateNuclearStarClustersClass), pointer       :: starFormationRateNuclearStarClusters_
-    double precision                                                           :: efficiencyBlackHoleFormation         , boostFactorIMF, &
-       &                                                                          fractionBlackHoles
+    double precision                                                           :: efficiencyBlackHoleFormation         , boostFactorIMF   , &
+       &                                                                          fractionBlackHoles                   , contractionFactor
 
     !![
     <inputParameter>
@@ -92,6 +92,12 @@ contains
       <source>parameters</source>
     </inputParameter>
     <inputParameter>
+      <name>contractionFactor</name>
+      <defaultValue>0.1d0</defaultValue>
+      <description>Parameter which mimics the contraction of the dark core as result of gas inflows.</description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter>
       <name>fractionBlackHoles</name>
       <defaultValue>0.01d0</defaultValue>
       <description>Boost factor to enhance the production of stellar mass black holes in the nuclear star clusters asumming a top-heavy initial mass function.</description>
@@ -99,7 +105,7 @@ contains
     </inputParameter>
     <objectBuilder class="starFormationRateNuclearStarClusters" name="starFormationRateNuclearStarClusters_" source="parameters"/>
     !!]
-    self=darkCoreGrowthRatesMassSegregation(efficiencyBlackHoleFormation,boostFactorIMF,fractionBlackHoles,starFormationRateNuclearStarClusters_)
+    self=darkCoreGrowthRatesMassSegregation(efficiencyBlackHoleFormation,boostFactorIMF,contractionFactor,fractionBlackHoles,starFormationRateNuclearStarClusters_)
     !![
     <inputParametersValidate source="parameters"/>
     <objectDestructor name="starFormationRateNuclearStarClusters_"/>
@@ -107,17 +113,17 @@ contains
     return
   end function darkCoreMassSegregationConstructorParameters
 
-  function darkCoreMassSegregationConstructorInternal(efficiencyBlackHoleFormation,boostFactorIMF,fractionBlackHoles,starFormationRateNuclearStarClusters_) result(self)
+  function darkCoreMassSegregationConstructorInternal(efficiencyBlackHoleFormation,boostFactorIMF,contractionFactor,fractionBlackHoles,starFormationRateNuclearStarClusters_) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily antonini2015} gas inflow rate from NSCs class.
     !!}
     implicit none
     type            (darkCoreGrowthRatesMassSegregation       )                        :: self
     class           (starFormationRateNuclearStarClustersClass), intent(in   ), target :: starFormationRateNuclearStarClusters_
-    double precision                                           , intent(in   )         :: efficiencyBlackHoleFormation         , boostFactorIMF, &
-       &                                                                                  fractionBlackHoles
+    double precision                                           , intent(in   )         :: efficiencyBlackHoleFormation         , boostFactorIMF   , &
+       &                                                                                  fractionBlackHoles                   , contractionFactor
     !![
-      <constructorAssign variables="efficiencyBlackHoleFormation,boostFactorIMF,fractionBlackHoles,*starFormationRateNuclearStarClusters_"/>
+      <constructorAssign variables="efficiencyBlackHoleFormation,boostFactorIMF,contractionFactor,fractionBlackHoles,*starFormationRateNuclearStarClusters_"/>
       <addMetaProperty component="NSC" name="darkCoreRadius"                  id="self%darkCoreRadiusID"                  isEvolvable="no"  isCreator="no" />
       <addMetaProperty component="NSC" name="darkCoreGasMass"                 id="self%darkCoreGasMassID"                 isEvolvable="no"  isCreator="yes"/>
       <addMetaProperty component="NSC" name="darkCoreVelocityDispersion"      id="self%darkCoreVelocityDispersionID"      isEvolvable="no"  isCreator="yes"/>
@@ -196,7 +202,7 @@ contains
     massDistributionNuclearStarCluster_ => node                               %massDistribution    (componentTypeNuclearStarCluster,massTypeGaseous)
     nuclearStarClusterDensityGas        =  massDistributionNuclearStarCluster_%density             (coordinates                                    )
     nuclearStarClusterGasMassEnclosed   =  massDistributionNuclearStarCluster_%massEnclosedBySphere(darkCoreRadius                                 ) 
-    ! We do not use this here, but I do not know where to better place this yet.
+    ! We do not use this here, but I do not know yet where to better place this.
     if ( darkCoreRadius                  >0.0d0 &
       & .and.                                   &
       & darkCoreMass                     >0.0d0 &
@@ -216,6 +222,7 @@ contains
         &                                         /(                                   &
         &                                            darkCoreMass                      &
         &                                           *darkCoreRadius                    &
+        &                                           *self%contractionFactor            &
         &                                          )                                   &         
         &                                        )
 
