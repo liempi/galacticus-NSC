@@ -23,8 +23,6 @@
   Implements a black hole seed based on collapse of nuclear star clusters due to runaway stellar collisions.
   !!}
  
-  use :: Cosmology_Functions, only : cosmologyFunctionsClass
-
   !![
   <blackHoleSeeds name="blackHoleSeedsVergara2023">
     <description>
@@ -40,21 +38,17 @@
      based on the model of \cite{vergara_global_2023} and \cite{escala_observational_2021}.
      !!}
      private
-     class           (cosmologyFunctionsClass), pointer :: cosmologyFunctions_                   => null()
-     double precision                                   :: massSingleStar                                 , radiusSingleStar                 , &
-         &                                                 massEfficiency                                 , radiusEfficiency                 , &
+     double precision                                   :: massSingleStar                  , radiusSingleStar                 , &
+         &                                                 massEfficiency                  , radiusEfficiency                 , &
          &                                                 massThreshold
-     integer                                            :: timeStellarMassFormedNSCID                     , stellarMassFormedNSCID           , &
-         &                                                 radiusNuclearStarClustersID                    , blackHoleSeedMassID              , &
-         &                                                 velocityNuclearStarClustersID                  , ageNuclearStarClustersID         , &
-         &                                                 gasMassNuclearStarClustersID                   , criticalMassNuclearStarClustersID, &
-         &                                                 redshiftBlackHoleSeedFormationID               , stellarMassNuclearStarClustersID , &
-         &                                                 mergerTreeWeightNuclearStarClustersID 
+     integer                                            :: timeStellarMassFormedNSCID      , stellarMassFormedNSCID           , &
+         &                                                 radiusNuclearStarClustersID     , blackHoleSeedMassID              , &
+         &                                                 velocityNuclearStarClustersID   , ageNuclearStarClustersID         , &
+         &                                                 gasMassNuclearStarClustersID    , criticalMassNuclearStarClustersID, &
+         &                                                 stellarMassNuclearStarClustersID
    contains
-     final     ::                     vergara2023Destructor              
      procedure :: mass             => vergara2023Mass
      procedure :: spin             => vergara2023Spin
-     procedure :: redshift         => vergara2023Redshift
      procedure :: formationChannel => vergara2023FormationChannel
   end type blackHoleSeedsVergara2023
   
@@ -76,7 +70,6 @@ contains
     implicit none
     type            (blackHoleSeedsVergara2023)                :: self
     type            (inputParameters          ), intent(inout) :: parameters
-    class           (cosmologyFunctionsClass  ), pointer       :: cosmologyFunctions_
     double precision                                           :: massSingleStar     , radiusSingleStar, &
        &                                                          massEfficiency     , radiusEfficiency, &
        &                                                          massThreshold 
@@ -112,30 +105,27 @@ contains
       <description>Specifies the minimum stellar mass to apply the seeding prescription.</description>
       <source>parameters</source>
     </inputParameter>
-    <objectBuilder class="cosmologyFunctions" name="cosmologyFunctions_" source="parameters"/>
     !!]
-    self=blackHoleSeedsVergara2023(massSingleStar, radiusSingleStar, massEfficiency, radiusEfficiency, massThreshold, cosmologyFunctions_)
+    self=blackHoleSeedsVergara2023(massSingleStar, radiusSingleStar, massEfficiency, radiusEfficiency, massThreshold)
     !![
     <inputParametersValidate source="parameters"/>
-    <objectDestructor name="cosmologyFunctions_"/>
     !!]
     return
   end function vergara2023ConstructorParameters
   
-  function vergara2023ConstructorInternal(massSingleStar, radiusSingleStar, massEfficiency, radiusEfficiency, massThreshold,cosmologyFunctions_) result(self)
+  function vergara2023ConstructorInternal(massSingleStar, radiusSingleStar, massEfficiency, radiusEfficiency, massThreshold) result(self)
     !!{
     Internal constructor for the \refClass{blackHoleSeedsVergara2023} node operator class.
     !!}
     implicit none
-    type            (blackHoleSeedsVergara2023)                        :: self
-    class           (cosmologyFunctionsClass  ), intent(in   ), target :: cosmologyFunctions_
-    double precision                           , intent(in   )         :: massSingleStar
-    double precision                           , intent(in   )         :: radiusSingleStar
-    double precision                           , intent(in   )         :: massEfficiency
-    double precision                           , intent(in   )         :: radiusEfficiency
-    double precision                           , intent(in   )         :: massThreshold
+    type            (blackHoleSeedsVergara2023)                :: self
+    double precision                           , intent(in   ) :: massSingleStar
+    double precision                           , intent(in   ) :: radiusSingleStar
+    double precision                           , intent(in   ) :: massEfficiency
+    double precision                           , intent(in   ) :: radiusEfficiency
+    double precision                           , intent(in   ) :: massThreshold
     !![
-    <constructorAssign variables="massSingleStar, radiusSingleStar, massEfficiency, radiusEfficiency, massThreshold, *cosmologyFunctions_"/>
+    <constructorAssign variables="massSingleStar, radiusSingleStar, massEfficiency, radiusEfficiency, massThreshold"/>
     !!]
     !![
     <addMetaProperty component="NSC" name="agesStellarMassFormed"           id="self%stellarMassFormedNSCID"            isEvolvable="yes" isCreator="no" />
@@ -145,25 +135,11 @@ contains
     <addMetaProperty component="NSC" name="radiusNuclearStarClusters"       id="self%radiusNuclearStarClustersID"       isEvolvable="no"  isCreator="yes"/>
     <addMetaProperty component="NSC" name="gasMassNuclearStarClusters"      id="self%gasMassNuclearStarClustersID"      isEvolvable="no"  isCreator="yes"/>
     <addMetaProperty component="NSC" name="velocityNuclearStarClusters"     id="self%velocityNuclearStarClustersID"     isEvolvable="no"  isCreator="yes"/>
-    <addMetaProperty component="NSC" name="redshiftBlackHoleSeedFormation"  id="self%redshiftBlackHoleSeedFormationID"  isEvolvable="no"  isCreator="yes"/>
     <addMetaProperty component="NSC" name="stellarMassNuclearStarClusters"  id="self%stellarMassNuclearStarClustersID"  isEvolvable="no"  isCreator="yes"/>
     <addMetaProperty component="NSC" name="criticalMassNuclearStarClusters" id="self%criticalMassNuclearStarClustersID" isEvolvable="no"  isCreator="yes"/>
     !!]
     return
   end function vergara2023ConstructorInternal
-
-  subroutine vergara2023Destructor(self)
-      !!{
-      Destructor for the \refClass{blackHoleSeedsVergara2023} black hole seeds class.
-      !!}
-      implicit none 
-      type(blackHoleSeedsVergara2023), intent(inout) :: self
-      
-      !![
-      <objectDestructor name="self%cosmologyFunctions_"/>
-      !!]
-      return
-  end subroutine vergara2023Destructor
 
   double precision function vergara2023Mass(self,node) result(mass)
       !!{
@@ -290,7 +266,6 @@ contains
             call nuclearStarCluster%floatRank0MetaPropertySet(self%gasMassNuclearStarClustersID     ,nuclearStarCluster                    %massGas                       (                                              ))
             call nuclearStarCluster%floatRank0MetaPropertySet(self%stellarMassNuclearStarClustersID ,nuclearStarCluster                    %massStellar                   (                                              ))
             call nuclearStarCluster%floatRank0MetaPropertySet(self%velocityNuclearStarClustersID    ,                                       velocityNuclearStarCluster                                                    )
-            !call nuclearStarCluster%floatRank0MetaPropertySet(self%redshiftBlackHoleSeedFormationID ,self              %cosmologyFunctions_%redshiftFromExpansionFactor   (self%cosmologyFunctions_%expansionFactor(time)))
             call nuclearStarCluster%floatRank0MetaPropertySet(self%criticalMassNuclearStarClustersID,                                       massCriticalNuclearStarCluster                                                )
             call nuclearStarCluster%floatRank0MetaPropertySet(self%radiusNuclearStarClustersID      ,                                       radiusNuclearStarCluster                                                      )
 
@@ -335,23 +310,6 @@ contains
     spin=0.0d0
     return
   end function vergara2023Spin
-
-  double precision function vergara2023Redshift(self,node) result(redshift)
-    !!{
-    Compute the formation redshift of the seed black hole.
-    !!}
-    use :: Galacticus_Nodes, only : nodeComponentBasic, treeNode  
-    implicit none
-    class           (blackHoleSeedsVergara2023), intent(inout) :: self
-    type            (treeNode                 ), intent(inout) :: node
-    class           (nodeComponentBasic       ), pointer       :: basic
-    double precision                                           :: time
-
-    basic => node %basic()
-    time  =  basic%time ()
-    redshift=self%cosmologyFunctions_%redshiftFromExpansionFactor(self%cosmologyFunctions_%expansionFactor(time))
-    return
-  end function vergara2023Redshift
 
   function vergara2023FormationChannel (self,node) result(channel)
     !!{

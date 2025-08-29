@@ -23,8 +23,6 @@
   Implements a black hole seed based ...
   !!}
  
-  use :: Cosmology_Functions                       , only : cosmologyFunctionsClass
-
   !![
   <blackHoleSeeds name="blackHoleSeedsVeryMassiveStars">
     <description>
@@ -38,18 +36,15 @@
      A black hole seeds class in which seeds are formed as a result of very massive stars...
      !!}
      private
-     class           (cosmologyFunctionsClass                  ), pointer :: cosmologyFunctions_                 => null()
-     double precision                                                     :: massFraction                                 , nuclearStarClusterMaximumAge
-     integer                                                              :: ageNuclearStarClustersID                     , gasMassNuclearStarClustersID             , &
-       &                                                                     stellarMassNuclearStarClustersID             , nuclearStarClusterFormationTimeID        , &
-       &                                                                     redshiftBlackHoleSeedFormationVMSID          , radiusNuclearStarClustersID              , &
-       &                                                                     blackHoleSeedMassID                          , stellarMassFormedNSCID                   , &
-       &                                                                     timeStellarMassFormedNSCID                   , coreCollapseTimescaleNuclearStarClusterID
+     double precision                                                  :: massFraction                       , nuclearStarClusterMaximumAge
+     integer                                                           :: ageNuclearStarClustersID           , gasMassNuclearStarClustersID             , &
+       &                                                                  stellarMassNuclearStarClustersID   , nuclearStarClusterFormationTimeID        , &
+       &                                                                  redshiftBlackHoleSeedFormationVMSID, radiusNuclearStarClustersID              , &
+       &                                                                  blackHoleSeedMassID                , stellarMassFormedNSCID                   , &
+       &                                                                  timeStellarMassFormedNSCID         , coreCollapseTimescaleNuclearStarClusterID
    contains   
-     final     ::                     veryMassiveStarsDestructor              
      procedure :: mass             => veryMassiveStarsMass
      procedure :: spin             => veryMassiveStarsSpin
-     procedure :: redshift         => veryMassiveStarsRedshift
      procedure :: formationChannel => veryMassiveStarsFormationChannel
   end type blackHoleSeedsVeryMassiveStars
   
@@ -69,10 +64,9 @@ contains
     !!}
     use :: Input_Parameters, only : inputParameters
     implicit none
-    type            (blackHoleSeedsVeryMassiveStars           )                :: self
-    type            (inputParameters                          ), intent(inout) :: parameters
-    class           (cosmologyFunctionsClass                  ), pointer       :: cosmologyFunctions_
-    double precision                                                           :: massFraction        , nuclearStarClusterMaximumAge 
+    type            (blackHoleSeedsVeryMassiveStars)                :: self
+    type            (inputParameters               ), intent(inout) :: parameters
+    double precision                                                :: massFraction, nuclearStarClusterMaximumAge 
 
     !![
     <inputParameter>
@@ -87,27 +81,24 @@ contains
       <description>Specifies the maximum age (Gyr) of the nuclear star cluster to apply this formation channel.</description>
       <source>parameters</source>
     </inputParameter>
-    <objectBuilder class="cosmologyFunctions" name="cosmologyFunctions_" source="parameters"/>
     !!]
-    self=blackHoleSeedsVeryMassiveStars(massFraction,nuclearStarClusterMaximumAge,cosmologyFunctions_)
+    self=blackHoleSeedsVeryMassiveStars(massFraction,nuclearStarClusterMaximumAge)
     !![
     <inputParametersValidate source="parameters"/>
-    <objectDestructor name="cosmologyFunctions_"/>
     !!]
     return
   end function veryMassiveStarsConstructorParameters
   
-  function veryMassiveStarsConstructorInternal(massFraction,nuclearStarClusterMaximumAge,cosmologyFunctions_) result(self)
+  function veryMassiveStarsConstructorInternal(massFraction,nuclearStarClusterMaximumAge) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily veryMassiveStars} node operator class.
     !!}
     implicit none
-    type            (blackHoleSeedsVeryMassiveStars           )                        :: self
-    class           (cosmologyFunctionsClass                  ), intent(in   ), target :: cosmologyFunctions_
-    double precision                                           , intent(in   )         :: massFraction
-    double precision                                           , intent(in   )         :: nuclearStarClusterMaximumAge
+    type            (blackHoleSeedsVeryMassiveStars)                :: self
+    double precision                                , intent(in   ) :: massFraction
+    double precision                                , intent(in   ) :: nuclearStarClusterMaximumAge
     !![
-    <constructorAssign variables="massFraction, nuclearStarClusterMaximumAge, *cosmologyFunctions_"/>
+    <constructorAssign variables="massFraction, nuclearStarClusterMaximumAge"/>
     <addMetaProperty component="NSC" name="agesStellarMassFormed"                   id="self%stellarMassFormedNSCID"                    isEvolvable="yes" isCreator="no" />
     <addMetaProperty component="NSC" name="agesTimeStellarMassFormed"               id="self%timeStellarMassFormedNSCID"                isEvolvable="yes" isCreator="no" />
     <addMetaProperty component="NSC" name="blackHoleSeedMassFormed"                 id="self%blackHoleSeedMassID"                       isEvolvable="no"  isCreator="yes"/>
@@ -121,19 +112,6 @@ contains
      !!]
     return
   end function veryMassiveStarsConstructorInternal
-
-  subroutine veryMassiveStarsDestructor(self)
-      !!{
-      Destructor for the {\normalfont \ttfamily veryMassiveStars} black hole seeds class.
-      !!}
-      implicit none 
-      type(blackHoleSeedsVeryMassiveStars), intent(inout) :: self
-      
-      !![
-      <objectDestructor name="self%cosmologyFunctions_"/>
-      !!]
-      return
-  end subroutine veryMassiveStarsDestructor
 
   double precision function veryMassiveStarsMass(self,node) result(mass)
       !!{
@@ -218,7 +196,7 @@ contains
             call nuclearStarCluster%floatRank0MetaPropertySet(self%ageNuclearStarClustersID                 ,                                       ageNuclearStarCluster                                                          )
             call nuclearStarCluster%floatRank0MetaPropertySet(self%gasMassNuclearStarClustersID             , nuclearStarCluster                    %massGas                       (                                              ))
             call nuclearStarCluster%floatRank0MetaPropertySet(self%stellarMassNuclearStarClustersID         , nuclearStarCluster                    %massStellar                   (                                              ))
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%redshiftBlackHoleSeedFormationVMSID      , self              %cosmologyFunctions_%redshiftFromExpansionFactor   (self%cosmologyFunctions_%expansionFactor(time)))
+            !call nuclearStarCluster%floatRank0MetaPropertySet(self%redshiftBlackHoleSeedFormationVMSID      , self              %cosmologyFunctions_%redshiftFromExpansionFactor   (self%cosmologyFunctions_%expansionFactor(time)))
             call nuclearStarCluster%floatRank0MetaPropertySet(self%radiusNuclearStarClustersID              ,                                       radiusNuclearStarCluster                                                      )
             call nuclearStarCluster%floatRank0MetaPropertySet(self%coreCollapseTimescaleNuclearStarClusterID, coreCollapseTimescale)
             ! Here, self%massFraction is computed in the following way: 
@@ -268,23 +246,6 @@ contains
     spin=0.0d0
     return
   end function veryMassiveStarsSpin
-
-  double precision function veryMassiveStarsRedshift(self,node) result(redshift)
-    !!{
-    Compute the formation redshift of the seed black hole.
-    !!}
-    use :: Galacticus_Nodes, only : nodeComponentBasic, treeNode  
-    implicit none
-    class           (blackHoleSeedsVeryMassiveStars), intent(inout) :: self
-    type            (treeNode                      ), intent(inout) :: node
-    class           (nodeComponentBasic            ), pointer       :: basic
-    double precision                                                :: time
-
-    basic => node %basic()
-    time  =  basic%time ()
-    redshift=self%cosmologyFunctions_%redshiftFromExpansionFactor(self%cosmologyFunctions_%expansionFactor(time))
-    return
-  end function veryMassiveStarsRedshift
 
   function veryMassiveStarsFormationChannel (self,node) result(channel)
     !!{

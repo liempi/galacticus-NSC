@@ -36,11 +36,10 @@
      A property extractor class for the velocity dispersion at a set of radii.
      !!}
      private
-     integer  :: radiusNuclearStarClustersID          , blackHoleSeedMassID              , &
-         &       velocityNuclearStarClustersID        , ageNuclearStarClustersID         , &
-         &       gasMassNuclearStarClustersID         , criticalMassNuclearStarClustersID, &
-         &       redshiftBlackHoleSeedFormationID     , stellarMassNuclearStarClustersID , &                                                                    
-         &       mergerTreeWeightNuclearStarClustersID   
+     integer  :: radiusNuclearStarClustersID     , blackHoleSeedMassID              , &
+         &       velocityNuclearStarClustersID   , ageNuclearStarClustersID         , &
+         &       gasMassNuclearStarClustersID    , criticalMassNuclearStarClustersID, &
+         &       stellarMassNuclearStarClustersID 
    contains
      procedure :: elementCount       => blackHoleSeedingVergara2023ElementCount
      procedure :: extract            => blackHoleSeedingVergara2023Extract
@@ -89,8 +88,6 @@ contains
     <addMetaProperty   component="NSC"  name="gasMassNuclearStarClusters"          id="self%gasMassNuclearStarClustersID"          isEvolvable="no"  isCreator="no"/>
     <addMetaProperty   component="NSC"  name="stellarMassNuclearStarClusters"      id="self%stellarMassNuclearStarClustersID"      isEvolvable="no"  isCreator="no"/>
     <addMetaProperty   component="NSC"  name="criticalMassNuclearStarClusters"     id="self%criticalMassNuclearStarClustersID"     isEvolvable="no"  isCreator="no"/>
-    <addMetaProperty   component="NSC"  name="redshiftBlackHoleSeedFormation"      id="self%redshiftBlackHoleSeedFormationID"      isEvolvable="no"  isCreator="no"/>
-    <addMetaProperty   component="NSC"  name="mergerTreeWeightNuclearStarClusters" id="self%mergerTreeWeightNuclearStarClustersID" isEvolvable="no"  isCreator="no"/>
     !!]
     return
   end function blackHoleSeedingVergara2023ConstructorInternal
@@ -104,7 +101,7 @@ contains
     double precision                                                  , intent(in   ) :: time
     !$GLC attributes unused :: time
 
-    blackHoleSeedingVergara2023ElementCount=8
+    blackHoleSeedingVergara2023ElementCount=7
     return
   end function blackHoleSeedingVergara2023ElementCount
 
@@ -123,7 +120,7 @@ contains
 
     !$GLC attributes unused :: time, instance
 
-    allocate(blackHoleSeedingVergara2023Extract(8))
+    allocate(blackHoleSeedingVergara2023Extract(7))
     nuclearStarCluster => node%NSC()
     select type (nuclearStarCluster)
     type is (nodeComponentNSC)
@@ -134,13 +131,10 @@ contains
         &                                 0.0d0, &
         &                                 0.0d0, &
         &                                 0.0d0, &
-        &                                 0.0d0, &
-        &                                 0.0d0, &
         &                                 0.0d0  &
         &                                ]
     class default
       blackHoleSeedingVergara2023Extract=[                                                                                      &
-       &                                  nuclearStarCluster%floatRank0MetaPropertyGet(self%redshiftBlackHoleSeedFormationID ), &
        &                                  nuclearStarCluster%floatRank0MetaPropertyGet(self%blackHoleSeedMassID              ), &
        &                                  nuclearStarCluster%floatRank0MetaPropertyGet(self%ageNuclearStarClustersID         ), &
        &                                  nuclearStarCluster%floatRank0MetaPropertyGet(self%radiusNuclearStarClustersID      ), &
@@ -163,15 +157,14 @@ contains
     type            (varying_string                                  ), intent(inout), dimension(:) , allocatable :: names
     !$GLC attributes unused :: self, time
     
-    allocate(names(8))
-    names(1)=var_str('blackHoleFormationRedshift'    )
-    names(2)=var_str('blackHoleSeedMass'             )
-    names(3)=var_str('nuclearStarClusterAge'         )
-    names(4)=var_str('nuclearStarClusterRadius'      )
-    names(5)=var_str('nuclearStarClusterVelocity'    )
-    names(6)=var_str('nuclearStarClusterGasMass'     )
-    names(7)=var_str('nuclearStarClusterStellarMass' )
-    names(8)=var_str('nuclearStarClusterCriticalMass')
+    allocate(names(7))
+    names(1)=var_str('blackHoleSeedMass'             )
+    names(2)=var_str('nuclearStarClusterAge'         )
+    names(3)=var_str('nuclearStarClusterRadius'      )
+    names(4)=var_str('nuclearStarClusterVelocity'    )
+    names(5)=var_str('nuclearStarClusterGasMass'     )
+    names(6)=var_str('nuclearStarClusterStellarMass' )
+    names(7)=var_str('nuclearStarClusterCriticalMass')
     return
   end subroutine blackHoleSeedingVergara2023Names
 
@@ -185,15 +178,14 @@ contains
     type            (varying_string                                  ), intent(inout), dimension(:) , allocatable :: descriptions
     !$GLC attributes unused :: time
 
-    allocate(descriptions(8))
-    descriptions(1)=var_str('Redshift at the formation of the black hole seed in the Vergara et al. (2024) model.'                         )
-    descriptions(2)=var_str('Black hole seed mass in the Vergara et al. (2024) model [M⊙].'                                                )
-    descriptions(3)=var_str('Mass-weighted age of the nuclear star cluster at which black hole seed is formed [Gyr].'                      )
-    descriptions(4)=var_str('Radius of the nuclear star cluster used to compute the critical mass (multiplied by radius efficiency) [Mpc].')
-    descriptions(5)=var_str('Velocity of the nuclear star cluster used to compute the critical mass [km s⁻¹].'                             )
-    descriptions(6)=var_str('Gaseous mass of the nuclear star cluster used to compute the critical mass [M⊙].'                             )
-    descriptions(7)=var_str('Stellar mass of the nuclear star cluster used to compute the critical mass [M⊙].'                             )
-    descriptions(8)=var_str('Critical mass of the nuclear star cluster [M⊙].'                                                              )
+    allocate(descriptions(7))
+    descriptions(1)=var_str('Black hole seed mass in the Vergara et al. (2024) model [M⊙].'                                                )
+    descriptions(2)=var_str('Mass-weighted age of the nuclear star cluster at which black hole seed is formed [Gyr].'                      )
+    descriptions(3)=var_str('Radius of the nuclear star cluster used to compute the critical mass (multiplied by radius efficiency) [Mpc].')
+    descriptions(4)=var_str('Velocity of the nuclear star cluster used to compute the critical mass [km s⁻¹].'                             )
+    descriptions(5)=var_str('Gaseous mass of the nuclear star cluster used to compute the critical mass [M⊙].'                             )
+    descriptions(6)=var_str('Stellar mass of the nuclear star cluster used to compute the critical mass [M⊙].'                             )
+    descriptions(7)=var_str('Critical mass of the nuclear star cluster [M⊙].'                                                              )
     return
   end subroutine blackHoleSeedingVergara2023Descriptions
 
@@ -209,9 +201,8 @@ contains
     double precision                                                  , intent(in   )               :: time
     !$GLC attributes unused :: time
 
-    allocate(blackHoleSeedingVergara2023UnitsInSI(8))
+    allocate(blackHoleSeedingVergara2023UnitsInSI(7))
     blackHoleSeedingVergara2023UnitsInSI = [            &
-     &                                      1.0d0     , &
      &                                      massSolar , &
      &                                      gigayear  , &
      &                                      megaParsec, &

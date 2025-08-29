@@ -84,7 +84,7 @@ contains
     !!{
     Implement a {\normalfont \ttfamily blackHoleFormationRedshift} node property extractor.
     !!}
-    use :: Galacticus_Nodes, only : nodeComponentBlackHole               , nodeComponentBlackHoleStandard
+    use :: Galacticus_Nodes, only : nodeComponentBlackHole, nodeComponentBlackHoleStandard
     implicit none
     double precision                                                                           :: blackHoleFormationRedshiftExtract
     class           (nodePropertyExtractorBlackHoleFormationRedshift), intent(inout), target   :: self
@@ -97,7 +97,7 @@ contains
     select type (blackHole)
     class is (nodeComponentBlackHole)
        ! No black hole exists - the formation redshift is undetermined.
-       blackHoleFormationRedshiftExtract=0.0d0
+       blackHoleFormationRedshiftExtract=-1.0d0
     class default
        ! Extract the formation redshift.
        blackHoleFormationRedshiftExtract=blackHole%floatRank0MetaPropertyGet(self%blackHoleSeedsFormationRedshiftID)
@@ -127,7 +127,7 @@ contains
     class    (nodePropertyExtractorBlackHoleFormationRedshift), intent(inout) :: self
     !$GLC attributes unused :: self
 
-    description='Indicates the formation redshift of the black hole seed.'
+    description='Indicates the redshift of the black hole seed formation.'
     return
   end function blackHoleFormationRedshiftDescription
 

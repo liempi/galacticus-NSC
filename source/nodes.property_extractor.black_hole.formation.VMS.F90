@@ -35,10 +35,10 @@
      A property extractor class for the velocity dispersion at a set of radii.
      !!}
      private
-     integer  :: radiusNuclearStarClustersID          , blackHoleSeedMassID              , &
-         &       velocityNuclearStarClustersID        , ageNuclearStarClustersID         , &
-         &       gasMassNuclearStarClustersID         , stellarMassNuclearStarClustersID         , &
-         &       redshiftBlackHoleSeedFormationVMSID  , coreCollapseTimescaleNuclearStarClusterID
+     integer  :: radiusNuclearStarClustersID              , blackHoleSeedMassID             , &
+         &       velocityNuclearStarClustersID            , ageNuclearStarClustersID        , &
+         &       gasMassNuclearStarClustersID             , stellarMassNuclearStarClustersID, &
+         &       coreCollapseTimescaleNuclearStarClusterID
    contains
      procedure :: elementCount       => blackHoleSeedingVMSElementCount
      procedure :: extract            => blackHoleSeedingVMSExtract
@@ -85,7 +85,6 @@ contains
     <addMetaProperty component="NSC" name="radiusNuclearStarClusters"               id="self%radiusNuclearStarClustersID"               isEvolvable="no" isCreator="no"/>
     <addMetaProperty component="NSC" name="gasMassNuclearStarClusters"              id="self%gasMassNuclearStarClustersID"              isEvolvable="no" isCreator="no"/>
     <addMetaProperty component="NSC" name="stellarMassNuclearStarClusters"          id="self%stellarMassNuclearStarClustersID"          isEvolvable="no" isCreator="no"/>
-    <addMetaProperty component="NSC" name="redshiftBlackHoleSeedFormation"          id="self%redshiftBlackHoleSeedFormationVMSID"       isEvolvable="no" isCreator="no"/>
     <addMetaProperty component="NSC" name="coreCollapseTimescaleNuclearStarCluster" id="self%coreCollapseTimescaleNuclearStarClusterID" isEvolvable="no" isCreator="no"/>   
     !!]
     return
@@ -100,7 +99,7 @@ contains
     double precision                                          , intent(in   ) :: time
     !$GLC attributes unused :: time
 
-    blackHoleSeedingVMSElementCount=7
+    blackHoleSeedingVMSElementCount=6
     return
   end function blackHoleSeedingVMSElementCount
 
@@ -119,7 +118,7 @@ contains
 
     !$GLC attributes unused :: time, instance
 
-    allocate(blackHoleSeedingVMSExtract(7))
+    allocate(blackHoleSeedingVMSExtract(6))
     nuclearStarCluster => node%NSC()
     select type (nuclearStarCluster)
     type is (nodeComponentNSC)
@@ -130,12 +129,10 @@ contains
         &                          0.0d0, &
         &                          0.0d0, &
         &                          0.0d0, &
-        &                          0.0d0, &
         &                          0.0d0  &
         &                        ]
     class default
       blackHoleSeedingVMSExtract=[                                                                                               &
-       &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%redshiftBlackHoleSeedFormationVMSID      ), &
        &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%blackHoleSeedMassID                      ), &
        &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%ageNuclearStarClustersID                 ), &
        &                           nuclearStarCluster%floatRank0MetaPropertyGet(self%radiusNuclearStarClustersID              ), &
@@ -157,14 +154,13 @@ contains
     type            (varying_string                          ), intent(inout), dimension(:) , allocatable :: names
     !$GLC attributes unused :: self, time
     
-    allocate(names(7))
-    names(1)=var_str('blackHoleFormationRedshift'             )
-    names(2)=var_str('blackHoleSeedMass'                      )
-    names(3)=var_str('nuclearStarClusterAge'                  )
-    names(4)=var_str('nuclearStarClusterRadius'               )
-    names(5)=var_str('nuclearStarClusterGasMass'              )
-    names(6)=var_str('nuclearStarClusterStellarMass'          )
-    names(7)=var_str('nuclearStarClusterCoreCollapseTimescale')
+    allocate(names(6))
+    names(1)=var_str('blackHoleSeedMass'                      )
+    names(2)=var_str('nuclearStarClusterAge'                  )
+    names(3)=var_str('nuclearStarClusterRadius'               )
+    names(4)=var_str('nuclearStarClusterGasMass'              )
+    names(5)=var_str('nuclearStarClusterStellarMass'          )
+    names(6)=var_str('nuclearStarClusterCoreCollapseTimescale')
     return
   end subroutine blackHoleSeedingVMSNames
 
@@ -178,14 +174,13 @@ contains
     type            (varying_string                          ), intent(inout), dimension(:) , allocatable :: descriptions
     !$GLC attributes unused :: time
 
-    allocate(descriptions(7))
-    descriptions(1)=var_str('Redshift at the formation of the black hole seed .'                                     )
-    descriptions(2)=var_str('Black hole seed mass formed due to VMS model [M⊙].'                                     )
-    descriptions(3)=var_str('Mass-weighted age of the nuclear star cluster at which black hole seed is formed [Gyr].')
-    descriptions(4)=var_str('Radius of the nuclear star cluster [Mpc].'                                              )
-    descriptions(5)=var_str('Gaseous mass of the nuclear star cluster [M⊙].'                                         )
-    descriptions(6)=var_str('Stellar mass of the nuclear star cluster [M⊙].'                                         )
-    descriptions(7)=var_str('Core collapse timescale of the nuclear star cluster [Gyr].'                             )
+    allocate(descriptions(6))
+    descriptions(1)=var_str('Black hole seed mass formed due to VMS model [M⊙].'                                     )
+    descriptions(2)=var_str('Mass-weighted age of the nuclear star cluster at which black hole seed is formed [Gyr].')
+    descriptions(3)=var_str('Radius of the nuclear star cluster [Mpc].'                                              )
+    descriptions(4)=var_str('Gaseous mass of the nuclear star cluster [M⊙].'                                         )
+    descriptions(5)=var_str('Stellar mass of the nuclear star cluster [M⊙].'                                         )
+    descriptions(6)=var_str('Core collapse timescale of the nuclear star cluster [Gyr].'                             )
     return
   end subroutine blackHoleSeedingVMSDescriptions
 
@@ -201,9 +196,8 @@ contains
     double precision                                          , intent(in   )               :: time
     !$GLC attributes unused :: time
 
-    allocate(blackHoleSeedingVMSUnitsInSI(7))
+    allocate(blackHoleSeedingVMSUnitsInSI(6))
     blackHoleSeedingVMSUnitsInSI=[             &
-     &                             1.0d0     , &
      &                             massSolar , &
      &                             gigayear  , &
      &                             megaParsec, &

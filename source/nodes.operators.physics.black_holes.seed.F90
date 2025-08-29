@@ -23,7 +23,8 @@
   Implements a node operator class that creates black hole seeds in nodes.
   !!}
 
-  use :: Black_Hole_Seeds, only : blackHoleSeedsClass
+  use :: Black_Hole_Seeds   , only : blackHoleSeedsClass
+  use :: Cosmology_Functions, only : cosmologyFunctionsClass
 
   !![
   <nodeOperator name="nodeOperatorBlackHolesSeed">
@@ -35,8 +36,9 @@
      A node operator class that creates black hole seeds in nodes. 
      !!}
      private
-     class(blackHoleSeedsClass), pointer :: blackHoleSeeds_                  => null()
-     integer                             :: blackHoleSeedsFormationChannelID          , blackHoleSeedsFormationRedshiftID
+     class(blackHoleSeedsClass    ), pointer :: blackHoleSeeds_                  => null()
+     class(cosmologyFunctionsClass), pointer :: cosmologyFunctions_              => null() 
+     integer                                 :: blackHoleSeedsFormationChannelID          , blackHoleSeedsFormationRedshiftID
    contains
      final     ::                          blackHolesSeedDestructor
      procedure :: autoHook              => blackHolesSeedAutoHook
@@ -69,27 +71,31 @@ contains
     type (nodeOperatorBlackHolesSeed)                :: self
     type (inputParameters           ), intent(inout) :: parameters
     class(blackHoleSeedsClass       ), pointer       :: blackHoleSeeds_
-    
+    class(cosmologyFunctionsClass   ), pointer       :: cosmologyFunctions_
+
     !![
-    <objectBuilder class="blackHoleSeeds" name="blackHoleSeeds_" source="parameters"/>
+    <objectBuilder class="blackHoleSeeds"     name="blackHoleSeeds_"     source="parameters"/>
+    <objectBuilder class="cosmologyFunctions" name="cosmologyFunctions_" source="parameters"/>
     !!]
-    self=nodeOperatorBlackHolesSeed(blackHoleSeeds_)
+    self=nodeOperatorBlackHolesSeed(blackHoleSeeds_,cosmologyFunctions_)
     !![
     <inputParametersValidate source="parameters"/>
     <objectDestructor name="blackHoleSeeds_"/>
+    <objectDestructor name="cosmologyFunctions_"/>
     !!]
     return
   end function blackHolesSeedConstructorParameters
 
-  function blackHolesSeedConstructorInternal(blackHoleSeeds_) result(self)
+  function blackHolesSeedConstructorInternal(blackHoleSeeds_,cosmologyFunctions_) result(self)
     !!{
     Internal constructor for the \refClass{nodeOperatorBlackHolesSeed} node operator class.
     !!}
     implicit none
     type (nodeOperatorBlackHolesSeed)                        :: self
     class(blackHoleSeedsClass       ), intent(in   ), target :: blackHoleSeeds_
+    class(cosmologyFunctionsClass   ), intent(in   ), target :: cosmologyFunctions_
     !![
-    <constructorAssign variables="*blackHoleSeeds_"/>
+    <constructorAssign variables="*blackHoleSeeds_,*cosmologyFunctions_"/>
     !!]
 
     !![
@@ -121,6 +127,7 @@ contains
 
     !![
     <objectDestructor name="self%blackHoleSeeds_"/>
+    <objectDestructor name="self%cosmologyFunctions_"/>
     !!]
     if (blackHoleMergerEvent%isAttached(self,blackHoleMerger)) call blackHoleMergerEvent%detach(self,blackHoleMerger)
   return
@@ -130,13 +137,15 @@ contains
     !!{
     Create any initial black hole seeds.
     !!}
-    use :: Galacticus_Nodes, only : nodeComponentBlackHole
+    use :: Galacticus_Nodes, only : nodeComponentBlackHole                  , nodeComponentBasic
     use :: Black_Hole_Seeds, only : enumerationBlackHoleFormationChannelType
     implicit none
     class           (nodeOperatorBlackHolesSeed              ), intent(inout), target  :: self
     type            (treeNode                                ), intent(inout), target  :: node
     class           (nodeComponentBlackHole                  )               , pointer :: blackHole
-    double precision                                                                   :: massSeed
+    class           (nodeComponentBasic                      )               , pointer :: basic
+    double precision                                                                   :: massSeed        , time, &
+        &                                                                                 redshiftSeed
     type            (enumerationBlackHoleFormationChannelType)                         :: formationChannel
 
     massSeed=self%blackHoleSeeds_%mass(node)
@@ -144,11 +153,18 @@ contains
     if (massSeed > 0.0d0) then
        blackHole        => node                %blackHole       (autoCreate=.true.)
        formationChannel =  self%blackHoleSeeds_%formationChannel(           node  )
-       call        blackHole%massSet                    (                                                                        massSeed      )
-       call        blackHole%integerRank0MetaPropertySet(self%blackHoleSeedsFormationChannelID ,formationChannel                %ID            )
-       call        blackHole%  floatRank0MetaPropertySet(self%blackHoleSeedsFormationRedshiftID,self            %blackHoleSeeds_%redshift(node))
-       if (blackHole%spinIsSettable()) &
-            & call blackHole%spinSet                    (                                       self            %blackHoleSeeds_%spin    (node))
+       ! Obtain the current time and get the redshift
+       basic       => node %basic()
+       time        =  basic%time ()
+       redshiftSeed=  self %cosmologyFunctions_%redshiftFromExpansionFactor(                                               &
+             &                                                              self%cosmologyFunctions_%expansionFactor(time) &
+             &                                                             )
+
+       call blackHole%massSet                    (                                                                      massSeed)
+       call blackHole%integerRank0MetaPropertySet(self%blackHoleSeedsFormationChannelID , formationChannel    %               ID)
+       call blackHole%  floatRank0MetaPropertySet(self%blackHoleSeedsFormationRedshiftID,                           redshiftSeed)
+       if ( blackHole%spinIsSettable()) &
+            & call blackHole%spinSet             (                                        self%blackHoleSeeds_%spin       (node))
     end if
     return
   end subroutine blackHolesSeedNodeInitialize
@@ -157,7 +173,7 @@ contains
     !!{
       Create any initial black hole seeds via interrupt.
     !!}
-    use :: Galacticus_Nodes, only : nodeComponentBlackHole
+    use :: Galacticus_Nodes, only : nodeComponentBlackHole, nodeComponentBasic
     implicit none
     class           (nodeOperatorBlackHolesSeed), intent(inout), target  :: self
     type            (treeNode                  ), intent(inout), target  :: node
@@ -165,15 +181,19 @@ contains
     procedure       (interruptTask             ), intent(inout), pointer :: functionInterrupt
     integer                                     , intent(in   )          :: propertyType
     class           (nodeComponentBlackHole    )               , pointer :: blackHole
+    class           (nodeComponentBasic        )               , pointer :: basic
     double precision                                                     :: massSeed         , spinSeed, &
-        &                                                                   redshiftSeed
-    
+        &                                                                   redshiftSeed     , time
     blackHole => node%blackHole()
     select type (blackHole)
     type is (nodeComponentBlackHole)
-       massSeed    =self%blackHoleSeeds_%mass    (node)
-       spinSeed    =self%blackHoleSeeds_%spin    (node)
-       redshiftSeed=self%blackHoleSeeds_%redshift(node)
+       basic       => node %basic()
+       time        =  basic%time ()
+       massSeed    =  self %    blackHoleSeeds_%mass                       (node)
+       spinSeed    =  self %    blackHoleSeeds_%spin                       (node)
+       redshiftSeed=  self %cosmologyFunctions_%redshiftFromExpansionFactor(                                               &
+             &                                                              self%cosmologyFunctions_%expansionFactor(time) &
+             &                                                             )
        ! Create a black hole component only if the seed mass is non-zero and no black hole currently exists.
        if (massSeed > 0.0d0) then
           self_             => self
@@ -230,8 +250,8 @@ contains
           call blackHoleMerged%integerRank0MetaPropertySet(self%blackHoleSeedsFormationChannelID ,blackHole1%integerRank0MetaPropertyGet(self%blackHoleSeedsFormationChannelID ))
           call blackHoleMerged%  floatRank0MetaPropertySet(self%blackHoleSeedsFormationRedshiftID,blackHole1%  floatRank0MetaPropertyGet(self%blackHoleSeedsFormationRedshiftID))
       else
-         call blackHoleMerged%integerRank0MetaPropertySet(self%blackHoleSeedsFormationChannelID ,blackHole2%integerRank0MetaPropertyGet(self%blackHoleSeedsFormationChannelID ))
-         call blackHoleMerged%  floatRank0MetaPropertySet(self%blackHoleSeedsFormationRedshiftID,blackHole2%  floatRank0MetaPropertyGet(self%blackHoleSeedsFormationRedshiftID))      
+          call blackHoleMerged%integerRank0MetaPropertySet(self%blackHoleSeedsFormationChannelID ,blackHole2%integerRank0MetaPropertyGet(self%blackHoleSeedsFormationChannelID ))
+          call blackHoleMerged%  floatRank0MetaPropertySet(self%blackHoleSeedsFormationRedshiftID,blackHole2%  floatRank0MetaPropertyGet(self%blackHoleSeedsFormationRedshiftID))      
       end if
     class default
        call Error_Report('incorrect class'//{introspection:location})

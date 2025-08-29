@@ -21,8 +21,6 @@
   Implements a black hole seed based on collapse of nuclear star clusters due to runaway stellar collisions.
   !!}
  
-  use :: Cosmology_Functions, only : cosmologyFunctionsClass
-
   !![
   <blackHoleSeeds name="blackHoleSeedsDarkCores">
     <description>
@@ -38,15 +36,12 @@
      based on the model of \cite{vergara_global_2023} and \cite{escala_observational_2021}.
      !!}
      private
-     class           (cosmologyFunctionsClass), pointer :: cosmologyFunctions_ => null()
      double precision                                   :: massEfficiency               , velocityThreshold           , &
       &                                                    massDarkCoreThreshold
      integer                                            :: blackHoleSeedMassID          , darkCoreVelocityDispersionID 
     contains
-     final     ::                     darkCoresDestructor              
      procedure :: mass             => darkCoresMass
      procedure :: spin             => darkCoresSpin
-     procedure :: redshift         => darkCoresRedshift
      procedure :: formationChannel => darkCoresFormationChannel
   end type blackHoleSeedsDarkCores
   
@@ -68,7 +63,6 @@ contains
     implicit none
     type            (blackHoleSeedsDarkCores)                :: self
     type            (inputParameters        ), intent(inout) :: parameters
-    class           (cosmologyFunctionsClass), pointer       :: cosmologyFunctions_
     double precision                                         :: massEfficiency       , velocityThreshold, &
       &                                                         massDarkCoreThreshold
     !![
@@ -90,28 +84,25 @@ contains
       <description>Specifies the minimum mass of the dark core to apply the seeding prescription.</description>
       <source>parameters</source>
     </inputParameter>
-    <objectBuilder class="cosmologyFunctions" name="cosmologyFunctions_" source="parameters"/>
     !!]
-    self=blackHoleSeedsDarkCores(massEfficiency, velocityThreshold, massDarkCoreThreshold, cosmologyFunctions_)
+    self=blackHoleSeedsDarkCores(massEfficiency, velocityThreshold, massDarkCoreThreshold)
     !![
     <inputParametersValidate source="parameters"/>
-    <objectDestructor name="cosmologyFunctions_"/>
     !!]
     return
   end function darkCoresConstructorParameters
   
-  function darkCoresConstructorInternal(massEfficiency,velocityThreshold,massDarkCoreThreshold,cosmologyFunctions_) result(self)
+  function darkCoresConstructorInternal(massEfficiency,velocityThreshold,massDarkCoreThreshold) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily DarkCores} node operator class.
     !!}
     implicit none
-    type            (blackHoleSeedsDarkCores)                        :: self
-    class           (cosmologyFunctionsClass), intent(in   ), target :: cosmologyFunctions_
-    double precision                         , intent(in   )         :: massEfficiency
-    double precision                         , intent(in   )         :: velocityThreshold
-    double precision                         , intent(in   )         :: massDarkCoreThreshold
+    type            (blackHoleSeedsDarkCores)                :: self
+    double precision                         , intent(in   ) :: massEfficiency
+    double precision                         , intent(in   ) :: velocityThreshold
+    double precision                         , intent(in   ) :: massDarkCoreThreshold
     !![
-    <constructorAssign variables="massEfficiency, velocityThreshold, massDarkCoreThreshold, *cosmologyFunctions_"/>
+    <constructorAssign variables="massEfficiency, velocityThreshold, massDarkCoreThreshold"/>
     !!]
     !![
     <addMetaProperty component="NSC" name="darkCoreVelocityDispersion" id="self%darkCoreVelocityDispersionID" isEvolvable="no" isCreator="no" />
@@ -119,19 +110,6 @@ contains
     !!]
     return
   end function darkCoresConstructorInternal
-
-  subroutine darkCoresDestructor(self)
-      !!{
-      Destructor for the {\normalfont \ttfamily DarkCores} black hole seeds class.
-      !!}
-      implicit none 
-      type(blackHoleSeedsDarkCores), intent(inout) :: self
-      
-      !![
-      <objectDestructor name="self%cosmologyFunctions_"/>
-      !!]
-      return
-  end subroutine darkCoresDestructor
 
   double precision function darkCoresMass(self,node) result(mass)
       !!{
@@ -196,23 +174,6 @@ contains
     spin=0.0d0
     return
   end function darkCoresSpin
-
-  double precision function darkCoresRedshift(self,node) result(redshift)
-    !!{
-    Compute the formation redshift of the seed black hole.
-    !!}
-    use :: Galacticus_Nodes, only : nodeComponentBasic, treeNode  
-    implicit none
-    class           (blackHoleSeedsDarkCores), intent(inout) :: self
-    type            (treeNode               ), intent(inout) :: node
-    class           (nodeComponentBasic     ), pointer       :: basic
-    double precision                                         :: time
-
-    basic => node %basic()
-    time  =  basic%time ()
-    redshift=self%cosmologyFunctions_%redshiftFromExpansionFactor(self%cosmologyFunctions_%expansionFactor(time))
-    return
-  end function darkCoresRedshift
 
   function darkCoresFormationChannel (self,node) result(channel)
     !!{

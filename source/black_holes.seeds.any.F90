@@ -40,7 +40,6 @@ Implements a galactic filter class which is the ``blackHoleMulti'' combination o
      final     ::                     blackHoleMultiDestructor
      procedure :: mass             => blackHoleMultiMass
      procedure :: spin             => blackHoleMultiSpin
-     procedure :: redshift         => blackHoleMultiRedshift
      procedure :: formationChannel => blackHoleMultiFormationChannel
   end type blackHoleSeedsMulti
 
@@ -178,41 +177,6 @@ contains
     spin=0.0d0
     return
   end function blackHoleMultiSpin
-
-  double precision function blackHoleMultiRedshift(self,node) result(redshift)
-    !!{
-    Compute the formation redshift of the seed black hole.
-    !!}
-    use :: Galacticus_Nodes, only : nodeComponentBasic, treeNode  
-    implicit none
-    class           (blackHoleSeedsMulti), intent(inout) :: self
-    type            (treeNode           ), intent(inout) :: node
-    type            (seedsList          ), pointer       :: blackHoleSeeds_
-    double precision                                     :: mass
-    logical                                              :: blackHoleMultiPasses
-    ! ML: Here we need to define the logic to decide which channel is more important.
-    ! In principle, now it works as first come, first served. 
-
-    ! AB: Maybe it makes sense for each blackHoleSeeds class to also return a timescale
-    ! for seed formation, and then keep whichever has the shorter timescale?
-    ! Or perhaps you just sum the masses over all classes and use that as a the seed mass
-    mass                 =0.0d0
-    redshift             = 0.0d0
-    blackHoleMultiPasses =  .false.
-    blackHoleSeeds_  => self%blackHoleSeeds
-    do while (associated(blackHoleSeeds_))
-       mass = blackHoleSeeds_%blackHoleSeeds_%mass(node)
-       if (mass > 0.0d0) then 
-          blackHoleMultiPasses=.true.
-          redshift            = blackHoleSeeds_%blackHoleSeeds_%redshift(node)
-       end if
-       if (blackHoleMultiPasses) then
-          blackHoleSeeds_ => null()
-       else
-          blackHoleSeeds_ => blackHoleSeeds_%next
-       end if
-    end do  
-   end function blackHoleMultiRedshift
 
   function blackHoleMultiFormationChannel (self,node) result(channel)
     !!{
