@@ -23,21 +23,20 @@ Implements a galactic filter class which is the ``blackHoleMulti'' combination o
 
   !![
   <blackHoleSeeds name="blackHoleSeedsMulti">
-   <description>A galactic filter class which is the ``blackHoleMulti'' combination of a set of other black hole seeds.</description>
+   <description>A multi black hole seed class which is the ``blackHoleMulti'' combination of a set of other black hole seed classes.</description>
    <linkedList type="seedsList" variable="blackHoleSeeds" next="next" object="blackHoleSeeds_" objectType="blackHoleSeedsClass"/>
   </blackHoleSeeds>
   !!]
-
 
   type, extends(blackHoleSeedsClass) :: blackHoleSeedsMulti
      !!{
      A galactic filter class which is the ``blackHoleMulti'' combination of a set of other blackHoleSeeds.
      !!}
      private
-     type (seedsList              ), pointer :: blackHoleSeeds     => null()
-
+     type (seedsList), pointer :: blackHoleSeeds=> null()
   contains
      final     ::                     blackHoleMultiDestructor
+     procedure :: timescale        => blackHoleMultiTimescale
      procedure :: mass             => blackHoleMultiMass
      procedure :: spin             => blackHoleMultiSpin
      procedure :: formationChannel => blackHoleMultiFormationChannel
@@ -45,7 +44,7 @@ Implements a galactic filter class which is the ``blackHoleMulti'' combination o
 
   interface blackHoleSeedsMulti
      !!{
-     Constructors for the blackHoleMulti galactic filter class.
+     Constructors for the blackHoleMulti seed class.
      !!}
      module procedure blackHoleMultiConstructorParameters
      module procedure blackHoleMultiConstructorInternal
@@ -59,17 +58,17 @@ contains
 
   function blackHoleMultiConstructorParameters(parameters) result(self)
     !!{
-    Constructor for the \refClass{blackHoleSeedsMulti} galactic filter class which takes a parameter set as input.
+    Constructor for the \refClass{blackHoleSeedsMulti} seed class which takes a parameter set as input.
     !!}
     use :: Input_Parameters, only : inputParameter, inputParameters
     implicit none
-    type   (blackHoleSeedsMulti    )                :: self
-    type   (inputParameters        ), intent(inout) :: parameters
-    type   (seedsList              ), pointer       :: blackHoleSeeds_
-    integer                                         :: i
+    type   (blackHoleSeedsMulti)                :: self
+    type   (inputParameters    ), intent(inout) :: parameters
+    type   (seedsList          ), pointer       :: blackHoleSeeds_
+    integer                                     :: i
 
-    self   %blackHoleSeeds => null()
-    blackHoleSeeds_        => null()
+    self%blackHoleSeeds => null()
+    blackHoleSeeds_     => null()
     do i=1,parameters%copiesCount('blackHoleSeeds',zeroIfNotPresent=.true.)
        if (associated(blackHoleSeeds_)) then
           allocate(blackHoleSeeds_%next)
@@ -91,15 +90,15 @@ contains
 
   function blackHoleMultiConstructorInternal(blackHoleSeeds) result(self)
     !!{
-    Internal constructor for the \refClass{blackHoleSeedsMulti} filter class.
+    Internal constructor for the \refClass{blackHoleSeedsMulti} seed class.
     !!}
     implicit none
-    type (blackHoleSeedsMulti    )                         :: self
-    type (seedsList              ), intent(in   ), target  :: blackHoleSeeds
-    type (seedsList              ),                pointer :: blackHoleSeeds_
+    type (blackHoleSeedsMulti)                         :: self
+    type (seedsList          ), intent(in   ), target  :: blackHoleSeeds
+    type (seedsList          ),                pointer :: blackHoleSeeds_
 
     self       %blackHoleSeeds => blackHoleSeeds
-    blackHoleSeeds_             => blackHoleSeeds
+    blackHoleSeeds_            => blackHoleSeeds
     do while (associated(blackHoleSeeds_))
        !![
        <referenceCountIncrement owner="blackHoleSeeds_" object="blackHoleSeeds_"/>
@@ -111,7 +110,7 @@ contains
 
   subroutine blackHoleMultiDestructor(self)
     !!{
-    Destructor for the \refClass{blackHoleSeedsMulti} galactic filter class.
+    Destructor for the \refClass{blackHoleSeedsMulti} seed class.
     !!}
     implicit none
     type(blackHoleSeedsMulti), intent(inout) :: self
@@ -131,9 +130,21 @@ contains
     return
   end subroutine blackHoleMultiDestructor
 
+    double precision function blackHoleMultiTimescale(self,node)
+   !!{
+      Compute the black hole masses according to condition.
+   !!}
+    use :: Galacticus_Nodes, only : treeNode  
+    implicit none
+    class  (blackHoleSeedsMulti), intent(inout) :: self
+    type   (treeNode           ), intent(inout) :: node
+    blackHoleMultiTimescale=0.0d0
+    return
+  end function blackHoleMultiTimescale
+
   double precision function blackHoleMultiMass(self,node) result(mass)
    !!{
-      Compute the nuclear star cluster collapse condition.
+      Compute the black hole masses according to condition.
    !!}
     use :: Galacticus_Nodes, only : treeNode  
     implicit none

@@ -33,8 +33,9 @@
      A model of black hole seeds in which seeds have fixed mass and spin, independent of the halo in which they form.
      !!}
      private
-     double precision                                   :: mass_                        , spin_   
+     double precision                                   :: mass_, spin_   
    contains
+     procedure :: timescale        => fixedTimescale
      procedure :: mass             => fixedMass
      procedure :: spin             => fixedSpin
      procedure :: formationChannel => fixedFormationChannel
@@ -94,6 +95,18 @@ contains
 
     return
   end function standardConstructorInternal
+
+  double precision function fixedTimescale(self, node)
+    !!{
+      Returns the timescale associated to the seeding mechanism.
+    !!}
+    implicit none
+    class           (blackHoleSeedsFixed), intent(inout) :: self
+    type            (treeNode           ), intent(inout) :: node
+
+    fixedTimescale=-1.0d0
+    return
+  end function fixedTimescale
 
   double precision function fixedMass(self,node) result(mass)
     !!{

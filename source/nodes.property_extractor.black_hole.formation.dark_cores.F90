@@ -35,10 +35,9 @@
      A property extractor class for the velocity dispersion at a set of radii.
      !!}
      private
-     integer  :: radiusNuclearStarClustersID     , blackHoleSeedMassID              , &
+     integer  :: radiusNuclearStarClustersID     , stellarMassNuclearStarClustersID , &
          &       velocityNuclearStarClustersID   , ageNuclearStarClustersID         , &
-         &       gasMassNuclearStarClustersID    , criticalMassNuclearStarClustersID, &
-         &       stellarMassNuclearStarClustersID                                                      
+         &       gasMassNuclearStarClustersID    , criticalMassNuclearStarClustersID
    contains
      procedure :: extract      => blackHoleSeedingDarkCoresExtract
      procedure :: name         => blackHoleSeedingDarkCoresName
@@ -78,9 +77,6 @@ contains
     !!}
     implicit none
     type          (nodePropertyExtractorBlackHoleSeedingDarkCores) :: self
-    !![
-    <addMetaProperty component="NSC" name="blackHoleSeedMassFormed" id="self%blackHoleSeedMassID" isEvolvable="no" isCreator="no"/>
-    !!]
     return
   end function blackHoleSeedingDarkCoresConstructorInternal
 
@@ -103,7 +99,7 @@ contains
       ! Nuclear star cluster does not yet exist.
       blackHoleSeedingDarkCoresExtract=0.0d0
     class default
-      blackHoleSeedingDarkCoresExtract=nuclearStarCluster%floatRank0MetaPropertyGet(self%blackHoleSeedMassID)
+      blackHoleSeedingDarkCoresExtract=0.0d0
     end select
     return
   end function blackHoleSeedingDarkCoresExtract

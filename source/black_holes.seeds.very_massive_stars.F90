@@ -36,13 +36,12 @@
      A black hole seeds class in which seeds are formed as a result of very massive stars...
      !!}
      private
-     double precision                                                  :: massFraction                       , nuclearStarClusterMaximumAge
-     integer                                                           :: ageNuclearStarClustersID           , gasMassNuclearStarClustersID             , &
-       &                                                                  stellarMassNuclearStarClustersID   , nuclearStarClusterFormationTimeID        , &
-       &                                                                  redshiftBlackHoleSeedFormationVMSID, radiusNuclearStarClustersID              , &
-       &                                                                  blackHoleSeedMassID                , stellarMassFormedNSCID                   , &
-       &                                                                  timeStellarMassFormedNSCID         , coreCollapseTimescaleNuclearStarClusterID
-   contains   
+     double precision :: massFraction                             , nuclearStarClusterMaximumAge
+     integer          :: ageNuclearStarClustersID                 , gasMassNuclearStarClustersID             , &
+       &                 stellarMassNuclearStarClustersID         , nuclearStarClusterFormationTimeID        , &
+       &                 radiusNuclearStarClustersID              , coreCollapseTimescaleNuclearStarClusterID
+   contains
+     procedure :: timescale        => veryMassiveStarsTimescale   
      procedure :: mass             => veryMassiveStarsMass
      procedure :: spin             => veryMassiveStarsSpin
      procedure :: formationChannel => veryMassiveStarsFormationChannel
@@ -99,13 +98,9 @@ contains
     double precision                                , intent(in   ) :: nuclearStarClusterMaximumAge
     !![
     <constructorAssign variables="massFraction, nuclearStarClusterMaximumAge"/>
-    <addMetaProperty component="NSC" name="agesStellarMassFormed"                   id="self%stellarMassFormedNSCID"                    isEvolvable="yes" isCreator="no" />
-    <addMetaProperty component="NSC" name="agesTimeStellarMassFormed"               id="self%timeStellarMassFormedNSCID"                isEvolvable="yes" isCreator="no" />
-    <addMetaProperty component="NSC" name="blackHoleSeedMassFormed"                 id="self%blackHoleSeedMassID"                       isEvolvable="no"  isCreator="yes"/>
     <addMetaProperty component="NSC" name="ageNuclearStarClusters"                  id="self%ageNuclearStarClustersID"                  isEvolvable="no"  isCreator="yes"/>
     <addMetaProperty component="NSC" name="radiusNuclearStarClusters"               id="self%radiusNuclearStarClustersID"               isEvolvable="no"  isCreator="yes"/>
     <addMetaProperty component="NSC" name="gasMassNuclearStarClusters"              id="self%gasMassNuclearStarClustersID"              isEvolvable="no"  isCreator="yes"/>
-    <addMetaProperty component="NSC" name="redshiftBlackHoleSeedFormation"          id="self%redshiftBlackHoleSeedFormationVMSID"       isEvolvable="no"  isCreator="yes"/>
     <addMetaProperty component="NSC" name="stellarMassNuclearStarClusters"          id="self%stellarMassNuclearStarClustersID"          isEvolvable="no"  isCreator="yes"/>
     <addMetaProperty component="NSC" name="coreCollapseTimescaleNuclearStarCluster" id="self%coreCollapseTimescaleNuclearStarClusterID" isEvolvable="no"  isCreator="yes"/>   
     <addMetaProperty component="NSC" name="nuclearStarClusterFormationTime"         id="self%nuclearStarClusterFormationTimeID"         isEvolvable="no"  isCreator="no" />
@@ -113,10 +108,26 @@ contains
     return
   end function veryMassiveStarsConstructorInternal
 
+  double precision function veryMassiveStarsTimescale(self, node)
+    !!{
+      Returns the timescale associated to the very massive star black hole seed prescription.
+    !!}
+    use :: Galacticus_Nodes, only : nodeComponentNSC, treeNode
+    implicit none
+    class           (blackHoleSeedsVeryMassiveStars), intent(inout)          :: self
+    type            (treeNode                      ), intent(inout)          :: node
+    class           (nodeComponentNSC              )               , pointer :: nuclearStarCluster
+
+    nuclearStarCluster=> node%NSC()
+    ! Get the value previously computed and stored
+    veryMassiveStarsTimescale=nuclearStarCluster%floatRank0MetaPropertyGet(self%coreCollapseTimescaleNuclearStarClusterID)
+    return
+  end function veryMassiveStarsTimescale
+
   double precision function veryMassiveStarsMass(self,node) result(mass)
-      !!{
-        Compute the nuclear star cluster collapse condition.
-      !!}
+    !!{
+      Compute the nuclear star cluster collapse condition.
+    !!}
     use :: Galacticus_Nodes                , only : nodeComponentNSC                     , nodeComponentBasic                     , nodeComponentNSCStandard, treeNode  
     use :: Abundances_Structure            , only : operator(*)
     use :: Numerical_Constants_Math        , only : Pi
@@ -130,10 +141,9 @@ contains
     type            (treeNode                      ), intent(inout)          :: node
     class           (nodeComponentNSC              )               , pointer :: nuclearStarCluster
     class           (nodeComponentBasic            )               , pointer :: basic
-    double precision                                                         :: radiusNuclearStarCluster         , velocityNuclearStarCluster     , &
-        &                                                                       massStellarNuclearStarCluster    , ageNuclearStarCluster          , &
-        &                                                                       massTimeStellarNuclearStarCluster, coreCollapseTimescale          , &
-        &                                                                       time                             , formationTimeNuclearStarCluster
+    double precision                                                         :: radiusNuclearStarCluster, velocityNuclearStarCluster     , &
+        &                                                                       ageNuclearStarCluster   , coreCollapseTimescale          , &
+        &                                                                       time                    , formationTimeNuclearStarCluster
     ! Get the nuclear star cluster component.
     nuclearStarCluster => node%NSC()
     mass=0.0d0
@@ -153,8 +163,6 @@ contains
              &  .or.                                     &
              &   nuclearStarCluster%massGas    ()<=0.0d0 &
              & ) return
-          massStellarNuclearStarCluster     =  nuclearStarCluster%floatRank0MetaPropertyGet(self%    stellarMassFormedNSCID       )
-          massTimeStellarNuclearStarCluster =  nuclearStarCluster%floatRank0MetaPropertyGet(self%timeStellarMassFormedNSCID       )
           formationTimeNuclearStarCluster   =  nuclearStarCluster%floatRank0MetaPropertyGet(self%nuclearStarClusterFormationTimeID)
           basic                             => node              %basic                    (                                      )
           time                              =  basic             %time                     (                                      )
@@ -196,7 +204,6 @@ contains
             call nuclearStarCluster%floatRank0MetaPropertySet(self%ageNuclearStarClustersID                 ,                                       ageNuclearStarCluster                                                          )
             call nuclearStarCluster%floatRank0MetaPropertySet(self%gasMassNuclearStarClustersID             , nuclearStarCluster                    %massGas                       (                                              ))
             call nuclearStarCluster%floatRank0MetaPropertySet(self%stellarMassNuclearStarClustersID         , nuclearStarCluster                    %massStellar                   (                                              ))
-            !call nuclearStarCluster%floatRank0MetaPropertySet(self%redshiftBlackHoleSeedFormationVMSID      , self              %cosmologyFunctions_%redshiftFromExpansionFactor   (self%cosmologyFunctions_%expansionFactor(time)))
             call nuclearStarCluster%floatRank0MetaPropertySet(self%radiusNuclearStarClustersID              ,                                       radiusNuclearStarCluster                                                      )
             call nuclearStarCluster%floatRank0MetaPropertySet(self%coreCollapseTimescaleNuclearStarClusterID, coreCollapseTimescale)
             ! Here, self%massFraction is computed in the following way: 
@@ -208,7 +215,6 @@ contains
             mass   =+self%massFraction  &
                  &  *nuclearStarCluster%massStellar   ()
             call nuclearStarCluster%           isCollapsedSet(                         .true.)
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%blackHoleSeedMassID,mass  )
             
             ! Adjust stellar mass of the nuclear star cluster
             call nuclearStarCluster%           massStellarSet(                                         &

@@ -42,11 +42,11 @@
          &                                                 massEfficiency                  , radiusEfficiency                 , &
          &                                                 massThreshold
      integer                                            :: timeStellarMassFormedNSCID      , stellarMassFormedNSCID           , &
-         &                                                 radiusNuclearStarClustersID     , blackHoleSeedMassID              , &
+         &                                                 radiusNuclearStarClustersID     , stellarMassNuclearStarClustersID , &
          &                                                 velocityNuclearStarClustersID   , ageNuclearStarClustersID         , &
-         &                                                 gasMassNuclearStarClustersID    , criticalMassNuclearStarClustersID, &
-         &                                                 stellarMassNuclearStarClustersID
+         &                                                 gasMassNuclearStarClustersID    , criticalMassNuclearStarClustersID
    contains
+     procedure :: timescale        => vergara2023Timescale
      procedure :: mass             => vergara2023Mass
      procedure :: spin             => vergara2023Spin
      procedure :: formationChannel => vergara2023FormationChannel
@@ -70,8 +70,8 @@ contains
     implicit none
     type            (blackHoleSeedsVergara2023)                :: self
     type            (inputParameters          ), intent(inout) :: parameters
-    double precision                                           :: massSingleStar     , radiusSingleStar, &
-       &                                                          massEfficiency     , radiusEfficiency, &
+    double precision                                           :: massSingleStar, radiusSingleStar, &
+       &                                                          massEfficiency, radiusEfficiency, &
        &                                                          massThreshold 
 
     !![
@@ -130,7 +130,6 @@ contains
     !![
     <addMetaProperty component="NSC" name="agesStellarMassFormed"           id="self%stellarMassFormedNSCID"            isEvolvable="yes" isCreator="no" />
     <addMetaProperty component="NSC" name="agesTimeStellarMassFormed"       id="self%timeStellarMassFormedNSCID"        isEvolvable="yes" isCreator="no" />
-    <addMetaProperty component="NSC" name="blackHoleSeedMassFormed"         id="self%blackHoleSeedMassID"               isEvolvable="no"  isCreator="yes"/>
     <addMetaProperty component="NSC" name="ageNuclearStarClusters"          id="self%ageNuclearStarClustersID"          isEvolvable="no"  isCreator="yes"/>
     <addMetaProperty component="NSC" name="radiusNuclearStarClusters"       id="self%radiusNuclearStarClustersID"       isEvolvable="no"  isCreator="yes"/>
     <addMetaProperty component="NSC" name="gasMassNuclearStarClusters"      id="self%gasMassNuclearStarClustersID"      isEvolvable="no"  isCreator="yes"/>
@@ -140,6 +139,74 @@ contains
     !!]
     return
   end function vergara2023ConstructorInternal
+
+  double precision function vergara2023Timescale(self, node)
+    !!{
+      Returns the timescale associated to the very massive star black hole seed prescription.
+    !!}
+    use :: Galacticus_Nodes                , only : nodeComponentNSC              , treeNode
+    use :: Numerical_Constants_Math        , only : Pi
+    use :: Numerical_Constants_Astronomical, only : gravitationalConstant_internal, radiusSolar, megaParsec, parsec
+    implicit none
+    class           (blackHoleSeedsVergara2023), intent(inout)          :: self
+    type            (treeNode                 ), intent(inout)          :: node
+    class           (nodeComponentNSC         )               , pointer :: nuclearStarCluster
+    double precision                                                    :: nuclearStarClusterMassStellar , nuclearStarClusterRadius  , &
+      &                                                                    nuclearStarClusterCrossSection, nuclearStarClusterVelocity, &
+      &                                                                    safronovNumber                , numberDensity
+    double precision                           , parameter              :: velocity=100.0d0 !km s¯¹
+
+    nuclearStarCluster           =>                       node              %        NSC()
+    nuclearStarClusterRadius     =  self%radiusEfficiency*nuclearStarCluster%     radius()
+    nuclearStarClusterMassStellar=                        nuclearStarCluster%massStellar()
+    nuclearStarClusterVelocity   =  sqrt(                                &
+               &                         +gravitationalConstant_internal &
+               &                         *nuclearStarClusterMassStellar  & 
+               &                         /nuclearStarClusterRadius       &
+               &                        )
+
+    ! Compute the collisional timescale.
+    numberDensity=+3.0d0                          &
+      &           *nuclearStarClusterMassStellar  & 
+      &           /4.0d0                          &
+      &           /Pi                             &
+      &           /self%massSingleStar            &
+      &           /nuclearStarClusterRadius**3
+
+    ! Safronov number defined by Binney & Tremaine (2008, https://ui.adsabs.harvard.edu/abs/2008gady.book.....B/abstract)
+    ! [non-dimensional].
+    safronovNumber=+9.54d0                       &
+      &            *self%massSingleStar          &
+      &            /self%radiusSingleStar        &
+      &            *(                            &
+      &              +velocity                   &
+      &              /nuclearStarClusterVelocity &
+      &             )**2
+    ! Probabilistic mean free path defined as in Landau & Lifshitz (1980,
+    ! https://ui.adsabs.harvard.edu/abs/1981PhT....34a..74L/abstract) and Shu (1991,
+    ! https://ui.adsabs.harvard.edu/abs/1991pav..book.....S/abstract) [pc²].
+    nuclearStarClusterCrossSection=+16.0d0                  &
+      &                            *sqrt(Pi)                &
+      &                            *(                       &
+      &                              +1.0d0                 &
+      &                              +safronovNumber        &
+      &                             )                       &
+      &                            *(                       &
+      &                              +self%radiusSingleStar &
+      &                              *radiusSolar           &
+      &                              /parsec                &
+      &                             )**2
+
+    vergara2023Timescale=sqrt(                                  &
+      &                       +nuclearStarClusterRadius         &
+      &                       /gravitationalConstant_internal   &
+      &                       /nuclearStarClusterMassStellar    &
+      &                       /(+numberDensity                  &
+      &                         *nuclearStarClusterCrossSection &
+      &                        )**2                             &
+      &                      )
+    return
+  end function vergara2023Timescale
 
   double precision function vergara2023Mass(self,node) result(mass)
       !!{
@@ -272,7 +339,6 @@ contains
             mass   =+self              %massEfficiency   &
                  &  *nuclearStarCluster%massStellar   ()
             call nuclearStarCluster%           isCollapsedSet(                         .true.)
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%blackHoleSeedMassID,mass  )
             
             ! Adjust stellar mass of the nuclear star cluster
             call nuclearStarCluster%           massStellarSet(                                         &

@@ -36,10 +36,11 @@
      based on the model of \cite{vergara_global_2023} and \cite{escala_observational_2021}.
      !!}
      private
-     double precision                                   :: massEfficiency               , velocityThreshold           , &
+     double precision                                   :: massEfficiency              , velocityThreshold, &
       &                                                    massDarkCoreThreshold
-     integer                                            :: blackHoleSeedMassID          , darkCoreVelocityDispersionID 
+     integer                                            :: darkCoreVelocityDispersionID 
     contains
+     procedure :: timescale        => darkCoreTimescale
      procedure :: mass             => darkCoresMass
      procedure :: spin             => darkCoresSpin
      procedure :: formationChannel => darkCoresFormationChannel
@@ -106,23 +107,60 @@ contains
     !!]
     !![
     <addMetaProperty component="NSC" name="darkCoreVelocityDispersion" id="self%darkCoreVelocityDispersionID" isEvolvable="no" isCreator="no" />
-    <addMetaProperty component="NSC" name="blackHoleSeedMassFormed"    id="self%blackHoleSeedMassID"          isEvolvable="no" isCreator="yes"/>
     !!]
     return
   end function darkCoresConstructorInternal
+
+  double precision function darkCoreTimescale(self, node)
+    !!{
+      Returns the timescale associated to the seeding mechanism.
+    !!}
+    use :: Galacticus_Nodes, only : nodeComponentNSC, treeNode
+    implicit none
+    class           (blackHoleSeedsDarkCores), intent(inout)          :: self
+    type            (treeNode               ), intent(inout)          :: node
+    class           (nodeComponentNSC       )               , pointer :: nuclearStarCluster
+    double precision                                                  :: nuclearStarClusterStellarMass, fractionBinaryEnergy=1.0d0, &
+      &                                                                  nuclearStarClusterRadius     , nuclearStarClusterVelocity
+      &                                                                  
+    double precision                         , parameter              :: massNormalization    =1.0d6  ! M⊙
+    double precision                         , parameter              :: velocityNormalization=1.0d1  ! M⊙
+    double precision                                                  :: timeNormalization    =6.0d-1 ! Gyr
+
+    nuclearStarCluster           => node              %        NSC()
+    nuclearStarClusterRadius     =  nuclearStarCluster%     radius() 
+    nuclearStarClusterVelocity   =  nuclearStarCluster%   velocity()
+    nuclearStarClusterStellarMass=  nuclearStarCluster%massStellar()
+
+    !Initialize the value
+    darkCoreTimescale=0.0d0
+
+    if (nuclearStarClusterVelocity<0.0d0) return 
+
+    ! We take the adnls timescale as blablabla
+    ! from https://arxiv.org/pdf/2406.13072 Eq. (2)
+    darkCoreTimescale=+timeNormalization                    &
+      &               *fractionBinaryEnergy                 & ! M.L: Here we need to discuss about the value to pass here
+      &               *nuclearStarClusterStellarMass**2.0d0 & ! I think this value should be an input parameter.
+      &               /massNormalization**2.0d0             & ! However, I am not sure if this is the appropiate timescale
+      &               /(                                    & ! to use.
+      &                 +nuclearStarClusterVelocity         &
+      &                 /velocityNormalization              &
+      &                )**3
+    return
+  end function darkCoreTimescale
 
   double precision function darkCoresMass(self,node) result(mass)
       !!{
         Compute the nuclear star cluster collapse condition.
       !!}
-    use :: Galacticus_Nodes                , only : nodeComponentNSC               , nodeComponentBasic, nodeComponentNSCStandard, treeNode  
+    use :: Galacticus_Nodes                , only : nodeComponentNSC               , nodeComponentNSCStandard, treeNode  
     use :: Galactic_Structure_Options      , only : componentTypenuclearStarCluster, massTypeStellar
     implicit none
-    class           (blackHoleSeedsDarkCores), intent(inout)            :: self
-    type            (treeNode               ), intent(inout)            :: node
-    class           (nodeComponentNSC       )               , pointer   :: nuclearStarCluster
-    class           (nodeComponentBasic     )               , pointer   :: basic
-    double precision                                                    :: velocityDispersionDarkCore
+    class           (blackHoleSeedsDarkCores), intent(inout)          :: self
+    type            (treeNode               ), intent(inout)          :: node
+    class           (nodeComponentNSC       )               , pointer :: nuclearStarCluster
+    double precision                                                  :: velocityDispersionDarkCore
     
     ! Get the nuclear star cluster component.
     nuclearStarCluster => node%NSC()
@@ -153,7 +191,6 @@ contains
               &      )
             ! Adjust black hole stellar mass of the nuclear star cluster
             call nuclearStarCluster%massDarkCoreSet          (+nuclearStarCluster%massDarkCore()  -mass)
-            call nuclearStarCluster%floatRank0MetaPropertySet(+self%blackHoleSeedMassID         , +mass)            
           else
             mass=+0.0d0
           end if 
