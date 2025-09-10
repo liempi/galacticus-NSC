@@ -115,17 +115,19 @@ contains
     !!{
       Returns the timescale associated to the seeding mechanism.
     !!}
-    use :: Galacticus_Nodes, only : nodeComponentNSC, treeNode
+    use :: Galacticus_Nodes                , only : nodeComponentNSC              , treeNode
+    use :: Numerical_Constants_Physical    , only : speedLight
+    use :: Numerical_Constants_Astronomical, only : gravitationalConstant_internal, gigayear
     implicit none
     class           (blackHoleSeedsDarkCores), intent(inout)          :: self
     type            (treeNode               ), intent(inout)          :: node
     class           (nodeComponentNSC       )               , pointer :: nuclearStarCluster
-    double precision                                                  :: nuclearStarClusterStellarMass, fractionBinaryEnergy=1.0d0, &
-      &                                                                  nuclearStarClusterRadius     , nuclearStarClusterVelocity
-      &                                                                  
-    double precision                         , parameter              :: massNormalization    =1.0d6  ! M⊙
-    double precision                         , parameter              :: velocityNormalization=1.0d1  ! M⊙
-    double precision                                                  :: timeNormalization    =6.0d-1 ! Gyr
+    double precision                                                  :: nuclearStarClusterStellarMass, nuclearStarClusterVelocity, &
+      &                                                                  nuclearStarClusterRadius     , 
+    double precision                         , parameter              :: massMinimum          =8.0d0  ! M⊙
+    double precision                         , parameter              :: velocityNormalization=1.0d1  ! km s
+    double precision                         , parameter              :: timeNormalization    =5.0d-12 ! Gyr
+    double precision                         , parameter              :: fractionBinaryEnergy =1.0d0
 
     nuclearStarCluster           => node              %        NSC()
     nuclearStarClusterRadius     =  nuclearStarCluster%     radius() 
@@ -137,14 +139,19 @@ contains
 
     if (nuclearStarClusterVelocity<0.0d0) return 
 
-    ! We take the adnls timescale as blablabla
-    ! from https://arxiv.org/pdf/2406.13072 Eq. (2)
+    ! We use the gravitational wave timescale as the binding energy stored in the binaries is lost via GW emission.
+    ! The binaries cease to be a source of heating for the cluster and core collapse takes place. 
+    ! The decay time of a BH binary with an initial separation, a, and eccentricity, e, is (Peters 1964)
+    ! from https://arxiv.org/pdf/2406.13072 Eq. (3)
     darkCoreTimescale=+timeNormalization                    &
-      &               *fractionBinaryEnergy                 & ! M.L: Here we need to discuss about the value to pass here
+      &               *speedLight**5                        & ! (m/s)^5 
+      &               *massMinimumStellarMassBH             & ! M⊙
+      &               *gravitationalConstant_internal       & ! Mpc M_odot^-1 (km/s)^2
+      &               *fractionBinaryEnergy**(-4)           & ! M.L: Here we need to discuss about the value to pass here
       &               *nuclearStarClusterStellarMass**2.0d0 & ! I think this value should be an input parameter.
       &               /massNormalization**2.0d0             & ! However, I am not sure if this is the appropiate timescale
       &               /(                                    & ! to use.
-      &                 +nuclearStarClusterVelocity         &
+      &                 +nuclearStarClusterVelocity         & ! NEED TO BE FIXED 
       &                 /velocityNormalization              &
       &                )**3
     return
@@ -190,7 +197,10 @@ contains
               &       +8.0d0                                                  & 
               &      )
             ! Adjust black hole stellar mass of the nuclear star cluster
-            call nuclearStarCluster%massDarkCoreSet          (+nuclearStarCluster%massDarkCore()  -mass)
+            call nuclearStarCluster%massDarkCoreSet(                                   &
+              &                                     +nuclearStarCluster%massDarkCore() &
+              &                                     -mass                              &
+              &                                    )
           else
             mass=+0.0d0
           end if 
