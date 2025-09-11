@@ -117,43 +117,46 @@ contains
     !!}
     use :: Galacticus_Nodes                , only : nodeComponentNSC              , treeNode
     use :: Numerical_Constants_Physical    , only : speedLight
-    use :: Numerical_Constants_Astronomical, only : gravitationalConstant_internal, gigayear
+    use :: Numerical_Constants_Astronomical, only : gravitationalConstant_internal
+    use :: Numerical_Constants_Prefixes    , only : giga
     implicit none
     class           (blackHoleSeedsDarkCores), intent(inout)          :: self
     type            (treeNode               ), intent(inout)          :: node
     class           (nodeComponentNSC       )               , pointer :: nuclearStarCluster
-    double precision                                                  :: nuclearStarClusterStellarMass, nuclearStarClusterVelocity, &
+    double precision                                                  :: nuclearStarClusterStellarMass, darkCoreVelocityDispersion, &
       &                                                                  nuclearStarClusterRadius     , 
-    double precision                         , parameter              :: massMinimum          =8.0d0  ! M⊙
-    double precision                         , parameter              :: velocityNormalization=1.0d1  ! km s
-    double precision                         , parameter              :: timeNormalization    =5.0d-12 ! Gyr
-    double precision                         , parameter              :: fractionBinaryEnergy =1.0d0
+    double precision                         , parameter              :: massMinimumStellarMassBH=8.0d0   ! M⊙
+    double precision                         , parameter              :: velocityNormalization   =1.0d1   ! km s
+    double precision                         , parameter              :: timeNormalization       =5.0d-12 ! Gyr
+    double precision                         , parameter              :: fractionBinaryEnergy    =1.0d0
+    double precision                         , parameter              :: meanExcentricity        =1.0d0/sqrt(2.0d0)
 
-    nuclearStarCluster           => node              %        NSC()
-    nuclearStarClusterRadius     =  nuclearStarCluster%     radius() 
-    nuclearStarClusterVelocity   =  nuclearStarCluster%   velocity()
-    nuclearStarClusterStellarMass=  nuclearStarCluster%massStellar()
-
+    nuclearStarCluster           => node              %                      NSC(                                 )
+    nuclearStarClusterRadius     =  nuclearStarCluster%                   radius(                                 ) 
+    nuclearStarClusterStellarMass=  nuclearStarCluster%              massStellar(                                 )
+    darkCoreVelocityDispersion   =  nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreVelocityDispersionID)
     !Initialize the value
     darkCoreTimescale=0.0d0
 
-    if (nuclearStarClusterVelocity<0.0d0) return 
+    if (nuclearStarClusterRadius<0.0d0.or.nuclearStarClusterStellarMass<0.0d0) return 
 
     ! We use the gravitational wave timescale as the binding energy stored in the binaries is lost via GW emission.
     ! The binaries cease to be a source of heating for the cluster and core collapse takes place. 
     ! The decay time of a BH binary with an initial separation, a, and eccentricity, e, is (Peters 1964)
     ! from https://arxiv.org/pdf/2406.13072 Eq. (3)
     darkCoreTimescale=+timeNormalization                    &
-      &               *speedLight**5                        & ! (m/s)^5 
-      &               *massMinimumStellarMassBH             & ! M⊙
-      &               *gravitationalConstant_internal       & ! Mpc M_odot^-1 (km/s)^2
-      &               *fractionBinaryEnergy**(-4)           & ! M.L: Here we need to discuss about the value to pass here
-      &               *nuclearStarClusterStellarMass**2.0d0 & ! I think this value should be an input parameter.
-      &               /massNormalization**2.0d0             & ! However, I am not sure if this is the appropiate timescale
-      &               /(                                    & ! to use.
-      &                 +nuclearStarClusterVelocity         & ! NEED TO BE FIXED 
+      &               *speedLight**5                        & ! The timeNormalization corrects the units
+      &               *massMinimumStellarMassBH             & ! The timescale is in given in yr so we convert to Gyr.
+      &               *gravitationalConstant_internal       &
+      &               *fractionBinaryEnergy**(-4)           & 
+      &               *(+1.0d0                              &
+      &                 -meanExcentricity**2                &
+      &                )**(7.0d0/2.0d0)                     &
+      &               /(                                    & 
+      &                 +darkCoreVelocityDispersion         & 
       &                 /velocityNormalization              &
-      &                )**3
+      &                )**8                                 &
+      &               /giga
     return
   end function darkCoreTimescale
 
