@@ -274,7 +274,6 @@ contains
     use :: Cosmology_Parameters   , only : cosmologyParametersSimple
     use :: Display                , only : displayMessage                  , displayMagenta                    , displayReset, displayGreen, &
          &                                 displayYellow                   , displayBlue
-    use :: File_Utilities         , only : File_Name_Expand
     use :: Error                  , only : Error_Report
     use :: HDF5_Access            , only : hdf5Access
     use :: IO_HDF5                , only : hdf5Object
@@ -302,7 +301,7 @@ contains
 
     ! Open and read the HDF5 data file.
     !$ call hdf5Access%set()
-    call fileObject%openFile(char(File_Name_Expand(fileName)),readOnly=.true.)
+    call fileObject%openFile(fileName,readOnly=.true.)
     ! Check that the file has the correct format version number.
     call fileObject%readAttribute('fileFormat',versionNumber,allowPseudoScalar=.true.)
     if (versionNumber /= fileFormatVersionCurrent) call Error_Report('file has the incorrect version number'//{introspection:location})
@@ -583,7 +582,8 @@ contains
                      &          *(+self%transfer%x              (j)-self%transfer%x            (j-1)) &
                      &          +                                   self%transfer%x            (j-1)  &
                      &         )
-                ! Compute the mode mass.
+                ! Compute the mode mass. As a default choice, the wavenumber is converted to a length scale assuming
+                ! R = λ/2 = π/k [see Eq.(9) of Schneider et al. (2012; http://adsabs.harvard.edu/abs/2012MNRAS.424..684S)].
                 modeFound           =.true.
                 fileFractionModeMass=+4.0d0         &
                      &               *Pi            &
