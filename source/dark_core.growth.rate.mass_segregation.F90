@@ -20,18 +20,17 @@
   !+    Contributions to this file made by: Matías Liempi
 
   !!{
-  Implementation of the \cite{...} star formation rate law for galactic \glspl{nsc}.
+  Implementation of the \cite{...} dark core formation rate law for galactic \glspl{nsc}.
   !!}
 
   use :: Star_Formation_Rates_Nuclear_Star_Clusters, only : starFormationRateNuclearStarClustersClass
-
   
   !![
   <darkCoreGrowthRates name="darkCoreGrowthRatesMassSegregation">
    <description>
     A dark core mass rate where the mass evolution takes place over a timescale for galactic \glspl{nsc}.
     \begin{equation}
-     \dot{M}_\mathrm{stellar\,BHs}^\mathrm{NSC} = \epsilon_\bullet \dot{M}_\star^\mathrm{NSC},
+     \dot{M}_\mathrm{dark core}^\mathrm{NSC} = \epsilon_\bullet f_\mathrm{IMF}^\mathrm{boost} f_\mathrm{} \dot{M}_\star^\mathrm{NSC},
     \end{equation}    
     where $\epsilon_\bullet=${\normalfont \ttfamily [efficiency]} is a free parameter, and $\dot{M}_\star^\mathrm{NSC}$ is the
     star formation rate of the \glspl{nsc} component.
@@ -40,17 +39,12 @@
   !!]
   type, extends(darkCoreGrowthRatesClass) :: darkCoreGrowthRatesMassSegregation
      !!{
-     Implementation of the \cite{....} gas inflow rate for galactic \glspl{nsc}.
+     Implementation of a dark core formation rate law for galactic \glspl{nsc}.
      !!}
      private
      class(starFormationRateNuclearStarClustersClass), pointer :: starFormationRateNuclearStarClusters_ => null()
-
-     integer                                                    :: darkCoreRadiusID                               , darkCoreGasMassID          , &
-       &                                                           darkCoreVelocityDispersionID                   , darkCoreMassSegregationID  , &
-       &                                                           nuclearStarClusterNumberOfStarsID              , nuclearStarClusterDensityID, &
-       &                                                           darkCoreTimescaleID
-     double precision                                           :: efficiencyBlackHoleFormation                   , boostFactorIMF              , &
-       &                                                           fractionBlackHoles                             , contractionFactor
+     double precision                                          :: efficiencyBlackHoleFormation                   , boostFactorIMF   , &
+       &                                                          fractionBlackHoles                             , contractionFactor
    contains
      final     ::          darkCoreMassSegregationDestructor
      procedure :: rate  => darkCoreMassSegregationRate
@@ -58,7 +52,7 @@
 
   interface darkCoreGrowthRatesMassSegregation
      !!{
-     Constructors for the {\normalfont \ttfamily ...} gas inflow rate in \glspl{nsc} class.
+     Constructors for the {\normalfont \ttfamily darkCoreGrowthRate} class.
      !!}
      module procedure darkCoreMassSegregationConstructorParameters
      module procedure darkCoreMassSegregationConstructorInternal
@@ -68,33 +62,27 @@ contains
 
   function darkCoreMassSegregationConstructorParameters(parameters) result(self)
     !!{
-    Constructor for the {\normalfont \ttfamily ...} gas inflow rate in \glspl{nsc} class which takes a parameter set as input.
+    Constructor for the dark core formation rate law class which takes a parameter set as input.
     !!}
     use :: Input_Parameters, only : inputParameter, inputParameters
     implicit none
     type            (darkCoreGrowthRatesMassSegregation       )                :: self
     type            (inputParameters                          ), intent(inout) :: parameters
     class           (starFormationRateNuclearStarClustersClass), pointer       :: starFormationRateNuclearStarClusters_
-    double precision                                                           :: efficiencyBlackHoleFormation         , boostFactorIMF   , &
-       &                                                                          fractionBlackHoles                   , contractionFactor
+    double precision                                                           :: efficiencyBlackHoleFormation         , boostFactorIMF, &
+       &                                                                          fractionBlackHoles
 
     !![
     <inputParameter>
       <name>efficiencyBlackHoleFormation</name>
       <defaultValue>1.6d-3</defaultValue>
-      <description>Efficiency of the stellar mass black hole production in nuclear star clusters.</description>
+      <description>Efficiency of the stellar-mass black holes production in nuclear star clusters.</description>
       <source>parameters</source>
     </inputParameter>
     <inputParameter>
       <name>boostFactorIMF</name>
       <defaultValue>1.0d0</defaultValue>
-      <description>Boost factor to enhance the production of stellar mass black holes in the nuclear star clusters asumming a top-heavy initial mass function </description>
-      <source>parameters</source>
-    </inputParameter>
-    <inputParameter>
-      <name>contractionFactor</name>
-      <defaultValue>0.1d0</defaultValue>
-      <description>Parameter which mimics the contraction of the dark core as result of gas inflows.</description>
+      <description>Boost factor to enhance the production of stellar mass black holes in the nuclear star clusters asumming a top-heavier initial mass function.</description>
       <source>parameters</source>
     </inputParameter>
     <inputParameter>
@@ -105,7 +93,7 @@ contains
     </inputParameter>
     <objectBuilder class="starFormationRateNuclearStarClusters" name="starFormationRateNuclearStarClusters_" source="parameters"/>
     !!]
-    self=darkCoreGrowthRatesMassSegregation(efficiencyBlackHoleFormation,boostFactorIMF,contractionFactor,fractionBlackHoles,starFormationRateNuclearStarClusters_)
+    self=darkCoreGrowthRatesMassSegregation(efficiencyBlackHoleFormation,boostFactorIMF,fractionBlackHoles,starFormationRateNuclearStarClusters_)
     !![
     <inputParametersValidate source="parameters"/>
     <objectDestructor name="starFormationRateNuclearStarClusters_"/>
@@ -113,7 +101,7 @@ contains
     return
   end function darkCoreMassSegregationConstructorParameters
 
-  function darkCoreMassSegregationConstructorInternal(efficiencyBlackHoleFormation,boostFactorIMF,contractionFactor,fractionBlackHoles,starFormationRateNuclearStarClusters_) result(self)
+  function darkCoreMassSegregationConstructorInternal(efficiencyBlackHoleFormation,boostFactorIMF,fractionBlackHoles,starFormationRateNuclearStarClusters_) result(self)
     !!{
     Internal constructor for the {\normalfont \ttfamily antonini2015} gas inflow rate from NSCs class.
     !!}
@@ -121,15 +109,9 @@ contains
     type            (darkCoreGrowthRatesMassSegregation       )                        :: self
     class           (starFormationRateNuclearStarClustersClass), intent(in   ), target :: starFormationRateNuclearStarClusters_
     double precision                                           , intent(in   )         :: efficiencyBlackHoleFormation         , boostFactorIMF   , &
-       &                                                                                  fractionBlackHoles                   , contractionFactor
+       &                                                                                  fractionBlackHoles
     !![
-      <constructorAssign variables="efficiencyBlackHoleFormation,boostFactorIMF,contractionFactor,fractionBlackHoles,*starFormationRateNuclearStarClusters_"/>
-      <addMetaProperty component="NSC" name="darkCoreRadius"                  id="self%darkCoreRadiusID"                  isEvolvable="no"  isCreator="no" />
-      <addMetaProperty component="NSC" name="darkCoreGasMass"                 id="self%darkCoreGasMassID"                 isEvolvable="no"  isCreator="yes"/>
-      <addMetaProperty component="NSC" name="darkCoreVelocityDispersion"      id="self%darkCoreVelocityDispersionID"      isEvolvable="no"  isCreator="yes"/>
-      <addMetaProperty component="NSC" name="darkCoreTimescale"               id="self%darkCoreTimescaleID"               isEvolvable="no"  isCreator="yes"/>
-      <addMetaProperty component="NSC" name="nuclearStarClusterNumberOfStars" id="self%nuclearStarClusterNumberOfStarsID" isEvolvable="no"  isCreator="yes"/> 
-      <addMetaProperty component="NSC" name="nuclearStarClusterDensity"       id="self%nuclearStarClusterDensityID"       isEvolvable="no"  isCreator="yes"/> 
+      <constructorAssign variables="efficiencyBlackHoleFormation,boostFactorIMF,fractionBlackHoles,*starFormationRateNuclearStarClusters_"/>
     !!]
     return
   end function darkCoreMassSegregationConstructorInternal
@@ -149,99 +131,28 @@ contains
 
   double precision function darkCoreMassSegregationRate(self,node)
     !!{
-    Returns the stellar-mass black hole formation rate (in $M_\odot$ Gyr$^{-1}$) onto the galactic \gls{nsc} of {\normalfont \ttfamily
+    Returns the dark core formation rate (in $M_\odot$ Gyr$^{-1}$) in the galactic \gls{nsc} of {\normalfont \ttfamily
     node}. The rate is assumed to scale with the star formation rate of the \gls{NSC}.
     !!}
-    use :: Galacticus_Nodes                , only : nodeComponentNSC
-    use :: Coordinates                     , only : coordinateSpherical            , assignment(=)
-    use :: Numerical_Constants_Math        , only : Pi
-    use :: Ideal_Gases_Thermodynamics      , only : Ideal_Gas_Sound_Speed
-    use :: Galactic_Structure_Options      , only : componentTypeNuclearStarCluster, massTypeGaseous
-    use :: Numerical_Constants_Prefixes    , only : kilo
-    use :: Numerical_Constants_Astronomical, only : gravitationalConstant_internal , megaParsec, gigayear
-    use :: Mass_Distributions              , only : massDistributionClass
+    use :: Galacticus_Nodes, only : nodeComponentNSC
     implicit none
     class           (darkCoreGrowthRatesMassSegregation), intent(inout), target  :: self
     type            (treeNode                          ), intent(inout)          :: node
     class           (nodeComponentNSC                  ),                pointer :: nuclearStarCluster
-    class           (massDistributionClass             ), pointer                :: massDistributionNuclearStarCluster_ 
-    type            (coordinateSpherical               )                         :: coordinates
-    double precision                                    , parameter              :: unnormalizedNumberOfStars = 0.079d0, nuclearStarClusterMeanMass=0.21d0     
-    double precision                                                             :: nuclearStarClusterGasFraction      , darkCoreRadius                     , &
-      &                                                                             nuclearStarClusterMassBlackHoles   , darkCoreVelocityDispersion         , &
-      &                                                                             nuclearStarClusterMassStellar      , darkCoreMass                       , &
-      &                                                                             nuclearStarClusterNumberOfStars    , nuclearStarClusterRadius           , &  
-      &                                                                             nuclearStarClusterGasMassEnclosed  , nuclearStarClusterMassGas          , &
-      &                                                                             nuclearStarClusterDynamicalMass    , nuclearStarClusterStarFormationRate, &
-      &                                                                             nuclearStarClusterDensityGas
+    double precision                                                             :: nuclearStarClusterStarFormationRate
+    
+    darkCoreMassSegregationRate =+0.0d0
 
     ! Get the nuclear star cluster component.
-    nuclearStarCluster                 => node              %                      NSC(                     )
-    nuclearStarClusterRadius           =  nuclearStarCluster%                   radius(                     ) !Mpc
-    nuclearStarClusterMassGas          =  nuclearStarCluster%                  massGas(                     ) 
-    nuclearStarClusterMassStellar      =  nuclearStarCluster%              massStellar(                     )
-    darkCoreMass                       =  nuclearStarCluster%             massDarkCore(                     )
-    darkCoreRadius                     =  nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreRadiusID)
-    nuclearStarClusterNumberOfStars    =  0.38d0*(nuclearStarClusterMassStellar/unnormalizedNumberOfStars)
-    nuclearStarClusterDynamicalMass    =  nuclearStarClusterMassStellar+nuclearStarClusterMassGas
-    nuclearStarClusterStarFormationRate=  self%starFormationRateNuclearStarClusters_%rate(node)
-    if  (                                         &
-      &   nuclearStarClusterMassStellar   <=0.0d0 &
-      &   .or.                                    &
-      &   nuclearStarClusterMassGas       < 0.0d0 &
-      & ) then 
-       darkCoreMassSegregationRate =+0.0d0
-       return 
-    end if 
+    nuclearStarCluster                 => node                                      %        NSC(    )
+    nuclearStarClusterStarFormationRate=  self%starFormationRateNuclearStarClusters_%       rate(node)
+    
+    if (nuclearStarClusterStarFormationRate<=0.0d0) return
 
-    ! Compute the fraction of gas in the nuclear star cluster component. 
-    nuclearStarClusterGasFraction       = +nuclearStarClusterMassGas     &
-      &                                   /nuclearStarClusterMassStellar
-
-    coordinates                         =  [nuclearStarClusterRadius,0.0d0,0.0d0]
-    massDistributionNuclearStarCluster_ => node                               %massDistribution    (componentTypeNuclearStarCluster,massTypeGaseous)
-    nuclearStarClusterDensityGas        =  massDistributionNuclearStarCluster_%density             (coordinates                                    )
-    nuclearStarClusterGasMassEnclosed   =  massDistributionNuclearStarCluster_%massEnclosedBySphere(darkCoreRadius                                 ) 
-    ! We do not use this here, but I do not know yet where to better place this.
-    if ( darkCoreRadius                  >0.0d0 &
-      & .and.                                   &
-      & darkCoreMass                     >0.0d0 &
-      & .and.                                   &
-      & nuclearStarClusterGasMassEnclosed>0.0d0 &
-      & ) then
-      darkCoreVelocityDispersion          = sqrt(                                      &
-        &                                        (                                     &
-	&                                         +2.0d0                               &
-        &                                         *gravitationalConstant_internal      &
-        &                                         *darkCoreMass                        &
-        &                                         *(                                   &
-        &                                           +darkCoreMass                      &
-        &                                           +nuclearStarClusterGasMassEnclosed &
-        &                                          )                                   &
-        &                                         )                                    &
-        &                                         /(                                   &
-        &                                            darkCoreMass                      &
-        &                                           *darkCoreRadius                    &
-        &                                           *self%contractionFactor            &
-        &                                          )                                   &         
-        &                                        )
-
-    else 
-      darkCoreVelocityDispersion= 0.0d0
-    end if
-    call nuclearStarCluster%floatRank0MetaPropertySet(self%nuclearStarClusterNumberOfStarsID,nuclearStarClusterNumberOfStars  )
-    call nuclearStarCluster%floatRank0MetaPropertySet(self%darkCoreVelocityDispersionID     ,darkCoreVelocityDispersion       )
-    call nuclearStarCluster%floatRank0MetaPropertySet(self%darkCoreGasMassID                ,nuclearStarClusterGasMassEnclosed)
-    !![
-       <objectDestructor name="massDistributionNuclearStarCluster_"/>
-    !!]    
-
-    call nuclearStarCluster%floatRank0MetaPropertySet(self%darkCoreTimescaleID, 0.0d0)
-    if ( nuclearStarClusterStarFormationRate <= 0.0d0) then
-      darkCoreMassSegregationRate =+0.0d0
-    else
-      darkCoreMassSegregationRate = nuclearStarClusterStarFormationRate*self%efficiencyBlackHoleFormation*self%boostFactorIMF*self%fractionBlackHoles
-    end if 
+    darkCoreMassSegregationRate =+self%efficiencyBlackHoleFormation        & 
+      &                          *self%boostFactorIMF                      &
+      &                          *self%fractionBlackHoles                  &
+      &                          *     nuclearStarClusterStarFormationRate
     return
   end function darkCoreMassSegregationRate
 

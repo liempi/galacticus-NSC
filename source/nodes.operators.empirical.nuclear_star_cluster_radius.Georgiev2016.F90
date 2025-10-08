@@ -31,7 +31,7 @@
   !!]
   type, extends(nodeOperatorClass) :: nodeOperatorNuclearStarClusterRadiusGeorgiev2016
      !!{
-     Implements a power law prescription for the stellar mass--stellar radius relation of disks. Specifically:
+     Implements a power law prescription for the host galaxy stellar mass-- nuclear star cluster radius relation. Specifically:
      \begin{equation}
        r_\mathrm{s} = \radiusPivot \left( \frac{M_\star+M_\mathrm{gas}}{\massPivot} \right)^\radiusPivot, 
      \end{equation}
@@ -80,7 +80,8 @@ contains
     !!{
     Update radius of the nuclear star cluster.
     !!} 
-    use :: Galacticus_Nodes, only : nodeComponentNSC, nodeComponentDisk, nodeComponentSpheroid, nodeComponentNSCStandard
+    use :: Galacticus_Nodes            , only : nodeComponentNSC, nodeComponentDisk, nodeComponentSpheroid, nodeComponentNSCStandard
+    use :: Numerical_Constants_Prefixes, only : mega
     implicit none
     class           (nodeOperatorNuclearStarClusterRadiusGeorgiev2016), intent(inout) :: self
     type            (treeNode                                        ), intent(inout) :: node
@@ -89,45 +90,57 @@ contains
     class           (nodeComponentSpheroid                           ), pointer       :: spheroid
     double precision                                                                  :: radius               , stellarMass, &
       &                                                                                  stellarMassMorphology
-    double precision                                                  , parameter     :: massNormalizationLate    =5.61d9   ! M
-    double precision                                                  , parameter     :: massNormalizationEarly   =2.09d9   ! M
-    double precision                                                  , parameter     :: radiusNormalizationLate  =+3.44d0  ! Adimensional
-    double precision                                                  , parameter     :: radiusNormalizationEarly =+6.11d0  ! Adimensional
+    double precision                                                  , parameter     :: massNormalizationLate    =+5.610d9 ! M⊙
+    double precision                                                  , parameter     :: massNormalizationEarly   =+2.090d9 ! M⊙
+    double precision                                                  , parameter     :: radiusNormalizationLate  =+3.440d0 ! pc
+    double precision                                                  , parameter     :: radiusNormalizationEarly =+6.110d0 ! pc
     double precision                                                  , parameter     :: slopeLate                =+0.356d0 ! Adimensional
     double precision                                                  , parameter     :: slopeEarly               =+0.326d0 ! Adimensional
     double precision                                                  , parameter     :: interceptCoefficientLate =-0.012d0 ! Adimensional
     double precision                                                  , parameter     :: interceptCoefficientEarly=-0.011d0 ! Adimensional
     
+    ! Get galactic components.
     disk              => node%disk    ()
     spheroid          => node%spheroid()
     nuclearStarCluster=> node%NSC()
 
     select type(nuclearStarCluster)
     type is (nodeComponentNSC)
-      ! Nothing to do here.
+      ! No nuclear star cluster. Nothing to do here.
       return
     class default
+      ! Compute the total mass of the galaxy.
       stellarMass= disk    %massStellar() &
         &         +spheroid%massStellar()
     
       if (stellarMass > 0.0d0) then
+        ! Compute the morphology. This is required in order to use the appropiated correlation
+        ! between the mass of the host galaxy and the size of the nuclear star cluster.
+        
+        ! The values of the correlations are given in Table 1 of Georgiev+2016.
+        ! https://ui.adsabs.harvard.edu/abs/2016MNRAS.457.2122G/abstract
+        ! The correlelation is expresed in log-log space, i.e,
+        ! log10(radiusNuclearStarCluster/radiusNormalization) = alpha log10(massHostGalaxy/massNormalization) 
+        ! Finally, the radius is provided in pc so we correct it in order to be consistent with the internal units [Mpc]
         stellarMassMorphology= spheroid%massStellar()/stellarMass
         if (stellarMassMorphology>0.2d0) then
+          ! B/T>0.2. We assume an early-type galaxy.
           radius=+radiusNormalizationEarly                           &
-            &    *1.0d1**(                                           &
+            &    *10.0d0**(                                          &
             &              slopeEarly                                &
             &             *log10(stellarMass/massNormalizationEarly) &
             &             +interceptCoefficientEarly                 &
             &            )                                           &
-            &    *1.0e-6
+            &    /mega
         else
+          ! B/T ≤ 0.2 late-type galaxy. 
           radius=+radiusNormalizationLate                           &
-            &    *1.0d1**(                                          &
+            &    *10.0d0**(                                         &
             &              slopeLate                                &
             &             *log10(stellarMass/massNormalizationLate) &
             &             +interceptCoefficientLate                 &
             &            )                                          &
-            &    *1.0e-6
+            &    /mega
         end if 
       else 
         radius=0.0d0

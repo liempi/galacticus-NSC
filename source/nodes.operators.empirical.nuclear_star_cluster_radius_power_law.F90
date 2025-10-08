@@ -18,8 +18,8 @@
 !!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
 
   !!{
-  Implements a node operator class that implements an an empirical power law relationship between disk stellar mass and
-  stellar radius.
+  Implements a node operator class that implements an an empirical power law relationship between nuclear star cluster dynamical mass and
+  radius.
   !!}
 
   !![
@@ -31,7 +31,7 @@
   !!]
   type, extends(nodeOperatorClass) :: nodeOperatorNuclearStarClusterRadiusPowerLaw
      !!{
-     Implements a power law prescription for the stellar mass--stellar radius relation of disks. Specifically:
+     Implements a power law prescription for the stellar mass--stellar radius relation of nuclear star clusters. Specifically:
      \begin{equation}
        r_\mathrm{s} = \radiusPivot \left( \frac{M_\star+M_\mathrm{gas}}{\massPivot} \right)^\radiusPivot, 
      \end{equation}
@@ -45,7 +45,7 @@
    contains
      !![
      <methods>
-       <method method="update" description="Update the nuclear star cluster radius to be consistent with its stellar mass."/>
+       <method method="update" description="Update the nuclear star cluster radius to be consistent with its dynamical mass."/>
      </methods>
      !!]
      procedure :: update                              => nuclearStarClusterRadiusPowerLawUpdate
