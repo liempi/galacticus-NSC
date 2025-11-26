@@ -20,27 +20,30 @@
   !+    Contributions to this file made by: Matías Liempi
 
   !!{
-  Implements a black hole seed based ...
+  Implements a black hole seed based on rapid formation of a very massive star due to stellar collisions,
+  which then collapses and form a black hole seed.
   !!}
  
   !![
   <blackHoleSeeds name="blackHoleSeedsVeryMassiveStars">
     <description>
-      A model of black hole seeds in which seeds are formed due to the...
+      A model of black hole seeds in which seeds are formed due to the collapse of a very massive star that grows due to stellar collisions.
     </description>
   </blackHoleSeeds>
   !!]
 
   type, extends(blackHoleSeedsClass) :: blackHoleSeedsVeryMassiveStars
      !!{
-     A black hole seeds class in which seeds are formed as a result of very massive stars...
+     A black hole seeds class in which seeds are formed as a result of the collapse of a very massive star.
      !!}
      private
-     double precision :: massFraction                             , nuclearStarClusterMaximumAge
-     integer          :: ageNuclearStarClustersID                 , gasMassNuclearStarClustersID             , &
-       &                 stellarMassNuclearStarClustersID         , nuclearStarClusterFormationTimeID        , &
-       &                 radiusNuclearStarClustersID              , coreCollapseTimescaleNuclearStarClusterID
+     double precision :: massFraction                    , nuclearStarClusterMaximumAge
+     integer          :: ageNuclearStarClustersID        , gasMassNuclearStarClustersID             , &
+       &                 stellarMassNuclearStarClustersID, nuclearStarClusterFormationTimeID        , &
+       &                 radiusNuclearStarClustersID     , coreCollapseTimescaleNuclearStarClusterID
+
    contains
+
      procedure :: timescale        => veryMassiveStarsTimescale   
      procedure :: mass             => veryMassiveStarsMass
      procedure :: spin             => veryMassiveStarsSpin
@@ -54,6 +57,10 @@
      module procedure veryMassiveStarsConstructorParameters
      module procedure veryMassiveStarsConstructorInternal
   end interface blackHoleSeedsVeryMassiveStars
+  
+  ! Module-scope variable
+  double precision  :: coreCollapseTimescale_
+  !$omp threadprivate(coreCollapseTimescale_)
 
 contains
 
@@ -114,19 +121,18 @@ contains
     !!}
     use :: Galacticus_Nodes, only : nodeComponentNSC, treeNode
     implicit none
-    class           (blackHoleSeedsVeryMassiveStars), intent(inout)          :: self
-    type            (treeNode                      ), intent(inout)          :: node
-    class           (nodeComponentNSC              )               , pointer :: nuclearStarCluster
+    class           (blackHoleSeedsVeryMassiveStars), intent(inout) :: self
+    type            (treeNode                      ), intent(inout) :: node
+    !$GLC attributes unused :: self, node
 
-    nuclearStarCluster=> node%NSC()
-    ! Get the value previously computed and stored
-    veryMassiveStarsTimescale=nuclearStarCluster%floatRank0MetaPropertyGet(self%coreCollapseTimescaleNuclearStarClusterID)
+    ! Get the value previously computed and stored value of the core collapse timescale.
+    veryMassiveStarsTimescale=coreCollapseTimescale_
     return
   end function veryMassiveStarsTimescale
 
   double precision function veryMassiveStarsMass(self,node) result(mass)
     !!{
-      Compute the nuclear star cluster collapse condition.
+      Compute the core collapse condition for nuclear star clusters.
     !!}
     use :: Galacticus_Nodes                , only : nodeComponentNSC                     , nodeComponentBasic                     , nodeComponentNSCStandard, treeNode  
     use :: Abundances_Structure            , only : operator(*)
@@ -142,12 +148,12 @@ contains
     class           (nodeComponentNSC              )               , pointer :: nuclearStarCluster
     class           (nodeComponentBasic            )               , pointer :: basic
     double precision                                                         :: radiusNuclearStarCluster, velocityNuclearStarCluster     , &
-        &                                                                       ageNuclearStarCluster   , coreCollapseTimescale          , &
-        &                                                                       time                    , formationTimeNuclearStarCluster
+        &                                                                       ageNuclearStarCluster   , formationTimeNuclearStarCluster, &
+        &                                                                       time
     ! Get the nuclear star cluster component.
     nuclearStarCluster => node%NSC()
-    mass=0.0d0
-
+    ! Initialize with a zero seed mass.
+    mass=+0.0d0
     ! Detect the type of the nuclear star cluster component.
     select type (nuclearStarCluster)
       class default
@@ -161,7 +167,7 @@ contains
              &  .or.                                     &
              &   nuclearStarCluster%radius     ()<=0.0d0 &
              &  .or.                                     &
-             &   nuclearStarCluster%massGas    ()<=0.0d0 &
+             &   nuclearStarCluster%massGas    ()< 0.0d0 &
              & ) return
           formationTimeNuclearStarCluster   =  nuclearStarCluster%floatRank0MetaPropertyGet(self%nuclearStarClusterFormationTimeID)
           basic                             => node              %basic                    (                                      )
@@ -178,62 +184,57 @@ contains
              &  .or.                             &
              &  nuclearStarCluster%isCollapsed() &
              & ) return
-
-          radiusNuclearStarCluster=nuclearStarCluster%radius()
-          ! Get the age of the nuclear star cluster.
-          velocityNuclearStarCluster        =  sqrt(                                  &
-               &                                    +gravitationalConstant_internal   &
-               &                                    *nuclearStarCluster%massStellar() & 
-               &                                    /radiusNuclearStarCluster         &
-               &                                   ) 
+          radiusNuclearStarCluster  = nuclearStarCluster%radius  ()
+          ! Get the velocity of the nuclear star cluster.
+          velocityNuclearStarCluster= nuclearStarCluster%velocity()
           
-          coreCollapseTimescale = nuclearStarClusterCoreCollapseTimescale(                                  &
-              &                                                                   radiusNuclearStarCluster, &
-              &                                                           nuclearStarCluster%massStellar(), &
-              &                                                           nuclearStarCluster%massGas    (), &
-              &                                                                                     .true.  &
-              &                                                           )
+          coreCollapseTimescale_    = nuclearStarClusterCoreCollapseTimescale(                                  &
+              &                                                                       radiusNuclearStarCluster, &
+              &                                                               nuclearStarCluster%massStellar(), &
+              &                                                               nuclearStarCluster%massGas    (), &
+              &                                                                                         .true.  &
+              &                                                              )
 
-          if (                                                            &
-              &  coreCollapseTimescale>0.0d0                              &
-              &  .and.                                                    &
-              &  ageNuclearStarCluster<=self%nuclearStarClusterMaximumAge &
-              &  .and.                                                    &
-              &  coreCollapseTimescale<=ageNuclearStarCluster             &
+          if (                                                             &
+              &  coreCollapseTimescale_>0.0d0                              &
+              &  .and.                                                     &
+              &  ageNuclearStarCluster <=self%nuclearStarClusterMaximumAge &
+              &  .and.                                                     &
+              &  coreCollapseTimescale_<=ageNuclearStarCluster             &
               & ) then
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%ageNuclearStarClustersID                 ,                                       ageNuclearStarCluster                                                          )
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%gasMassNuclearStarClustersID             , nuclearStarCluster                    %massGas                       (                                              ))
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%stellarMassNuclearStarClustersID         , nuclearStarCluster                    %massStellar                   (                                              ))
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%radiusNuclearStarClustersID              ,                                       radiusNuclearStarCluster                                                      )
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%coreCollapseTimescaleNuclearStarClusterID, coreCollapseTimescale)
+            call nuclearStarCluster%floatRank0MetaPropertySet(self%ageNuclearStarClustersID                 , ageNuclearStarCluster           )
+            call nuclearStarCluster%floatRank0MetaPropertySet(self%gasMassNuclearStarClustersID             , nuclearStarCluster%massGas    ())
+            call nuclearStarCluster%floatRank0MetaPropertySet(self%stellarMassNuclearStarClustersID         , nuclearStarCluster%massStellar())
+            call nuclearStarCluster%floatRank0MetaPropertySet(self%radiusNuclearStarClustersID              , radiusNuclearStarCluster        )
+            call nuclearStarCluster%floatRank0MetaPropertySet(self%coreCollapseTimescaleNuclearStarClusterID, coreCollapseTimescale_          )
             ! Here, self%massFraction is computed in the following way: 
             ! For a initial mass function  φ(M), asumming the masses of the star in the range min ≤ M [M☉] ≤ max,
             ! the total mass is given by ∫ ₘᵢₙ ᵐᵃˣ  φ(M) M dM. It is possible to estimate the fraction of the 
             ! total mass of the stars more massive than 100 M☉ as
             ! f = ∫₁₀₀  ᵐᵃˣ  φ(M) M dM / ∫ ₘᵢₙ ᵐᵃˣ  φ(M) M dM
             ! Here we take into account all the massive stars. We should include an efficiency parameter.
-            mass   =+self%massFraction  &
-                 &  *nuclearStarCluster%massStellar   ()
-            call nuclearStarCluster%           isCollapsedSet(                         .true.)
+            mass =+self%massFraction*nuclearStarCluster%massStellar()
+            ! Mark the cluster as already collapsed.
+            call nuclearStarCluster%isCollapsedSet(.true.)
             
-            ! Adjust stellar mass of the nuclear star cluster
-            call nuclearStarCluster%           massStellarSet(                                         &
-                 &                                            +(                                       &
-                 &                                              +1.0d0                                 &
-                 &                                              -self%massFraction                     &
-                 &                                             )                                       &
-                 &                                            *nuclearStarCluster%      massStellar()  &
-                 &                                           )
-            ! Adjust stellar abundances of the nuclear star cluster 
-            call nuclearStarCluster%     abundancesStellarSet(                                         &
-                 &                                            +(                                       &
-                 &                                              +1.0d0                                 &
-                 &                                              -self%massFraction                     &
-                 &                                             )                                       &
-                 &                                            *nuclearStarCluster%abundancesStellar()  &
-                 &                                           )            
+            ! Adjust stellar mass of the nuclear star cluster.
+            call nuclearStarCluster%massStellarSet      (                                   &
+                 &                                       +(                                 &
+                 &                                         +1.0d0                           &
+                 &                                         -self%massFraction               &
+                 &                                        )                                 &
+                 &                                       *nuclearStarCluster%massStellar()  &
+                 &                                      )
+            ! Adjust stellar abundances of the nuclear star cluster.
+            call nuclearStarCluster%abundancesStellarSet(                                        &
+                 &                                       +(                                      &
+                 &                                         +1.0d0                                &
+                 &                                         -self%massFraction                    &
+                 &                                        )                                      &
+                 &                                       *nuclearStarCluster%abundancesStellar() &
+                 &                                      )            
           else
-            mass   =+0.0d0
+            mass=+0.0d0
           end if 
     end select
     return

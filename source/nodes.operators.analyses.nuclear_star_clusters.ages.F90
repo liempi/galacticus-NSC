@@ -26,14 +26,14 @@
   use :: Satellite_Merging_Mass_Movements          , only : mergerMassMovementsClass
   use :: Satellite_Merging_Nuclear_Star_Clusters   , only : nuclearStarClusterMovementsClass
   !![
-  <nodeOperator name="nodeOperatorNuclearStarClustersFormationTime">
+  <nodeOperator name="nodeOperatornuclearStarClusterFormationTime">
     <description>
       A node operator class that computes the stellar mass-weighted ages of disk, spheroid and nuclear star cluster components. Intended to be paired
-      with the \refClass{nodePropertyExtractornuclearStarClustersFormationTime} class to extract those ages for output.
+      with the \refClass{nodePropertyExtractornuclearStarClusterFormationTime} class to extract those ages for output.
     </description>
   </nodeOperator>
   !!]
-  type, extends(nodeOperatorClass) :: nodeOperatorNuclearStarClustersFormationTime
+  type, extends(nodeOperatorClass) :: nodeOperatornuclearStarClusterFormationTime
      !!{
      A node operator class that computes the stellar mass-weighted ages of disk and spheroid components.
      !!}
@@ -41,32 +41,32 @@
      class           (mergerMassMovementsClass                 ), pointer :: mergerMassMovements_                  => null()
      class           (nuclearStarClusterMovementsClass         ), pointer :: nuclearStarClusterMovements_          => null()
      class           (starFormationRateNuclearStarClustersClass), pointer :: starFormationRateNuclearStarClusters_ => null()
-     integer                                                              :: nuclearStarClusterFormationTimeID              , nuclearStarClusterFormationSFRID, &
+     integer                                                              :: nuclearStarClusterFormationTimeID              , nuclearStarClusterFormationStarFormationRateID, &
          &                                                                   nuclearStarClusterFormationStellarMassID
      double precision                                                     :: massMinimum
    contains
-     final     ::                          nuclearStarClustersFormationTimeDestructor
-     procedure :: differentialEvolution => nuclearStarClustersFormationTimeDifferentialEvolution
-     procedure :: galaxiesMerge         => nuclearStarClustersFormationTimeGalaxiesMerge
-  end type nodeOperatorNuclearStarClustersFormationTime
+     final     ::                          nuclearStarClusterFormationTimeDestructor
+     procedure :: differentialEvolution => nuclearStarClusterFormationTimeDifferentialEvolution
+     procedure :: galaxiesMerge         => nuclearStarClusterFormationTimeGalaxiesMerge
+  end type nodeOperatornuclearStarClusterFormationTime
   
-  interface nodeOperatorNuclearStarClustersFormationTime
+  interface nodeOperatornuclearStarClusterFormationTime
      !!{
-     Constructors for the \refClass{nodeOperatorNuclearStarClustersFormationTime} node operator class.
+     Constructors for the \refClass{nodeOperatornuclearStarClusterFormationTime} node operator class.
      !!}
-     module procedure nuclearStarClustersFormationTimeConstructorParameters
-     module procedure nuclearStarClustersFormationTimeConstructorInternal
-  end interface nodeOperatorNuclearStarClustersFormationTime
+     module procedure nuclearStarClusterFormationTimeConstructorParameters
+     module procedure nuclearStarClusterFormationTimeConstructorInternal
+  end interface nodeOperatornuclearStarClusterFormationTime
   
 contains
 
-  function nuclearStarClustersFormationTimeConstructorParameters(parameters) result(self)
+  function nuclearStarClusterFormationTimeConstructorParameters(parameters) result(self)
     !!{
-    Constructor for the \refClass{nodeOperatorNuclearStarClustersFormationTime} node operator class which takes a parameter set as input.
+    Constructor for the \refClass{nodeOperatornuclearStarClusterFormationTime} node operator class which takes a parameter set as input.
     !!}
     use :: Input_Parameters, only : inputParameters
     implicit none
-    type (nodeOperatorNuclearStarClustersFormationTime)                :: self
+    type (nodeOperatornuclearStarClusterFormationTime)                :: self
     type (inputParameters                             ), intent(inout) :: parameters
     class(mergerMassMovementsClass                    ), pointer       :: mergerMassMovements_
     class(nuclearStarClusterMovementsClass            ), pointer       :: nuclearStarClusterMovements_  
@@ -84,7 +84,7 @@ contains
     <objectBuilder class="nuclearStarClusterMovements"          name="nuclearStarClusterMovements_"          source="parameters"/>
     <objectBuilder class="starFormationRateNuclearStarClusters" name="starFormationRateNuclearStarClusters_" source="parameters"/>
     !!]
-    self=nodeOperatorNuclearStarClustersFormationTime(massMinimum,mergerMassMovements_,nuclearStarClusterMovements_,starFormationRateNuclearStarClusters_)
+    self=nodeOperatornuclearStarClusterFormationTime(massMinimum,mergerMassMovements_,nuclearStarClusterMovements_,starFormationRateNuclearStarClusters_)
     !![
     <inputParametersValidate source="parameters"/>
     <objectDestructor name="mergerMassMovements_"                 />
@@ -92,14 +92,14 @@ contains
     <objectDestructor name="starFormationRateNuclearStarClusters_"/>
     !!]
     return
-  end function nuclearStarClustersFormationTimeConstructorParameters
+  end function nuclearStarClusterFormationTimeConstructorParameters
 
-  function nuclearStarClustersFormationTimeConstructorInternal(massMinimum,mergerMassMovements_,nuclearStarClusterMovements_,starFormationRateNuclearStarClusters_) result(self)
+  function nuclearStarClusterFormationTimeConstructorInternal(massMinimum,mergerMassMovements_,nuclearStarClusterMovements_,starFormationRateNuclearStarClusters_) result(self)
     !!{
-    Internal constructor for the \refClass{nodeOperatorNuclearStarClustersFormationTime} node operator class.
+    Internal constructor for the \refClass{nodeOperatornuclearStarClusterFormationTime} node operator class.
     !!}
     implicit none
-    type             (nodeOperatorNuclearStarClustersFormationTime)                        :: self
+    type             (nodeOperatornuclearStarClusterFormationTime)                         :: self
     class            (mergerMassMovementsClass                    ), intent(in   ), target :: mergerMassMovements_
     class            (nuclearStarClusterMovementsClass            ), intent(in   ), target :: nuclearStarClusterMovements_
     class            (starFormationRateNuclearStarClustersClass   ), intent(in   ), target :: starFormationRateNuclearStarClusters_     
@@ -109,19 +109,19 @@ contains
     !!]
     
     !![
-    <addMetaProperty component="NSC" name="nuclearStarClusterFormationTime"        id="self%nuclearStarClusterFormationTimeID"        isEvolvable="no" isCreator="yes"/>
-    <addMetaProperty component="NSC" name="nuclearStarClusterFormationSFR"         id="self%nuclearStarClusterFormationSFRID"         isEvolvable="no" isCreator="yes"/>
-    <addMetaProperty component="NSC" name="nuclearStarClusterFormationStellarMass" id="self%nuclearStarClusterFormationStellarMassID" isEvolvable="no" isCreator="yes"/>
+    <addMetaProperty component="NSC" name="nuclearStarClusterFormationTime"              id="self%nuclearStarClusterFormationTimeID"              isEvolvable="no" isCreator="yes"/>
+    <addMetaProperty component="NSC" name="nuclearStarClusterFormationStarFormationRate" id="self%nuclearStarClusterFormationStarFormationRateID" isEvolvable="no" isCreator="yes"/>
+    <addMetaProperty component="NSC" name="nuclearStarClusterFormationStellarMass"       id="self%nuclearStarClusterFormationStellarMassID"       isEvolvable="no" isCreator="yes"/>
     !!]
     return
-  end function nuclearStarClustersFormationTimeConstructorInternal
+  end function nuclearStarClusterFormationTimeConstructorInternal
 
-  subroutine nuclearStarClustersFormationTimeDestructor(self)
+  subroutine nuclearStarClusterFormationTimeDestructor(self)
     !!{
-    Destructor for the \refClass{nodeOperatorNuclearStarClustersFormationTime} node operator class.
+    Destructor for the \refClass{nodeOperatornuclearStarClusterFormationTime} node operator class.
     !!}
     implicit none
-    type(nodeOperatorNuclearStarClustersFormationTime), intent(inout) :: self
+    type(nodeOperatornuclearStarClusterFormationTime), intent(inout) :: self
 
     !![
     <objectDestructor name="self%mergerMassMovements_"                 />
@@ -129,24 +129,24 @@ contains
     <objectDestructor name="self%starFormationRateNuclearStarClusters_"/>
     !!]
     return
-  end subroutine nuclearStarClustersFormationTimeDestructor
+  end subroutine nuclearStarClusterFormationTimeDestructor
 
-  subroutine nuclearStarClustersFormationTimeDifferentialEvolution(self,node,interrupt,functionInterrupt,propertyType)
+  subroutine nuclearStarClusterFormationTimeDifferentialEvolution(self,node,interrupt,functionInterrupt,propertyType)
     !!{
     Integrates unweighted and time-weighted star formation rates in nuclear star cluster components.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentNSC, nodeComponentBasic, propertyActive
     implicit none
-    class           (nodeOperatorNuclearStarClustersFormationTime), intent(inout), target  :: self
-    type            (treeNode                           ), intent(inout), target  :: node
-    logical                                              , intent(inout)          :: interrupt
-    procedure       (interruptTask                      ), intent(inout), pointer :: functionInterrupt
-    integer                                              , intent(in   )          :: propertyType
-    class           (nodeComponentBasic                 )               , pointer :: basic
-    class           (nodeComponentNSC                   )               , pointer :: nuclearStarCluster
-    double precision                                                              :: stellarMassNuclearStarCluster  , time                               , &
-        &                                                                            formationTimeNuclearStarCluster, nuclearStarClusterStarFormationRate 
-    logical                                                                       :: ageIsNonZero
+    class           (nodeOperatornuclearStarClusterFormationTime), intent(inout), target  :: self
+    type            (treeNode                                   ), intent(inout), target  :: node
+    logical                                                      , intent(inout)          :: interrupt
+    procedure       (interruptTask                              ), intent(inout), pointer :: functionInterrupt
+    integer                                                      , intent(in   )          :: propertyType
+    class           (nodeComponentBasic                         )               , pointer :: basic
+    class           (nodeComponentNSC                           )               , pointer :: nuclearStarCluster
+    double precision                                                                      :: stellarMassNuclearStarCluster  , time                               , &
+        &                                                                                    formationTimeNuclearStarCluster, nuclearStarClusterStarFormationRate 
+    logical                                                                               :: ageIsNonZero
     !$GLC attributes unused :: interrupt, functionInterrupt, propertyType
 
     ! Return immediately if active variables are requested.
@@ -163,7 +163,7 @@ contains
     time  =  basic%time ()
 
     select type (nuclearStarCluster)
-    type is (nodeComponentNSC     )
+    type is (nodeComponentNSC)
        ! NSC does not yet exist - nothing to do here. class default
     class default
     if (nuclearStarClusterStarFormationRate> 0.0d0) then
@@ -175,20 +175,20 @@ contains
 
     if (.not.ageIsNonZero) then
         if (stellarMassNuclearStarCluster>= self%massMinimum) then 
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%nuclearStarClusterFormationTimeID       , time                               )
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%nuclearStarClusterFormationSFRID        , nuclearStarClusterStarFormationRate)
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStellarMassID, stellarMassNuclearStarCluster      )
+            call nuclearStarCluster%floatRank0MetaPropertySet(self%nuclearStarClusterFormationTimeID             , time                               )
+            call nuclearStarCluster%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStarFormationRateID, nuclearStarClusterStarFormationRate)
+            call nuclearStarCluster%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStellarMassID      , stellarMassNuclearStarCluster      )
         else
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%nuclearStarClusterFormationTimeID       , 0.0d0)
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%nuclearStarClusterFormationSFRID        , 0.0d0)
-            call nuclearStarCluster%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStellarMassID, 0.0d0)
+            call nuclearStarCluster%floatRank0MetaPropertySet(self%nuclearStarClusterFormationTimeID             , 0.0d0)
+            call nuclearStarCluster%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStarFormationRateID, 0.0d0)
+            call nuclearStarCluster%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStellarMassID      , 0.0d0)
         end if
     end if 
     end select
     return
-  end subroutine nuclearStarClustersFormationTimeDifferentialEvolution
+  end subroutine nuclearStarClusterFormationTimeDifferentialEvolution
 
-  subroutine nuclearStarClustersFormationTimeGalaxiesMerge(self,node)
+  subroutine nuclearStarClusterFormationTimeGalaxiesMerge(self,node)
     !!{
     Combine integrals of star formation rate when galaxies merge.
     !!}
@@ -196,19 +196,19 @@ contains
     use :: Galacticus_Nodes                , only : nodeComponentDisk    , nodeComponentSpheroid    , nodeComponentNSC
     use :: Satellite_Merging_Mass_Movements, only : destinationMergerDisk, destinationMergerSpheroid, destinationMergerUnmoved, enumerationDestinationMergerType
     implicit none
-    class  (nodeOperatorNuclearStarClustersFormationTime), intent(inout) :: self
-    type   (treeNode                                    ), intent(inout) :: node
-    type   (treeNode                                    ), pointer       :: nodeHost
-    class  (nodeComponentDisk                           ), pointer       :: disk                                      , diskHost
-    class  (nodeComponentSpheroid                       ), pointer       :: spheroid                                  , spheroidHost
-    class  (nodeComponentNSC                            ), pointer       :: nuclearStarClusterSatellite               , nuclearStarClusterHost
-    type   (enumerationDestinationMergerType            )                :: destinationGasSatellite                   , destinationStarsSatellite                      , &
-         &                                                                  destinationGasHost                        , destinationStarsHost
-    logical                                                              :: mergerIsMajor                             , haveNuclearStarClusterSatellite                , &
-         &                                                                  haveNuclearStarClusterHost                , nuclearStarClusterSatelliteIsDestroyed
-    double precision                                                     :: timeFormationNuclearStarClusterHost       , timeFormationNuclearStarClusterSatellite       , &
-         &                                                                  SFRNuclearStarClusterHost                 , SFRNuclearStarClusterSatellite                 , &
-         &                                                                  stellarMassFormationNuclearStarClusterHost, stellarMassFormationNuclearStarClusterSatellite
+    class  (nodeOperatornuclearStarClusterFormationTime), intent(inout) :: self
+    type   (treeNode                                   ), intent(inout) :: node
+    type   (treeNode                                   ), pointer       :: nodeHost
+    class  (nodeComponentDisk                          ), pointer       :: disk                                      , diskHost
+    class  (nodeComponentSpheroid                      ), pointer       :: spheroid                                  , spheroidHost
+    class  (nodeComponentNSC                           ), pointer       :: nuclearStarClusterSatellite               , nuclearStarClusterHost
+    type   (enumerationDestinationMergerType           )                :: destinationGasSatellite                   , destinationStarsSatellite                      , &
+         &                                                                 destinationGasHost                        , destinationStarsHost
+    logical                                                             :: mergerIsMajor                             , haveNuclearStarClusterSatellite                , &
+         &                                                                 haveNuclearStarClusterHost                , nuclearStarClusterSatelliteIsDestroyed
+    double precision                                                    :: timeFormationNuclearStarClusterHost       , timeFormationNuclearStarClusterSatellite       , &
+         &                                                                 starFormationRateNuclearStarClusterHost   , starFormationRateNuclearStarClusterSatellite                 , &
+         &                                                                 stellarMassFormationNuclearStarClusterHost, stellarMassFormationNuclearStarClusterSatellite
 
     ! Find the node to merge with.
     nodeHost                    => node    %mergesWith(                 )
@@ -239,22 +239,22 @@ contains
     call self%nuclearStarClusterMovements_%isDestroyed(node,nuclearStarClusterSatelliteIsDestroyed                                                                 )
 
     if (haveNuclearStarClusterHost     ) then
-       timeFormationNuclearStarClusterHost       =nuclearStarClusterHost%floatRank0MetaPropertyGet(self%nuclearStarClusterFormationTimeID       )
-       SFRNuclearStarClusterHost                 =nuclearStarClusterHost%floatRank0MetaPropertyGet(self%nuclearStarClusterFormationSFRID        )
-       stellarMassFormationNuclearStarClusterHost=nuclearStarClusterHost%floatRank0MetaPropertyGet(self%nuclearStarClusterFormationStellarMassID)
+       timeFormationNuclearStarClusterHost       =nuclearStarClusterHost%floatRank0MetaPropertyGet(self%nuclearStarClusterFormationTimeID             )
+       starFormationRateNuclearStarClusterHost   =nuclearStarClusterHost%floatRank0MetaPropertyGet(self%nuclearStarClusterFormationStarFormationRateID)
+       stellarMassFormationNuclearStarClusterHost=nuclearStarClusterHost%floatRank0MetaPropertyGet(self%nuclearStarClusterFormationStellarMassID      )
     else
        timeFormationNuclearStarClusterHost       =0.0d0
-       SFRNuclearStarClusterHost                 =0.0d0
+       starFormationRateNuclearStarClusterHost   =0.0d0
        stellarMassFormationNuclearStarClusterHost=0.0d0
     end if
 
     if (haveNuclearStarClusterSatellite) then
-       timeFormationNuclearStarClusterSatellite       =nuclearStarClusterSatellite%floatRank0MetaPropertyGet(self%nuclearStarClusterFormationTimeID       )
-       SFRNuclearStarClusterSatellite                 =nuclearStarClusterSatellite%floatRank0MetaPropertyGet(self%nuclearStarClusterFormationSFRID        )
-       stellarMassFormationNuclearStarClusterSatellite=nuclearStarClusterSatellite%floatRank0MetaPropertyGet(self%nuclearStarClusterFormationStellarMassID)
+       timeFormationNuclearStarClusterSatellite       =nuclearStarClusterSatellite%floatRank0MetaPropertyGet(self%nuclearStarClusterFormationTimeID             )
+       starFormationRateNuclearStarClusterSatellite   =nuclearStarClusterSatellite%floatRank0MetaPropertyGet(self%nuclearStarClusterFormationStarFormationRateID)
+       stellarMassFormationNuclearStarClusterSatellite=nuclearStarClusterSatellite%floatRank0MetaPropertyGet(self%nuclearStarClusterFormationStellarMassID      )
     else
        timeFormationNuclearStarClusterSatellite       =0.0d0
-       SFRNuclearStarClusterSatellite                 =0.0d0
+       starFormationRateNuclearStarClusterSatellite   =0.0d0
        stellarMassFormationNuclearStarClusterSatellite=0.0d0
     end if
 
@@ -262,15 +262,15 @@ contains
     ! If the host contains a nuclear star cluster, it should remains as it is. If it does not, do nothing.
     case (destinationMergerDisk    %ID) 
         if (haveNuclearStarClusterHost) then  
-            call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationTimeID       , timeFormationNuclearStarClusterHost       )
-            call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationSFRID        , SFRNuclearStarClusterHost                 )
-            call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStellarMassID, stellarMassFormationNuclearStarClusterHost)
+            call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationTimeID             , timeFormationNuclearStarClusterHost       )
+            call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStarFormationRateID, starFormationRateNuclearStarClusterHost   )
+            call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStellarMassID      , stellarMassFormationNuclearStarClusterHost)
         end if
     case (destinationMergerSpheroid%ID)
         if (haveNuclearStarClusterHost) then  
-            call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationTimeID       , timeFormationNuclearStarClusterHost       )
-            call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationSFRID        , SFRNuclearStarClusterHost                 )
-            call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStellarMassID, stellarMassFormationNuclearStarClusterHost)
+            call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationTimeID             , timeFormationNuclearStarClusterHost       )
+            call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStarFormationRateID, starFormationRateNuclearStarClusterHost   )
+            call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStellarMassID      , stellarMassFormationNuclearStarClusterHost)
         end if
     case (destinationMergerUnmoved%ID)
      ! Do nothing.
@@ -285,28 +285,28 @@ contains
     if (.not.nuclearStarClusterSatelliteIsDestroyed) then
         ! Auto create a nuclear star cluster in the host if needed.
         if (.not.haveNuclearStarClusterHost) nuclearStarClusterHost => nodeHost%NSC(autoCreate=.true.) 
-        call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationTimeID       , timeFormationNuclearStarClusterHost             &
-                &                                                                                           +timeFormationNuclearStarClusterSatellite        &
+        call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationTimeID             , timeFormationNuclearStarClusterHost             &
+                &                                                                                                 +timeFormationNuclearStarClusterSatellite        &
                 &                                            )
-        call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationSFRID        , SFRNuclearStarClusterHost                       &
-                &                                                                                           +SFRNuclearStarClusterSatellite                  &
+        call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStarFormationRateID, starFormationRateNuclearStarClusterHost         &
+                &                                                                                                 +starFormationRateNuclearStarClusterSatellite    &
                 &                                            )
-        call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStellarMassID, stellarMassFormationNuclearStarClusterHost      &
-                &                                                                                           +stellarMassFormationNuclearStarClusterSatellite &
+        call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStellarMassID      , stellarMassFormationNuclearStarClusterHost      &
+                &                                                                                                 +stellarMassFormationNuclearStarClusterSatellite &
                 &                                            )
     end if
     case (destinationMergerSpheroid%ID)
     if (.not.nuclearStarClusterSatelliteIsDestroyed) then
         ! Auto create a nuclear star cluster in the host if needed.
         if (.not.haveNuclearStarClusterHost) nuclearStarClusterHost => nodeHost%NSC(autoCreate=.true.) 
-        call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationTimeID       , timeFormationNuclearStarClusterHost             &
-                &                                                                                           +timeFormationNuclearStarClusterSatellite        &
+        call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationTimeID             , timeFormationNuclearStarClusterHost             &
+                &                                                                                                 +timeFormationNuclearStarClusterSatellite        &
                 &                                            )
-        call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationSFRID        , SFRNuclearStarClusterHost                       &
-                &                                                                                           +SFRNuclearStarClusterSatellite                  &
+        call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStarFormationRateID, starFormationRateNuclearStarClusterHost         &
+                &                                                                                                 +starFormationRateNuclearStarClusterSatellite    &
                 &                                            )
-        call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStellarMassID, stellarMassFormationNuclearStarClusterHost      &
-                &                                                                                           +stellarMassFormationNuclearStarClusterSatellite &
+        call nuclearStarClusterHost%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStellarMassID      , stellarMassFormationNuclearStarClusterHost      &
+                &                                                                                                 +stellarMassFormationNuclearStarClusterSatellite &
                 &                                            )
 
     end if
@@ -315,10 +315,10 @@ contains
     end select
     
     if (haveNuclearStarClusterSatellite) then 
-        call nuclearStarClusterSatellite%floatRank0MetaPropertySet(self%nuclearStarClusterFormationTimeID       ,+0.0d0)
-        call nuclearStarClusterSatellite%floatRank0MetaPropertySet(self%nuclearStarClusterFormationSFRID        ,+0.0d0)
-        call nuclearStarClusterSatellite%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStellarMassID,+0.0d0)
+        call nuclearStarClusterSatellite%floatRank0MetaPropertySet(self%nuclearStarClusterFormationTimeID             ,+0.0d0)
+        call nuclearStarClusterSatellite%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStarFormationRateID,+0.0d0)
+        call nuclearStarClusterSatellite%floatRank0MetaPropertySet(self%nuclearStarClusterFormationStellarMassID      ,+0.0d0)
     end if 
     return
-  end subroutine nuclearStarClustersFormationTimeGalaxiesMerge
+  end subroutine nuclearStarClusterFormationTimeGalaxiesMerge
   

@@ -30,12 +30,25 @@ Implements a galactic filter class which is the ``blackHoleMulti'' combination o
 
   type, extends(blackHoleSeedsClass) :: blackHoleSeedsMulti
      !!{
-     A galactic filter class which is the ``blackHoleMulti'' combination of a set of other blackHoleSeeds.
+     A black hole seeds class which is the ``blackHoleMulti'' combination of a set of other blackHoleSeeds.
      !!}
      private
-     type (seedsList), pointer :: blackHoleSeeds=> null()
+     type   (seedsList), pointer :: blackHoleSeeds              => null()
+     ! This variable is used in order to determinate the size of the array that will store the results of the
+     ! blackHoleMultiMass result for each class. We should have some sort of method that detects if the is more
+     ! than one class that returns a non zero mass for the black hole seed at the same timestep.
+     ! The idea is to create a new method that will check that, if that is true, then we should obtain the index
+     ! of the element that has the shorter timescale and use as the prefered seeding mechanism.
+     integer                     :: blackHoleSeedsClassCounts_
+
   contains
+     !![
+     <methods>
+       <method description="Returns the index of the shortest timescale in order to return the mass of the black hole seed." method="index"/>
+     </methods>
+     !!]
      final     ::                     blackHoleMultiDestructor
+     procedure :: index            => blackHoleMultiIndex 
      procedure :: timescale        => blackHoleMultiTimescale
      procedure :: mass             => blackHoleMultiMass
      procedure :: spin             => blackHoleMultiSpin
@@ -51,8 +64,9 @@ Implements a galactic filter class which is the ``blackHoleMulti'' combination o
   end interface blackHoleSeedsMulti
 
   ! Module-scope variable used in root finding.
-  type(enumerationBlackHoleFormationChannelType) :: channel_
-  !$omp threadprivate(channel_)
+  type            (enumerationBlackHoleFormationChannelType), dimension(:), allocatable :: channel_
+  double precision                                          , dimension(:), allocatable :: masses_  , timescales_
+  !$omp threadprivate(channel_, masses_, timescales_)
 
 contains
 
@@ -67,9 +81,11 @@ contains
     type   (seedsList          ), pointer       :: blackHoleSeeds_
     integer                                     :: i
 
-    self%blackHoleSeeds => null()
-    blackHoleSeeds_     => null()
-    do i=1,parameters%copiesCount('blackHoleSeeds',zeroIfNotPresent=.true.)
+    self%blackHoleSeeds            => null()
+    blackHoleSeeds_                => null()
+    self%blackHoleSeedsClassCounts_=  parameters%copiesCount('blackHoleSeeds',zeroIfNotPresent=.true.)
+
+    do i=1,self%blackHoleSeedsClassCounts_
        if (associated(blackHoleSeeds_)) then
           allocate(blackHoleSeeds_%next)
           blackHoleSeeds_ => blackHoleSeeds_%next
@@ -97,8 +113,8 @@ contains
     type (seedsList          ), intent(in   ), target  :: blackHoleSeeds
     type (seedsList          ),                pointer :: blackHoleSeeds_
 
-    self       %blackHoleSeeds => blackHoleSeeds
-    blackHoleSeeds_            => blackHoleSeeds
+    self           %blackHoleSeeds => blackHoleSeeds
+    blackHoleSeeds_                => blackHoleSeeds
     do while (associated(blackHoleSeeds_))
        !![
        <referenceCountIncrement owner="blackHoleSeeds_" object="blackHoleSeeds_"/>
@@ -130,15 +146,30 @@ contains
     return
   end subroutine blackHoleMultiDestructor
 
-    double precision function blackHoleMultiTimescale(self,node)
+  integer function blackHoleMultiIndex(self,node)
    !!{
-      Compute the black hole masses according to condition.
+   Return the index of the shortest timescale.
+   !!}
+   use :: Galacticus_Nodes, only : treeNode
+   implicit none
+   class(blackHoleSeedsMulti), intent(inout) :: self
+   type (treeNode           ), intent(inout) :: node
+   !$GLC attributes unused :: self, node
+
+   blackHoleMultiIndex=minloc(timescales_,1)
+   return
+  end function blackHoleMultiIndex
+
+  double precision function blackHoleMultiTimescale(self,node)
+   !!{
+      Return the black hole seed timescale according to condition.
    !!}
     use :: Galacticus_Nodes, only : treeNode  
     implicit none
     class  (blackHoleSeedsMulti), intent(inout) :: self
     type   (treeNode           ), intent(inout) :: node
-    blackHoleMultiTimescale=0.0d0
+
+    blackHoleMultiTimescale=timescales_(self%index(node))
     return
   end function blackHoleMultiTimescale
 
@@ -148,30 +179,25 @@ contains
    !!}
     use :: Galacticus_Nodes, only : treeNode  
     implicit none
-    class  (blackHoleSeedsMulti), intent(inout) :: self
-    type   (treeNode           ), intent(inout) :: node
-    type   (seedsList          ), pointer       :: blackHoleSeeds_
-    logical                                     :: blackHoleMultiPasses
-    ! ML: Here we need to define the logic to decide which channel is more important.
-    ! In principle, now it works as first come, first served. 
+    class           (blackHoleSeedsMulti), intent(inout) :: self
+    type            (treeNode           ), intent(inout) :: node
+    type            (seedsList          ), pointer       :: blackHoleSeeds_
+    double precision                                     :: timescale
+    integer                                              :: i               , minimumTimescaleIndex
 
-    ! AB: Maybe it makes sense for each blackHoleSeeds class to also return a timescale
-    ! for seed formation, and then keep whichever has the shorter timescale?
-    ! Or perhaps you just sum the masses over all classes and use that as a the seed mass
-    mass                 =0.0d0
-    blackHoleMultiPasses =  .false.
+    i                =0
+    mass             =0.0d0
+    timescale        =0.0d0
     blackHoleSeeds_  => self%blackHoleSeeds
     do while (associated(blackHoleSeeds_))
-       mass = blackHoleSeeds_%blackHoleSeeds_%mass(node)
-       if (mass > 0.0d0) then 
-          blackHoleMultiPasses=.true.
-       end if
-       if (blackHoleMultiPasses) then
-          blackHoleSeeds_ => null()
-       else
-          blackHoleSeeds_ => blackHoleSeeds_%next
-       end if
+       masses_    (i)= blackHoleSeeds_%blackHoleSeeds_%            mass(node)
+       timescales_(i)= blackHoleSeeds_%blackHoleSeeds_%       timescale(node)
+       channel_   (i)= blackHoleSeeds_%blackHoleSeeds_%formationChannel(node)
+       i = i+1
     end do
+
+    mass = masses_(minimumTimescaleIndex)
+
     return
   end function blackHoleMultiMass
 
@@ -191,31 +217,12 @@ contains
 
   function blackHoleMultiFormationChannel (self,node) result(channel)
     !!{
-    Compute the spin of the seed black hole.
+    Retuns the channel formation of the seed black hole.
     !!}
     implicit none
     type            (enumerationBlackHoleFormationChannelType)                :: channel
     class           (blackHoleSeedsMulti                     ), intent(inout) :: self
     type            (treeNode                                ), intent(inout) :: node
-    type            (seedsList                               ), pointer       :: blackHoleSeeds_
-    double precision                                                          :: mass
-    logical                                                                   :: blackHoleMultiPasses
-   
-    ! Initialize with undetermined formation
-    channel              =blackHoleFormationChannelUndetermined
-    blackHoleMultiPasses =  .false.
-    blackHoleSeeds_      => self%blackHoleSeeds
-    do while (associated(blackHoleSeeds_))
-       mass = blackHoleSeeds_%blackHoleSeeds_%mass(node)
-       if (mass > 0.0d0) then 
-          blackHoleMultiPasses=.true.
-          channel=blackHoleSeeds_%blackHoleSeeds_%formationChannel(node)
-       end if
-       if (blackHoleMultiPasses) then
-          blackHoleSeeds_ => null()
-       else
-          blackHoleSeeds_ => blackHoleSeeds_%next
-       end if
-    end do
+    channel=channel_(self%index(node))
     return
   end function blackHoleMultiFormationChannel
