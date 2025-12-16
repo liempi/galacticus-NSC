@@ -935,6 +935,19 @@ jobs:
       uploadFile: ./testSuite/outputs/*.json
       uploadName: validate-darkMatterOnlySubhalos-decayingDarkMatter
     secrets: inherit
+  Validate-Fuzzy-Dark-Matter:
+    needs: Build-Executable-Linux
+    uses: ./.github/workflows/testModel.yml
+    with:
+      install: python3 python3-h5py python3-numpy python3-git
+      file: validate-fuzzyDarkMatter.py
+      artifact: galacticus-exec
+      runPath: ./testSuite
+      cacheData: 1
+      ompNumThreads: 2
+      uploadFile: ./testSuite/outputs/*.json
+      uploadName: validate-fuzzyDarkMatter
+    secrets: inherit
   # Tests
   ## Linux
   ### Test Codes
@@ -1262,7 +1275,8 @@ jobs:
                 test-pruneLightcone.py,
                 test-soliton-coremass.py,
                 test-promptCuspNFW.py,
-                test-postprocessing.py ]
+                test-postprocessing.py,
+                test-strict-parameters.py ]
     uses: ./.github/workflows/testModel.yml
     with:
       file: ${{ matrix.file }}
@@ -1271,9 +1285,15 @@ jobs:
     secrets: inherit
   Miscellaneous-Unexpected:
     needs: Build-Executable-Linux
+    strategy:
+      # Ensure all jobs are run, even if some fail.
+      fail-fast: false
+      matrix:
+        file: [ test-allowed-parameters.pl,
+                test-strict-parameters.py   ]
     uses: ./.github/workflows/testModel.yml
     with:
-      file: test-allowed-parameters.pl
+      file: ${{ matrix.file }}
       artifact: galacticus-exec
       runPath: ./testSuite
       expectUnrecognized: 1
