@@ -82,13 +82,13 @@ contains
     <inputParameter>
       <name>boostFactorIMF</name>
       <defaultValue>1.0d0</defaultValue>
-      <description>Boost factor to enhance the production of stellar mass black holes in the nuclear star clusters asumming a top-heavier initial mass function.</description>
+      <description>Boost factor to enhance the production of stellar-mass black holes in the nuclear star clusters asumming a top-heavier initial mass function.</description>
       <source>parameters</source>
     </inputParameter>
     <inputParameter>
       <name>fractionBlackHoles</name>
       <defaultValue>0.01d0</defaultValue>
-      <description>Boost factor to enhance the production of stellar mass black holes in the nuclear star clusters asumming a top-heavy initial mass function.</description>
+      <description>Factor that takes into account already placed stellar-mass black holes in the center of the nuclear star cluster.</description>
       <source>parameters</source>
     </inputParameter>
     <objectBuilder class="starFormationRateNuclearStarClusters" name="starFormationRateNuclearStarClusters_" source="parameters"/>
