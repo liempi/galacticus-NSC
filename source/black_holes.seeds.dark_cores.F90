@@ -115,7 +115,7 @@ contains
     !!{
       Returns the timescale associated to the seeding mechanism.
     !!}
-    use :: Galacticus_Nodes                , only : nodeComponentNSC              , treeNode
+    use :: Galacticus_Nodes                , only : nodeComponentNSC              , nodeComponentNSCStandard, treeNode
     use :: Numerical_Constants_Physical    , only : speedLight
     use :: Numerical_Constants_Astronomical, only : gravitationalConstant_internal
     use :: Numerical_Constants_Prefixes    , only : giga
@@ -124,7 +124,7 @@ contains
     type            (treeNode               ), intent(inout)          :: node
     class           (nodeComponentNSC       )               , pointer :: nuclearStarCluster
     double precision                                                  :: nuclearStarClusterStellarMass, darkCoreVelocityDispersion, &
-      &                                                                  nuclearStarClusterRadius     , 
+      &                                                                  nuclearStarClusterRadius
     double precision                         , parameter              :: massMinimumStellarMassBH=8.0d0   ! M⊙
     double precision                         , parameter              :: velocityNormalization   =1.0d1   ! km s
     double precision                         , parameter              :: timeNormalization       =5.0d-12 ! Gyr
@@ -132,31 +132,40 @@ contains
     double precision                         , parameter              :: meanExcentricity        =1.0d0/sqrt(2.0d0)
 
     nuclearStarCluster           => node              %                      NSC(                                 )
-    nuclearStarClusterRadius     =  nuclearStarCluster%                   radius(                                 ) 
-    nuclearStarClusterStellarMass=  nuclearStarCluster%              massStellar(                                 )
-    darkCoreVelocityDispersion   =  nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreVelocityDispersionID)
+    
     !Initialize the value
     darkCoreTimescale=0.0d0
 
-    if (nuclearStarClusterRadius<0.0d0.or.nuclearStarClusterStellarMass<0.0d0) return 
+    select type (nuclearStarCluster)
+      class default
+      ! Generic type, do nothing.
+      return
+      class is (nodeComponentNSCStandard)
+        nuclearStarClusterRadius     =  nuclearStarCluster%                   radius(                                 ) 
+        nuclearStarClusterStellarMass=  nuclearStarCluster%              massStellar(                                 )
+        darkCoreVelocityDispersion   =  nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreVelocityDispersionID)
 
-    ! We use the gravitational wave timescale as the binding energy stored in the binaries is lost via GW emission.
-    ! The binaries cease to be a source of heating for the cluster and core collapse takes place. 
-    ! The decay time of a BH binary with an initial separation, a, and eccentricity, e, is (Peters 1964)
-    ! from https://arxiv.org/pdf/2406.13072 Eq. (3)
-    darkCoreTimescale=+timeNormalization                    &
-      &               *speedLight**5                        & ! The timeNormalization corrects the units
-      &               *massMinimumStellarMassBH             & ! The timescale is in given in yr so we convert to Gyr.
-      &               *gravitationalConstant_internal       &
-      &               *fractionBinaryEnergy**(-4)           & 
-      &               *(+1.0d0                              &
-      &                 -meanExcentricity**2                &
-      &                )**(7.0d0/2.0d0)                     &
-      &               /(                                    & 
-      &                 +darkCoreVelocityDispersion         & 
-      &                 /velocityNormalization              &
-      &                )**8                                 &
-      &               /giga
+
+        if (nuclearStarClusterRadius<0.0d0.or.nuclearStarClusterStellarMass<0.0d0.or.darkCoreVelocityDispersion<=0.0d0) return 
+
+        ! We use the gravitational wave timescale as the binding energy stored in the binaries is lost via GW emission.
+        ! The binaries cease to be a source of heating for the cluster and core collapse takes place. 
+        ! The decay time of a BH binary with an initial separation, a, and eccentricity, e, is (Peters 1964)
+        ! from https://arxiv.org/pdf/2406.13072 Eq. (3)
+        darkCoreTimescale=+timeNormalization                    &
+          &               *speedLight**5                        & ! The timeNormalization corrects the units
+          &               *massMinimumStellarMassBH             & ! The timescale is in given in yr so we convert to Gyr.
+          &               *gravitationalConstant_internal       &
+          &               *fractionBinaryEnergy**(-4)           & 
+          &               *(+1.0d0                              &
+          &                 -meanExcentricity**2                &
+          &                )**(7.0d0/2.0d0)                     &
+          &               /(                                    & 
+          &                 +darkCoreVelocityDispersion         & 
+          &                 /velocityNormalization              &
+          &                )**8                                 &
+          &               /giga
+    end select
     return
   end function darkCoreTimescale
 

@@ -24,7 +24,7 @@
   !![
   <nodePropertyExtractor name="nodePropertyExtractorDarkCores">
    <description>
-    A property extractor class for the properties of the nuclear star cluster at the moment of the black hole formation.
+    A property extractor class for the properties of the dark core.
    </description>
   </nodePropertyExtractor>
   !!]
@@ -33,9 +33,8 @@
      A property extractor class for the velocity dispersion at a set of radii.
      !!}
      private
-    integer   :: darkCoreRadiusID                 , darkCoreGasMassID          , &
-       &         darkCoreVelocityDispersionID     , darkCoreTimescaleID        , &
-       &         nuclearStarClusterNumberOfStarsID, nuclearStarClusterDensityID
+    integer   :: darkCoreRadiusID            , darkCoreGasMassID, &
+       &         darkCoreVelocityDispersionID
    
    contains
      procedure :: elementCount       => darkCoresElementCount
@@ -81,9 +80,6 @@ contains
     <addMetaProperty component="NSC" name="darkCoreRadius"                  id="self%darkCoreRadiusID"                  isEvolvable="no" isCreator="no"/>
     <addMetaProperty component="NSC" name="darkCoreGasMass"                 id="self%darkCoreGasMassID"                 isEvolvable="no" isCreator="no"/>
     <addMetaProperty component="NSC" name="darkCoreVelocityDispersion"      id="self%darkCoreVelocityDispersionID"      isEvolvable="no" isCreator="no"/>
-    <addMetaProperty component="NSC" name="darkCoreTimescale"               id="self%darkCoreTimeScaleID"               isEvolvable="no" isCreator="no"/>
-    <addMetaProperty component="NSC" name="nuclearStarClusterNumberOfStars" id="self%nuclearStarClusterNumberOfStarsID" isEvolvable="no" isCreator="no"/>
-    <addMetaProperty component="NSC" name="nuclearStarClusterDensity"       id="self%nuclearStarClusterDensityID"       isEvolvable="no" isCreator="no"/> 
     !!]
     return
   end function darkCoresConstructorInternal
@@ -97,7 +93,7 @@ contains
     double precision                                , intent(in   ) :: time
     !$GLC attributes unused :: time
 
-    darkCoresElementCount=6
+    darkCoresElementCount=3
     return
   end function darkCoresElementCount
 
@@ -116,15 +112,12 @@ contains
 
     !$GLC attributes unused :: time, instance
 
-    allocate(darkCoresExtract(6))
+    allocate(darkCoresExtract(3))
     nuclearStarCluster => node%NSC()
     select type (nuclearStarCluster)
     type is (nodeComponentNSC)
       ! Nuclear star cluster does not yet exist.
-      darkCoresExtract=[ & 
-        &                  0.0d0, &
-        &                  0.0d0, &
-        &                  0.0d0, &
+      darkCoresExtract=[          & 
         &                  0.0d0, &
         &                  0.0d0, &
         &                  0.0d0  &
@@ -133,10 +126,7 @@ contains
       darkCoresExtract=[                                                                                       &
        &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreRadiusID                 ), &
        &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreGasMassID                ), &
-       &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreVelocityDispersionID     ), &
-       &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreTimescaleID              ), &
-       &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%nuclearStarClusterNumberOfStarsID), &
-       &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%nuclearStarClusterDensityID)        &
+       &                 nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreVelocityDispersionID     )  &
        &               ]
     end select
     return
@@ -152,14 +142,10 @@ contains
     type            (varying_string                ), intent(inout), dimension(:) , allocatable :: names
     !$GLC attributes unused :: self, time
     
-    allocate(names(6))
-    names(1)=var_str('darkCoreRadius'                 )
-    names(2)=var_str('darkCoreGasMass'                )
-    names(3)=var_str('darkCoreVelocityDispersion'     )
-    names(4)=var_str('darkCoreTimescale'              )
-    names(5)=var_str('nuclearStarClusterNumberOfStars')
-    names(6)=var_str('nuclearStarClusterDensityGas'   )
-
+    allocate(names(3))
+    names(1)=var_str('darkCoreRadius'            )
+    names(2)=var_str('darkCoreGasMass'           )
+    names(3)=var_str('darkCoreVelocityDispersion')
     return
   end subroutine darkCoresNames
 
@@ -169,17 +155,14 @@ contains
     !!}
     implicit none
     class           (nodePropertyExtractorDarkCores), intent(inout)                             :: self
-    double precision                                                  , intent(in   )                             :: time
-    type            (varying_string                                  ), intent(inout), dimension(:) , allocatable :: descriptions
+    double precision                                , intent(in   )                             :: time
+    type            (varying_string                ), intent(inout), dimension(:) , allocatable :: descriptions
     !$GLC attributes unused :: time
 
-    allocate(descriptions(6))
-    descriptions(1)=var_str('Radius of the dark core [Mpc].'                         )
-    descriptions(2)=var_str('Gas mass of the nuclear star cluster enclose in the dark core radius [M⊙].'                                                )
-    descriptions(3)=var_str('Velocity dispersion of the dark core[km/s].'                      )
-    descriptions(4)=var_str('Dynamical friction timescale of the nuclear star cluster [Gyr].')
-    descriptions(5)=var_str('Number of stars of the nuclear star cluster.')
-    descriptions(6)=var_str('Gas density of the nuclear star cluster at the radius [M⊙ Mpc-3].')
+    allocate(descriptions(3))
+    descriptions(1)=var_str('Radius of the dark core [Mpc].'                                                 )
+    descriptions(2)=var_str('Gas mass of the nuclear star cluster enclosed within the dark core radius [M⊙].')
+    descriptions(3)=var_str('Velocity dispersion of the dark core[km/s].'                                    )
     return
   end subroutine darkCoresDescriptions
 
@@ -195,14 +178,11 @@ contains
     double precision                                , intent(in   )               :: time
     !$GLC attributes unused :: time
 
-    allocate(darkCoresUnitsInSI(6))
-    DarkCoresUnitsInSI=[                       &
-     &                  megaParsec           , &
-     &                  massSolar            , &
-     &                  kilo                 , &
-     &                  gigayear             , &
-     &                  1.0d0                , &
-     &                  1.0d0/megaParsec**3d0  &
+    allocate(darkCoresUnitsInSI(3))
+    DarkCoresUnitsInSI=[            &
+     &                  megaParsec, &
+     &                  massSolar , &
+     &                  kilo        &
      &                 ]
     return
   end function darkCoresUnitsInSI
