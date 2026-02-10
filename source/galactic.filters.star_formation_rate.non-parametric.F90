@@ -1,5 +1,5 @@
 !! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
-!!           2019, 2020, 2021, 2022, 2023, 2024, 2025
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
 !!    Andrew Benson <abenson@carnegiescience.edu>
 !!
 !! This file is part of Galacticus.
@@ -41,7 +41,7 @@ Implements a galactic (high- or low-pass) filter for total star formation rate w
   <galacticFilter name="galacticFilterStarFormationRateNonParametric">
    <description>
     A galactic (high- or low-pass) filter for star formation rate. Galaxies with a combined disk, spheroid, plus \gls{nsc} star
-    formation rate are passed if they are above or below (for {\normalfont \ttfamily [filterType])$=${\normalfont \ttfamily
+    formation rate are passed if they are above or below (for {\normalfont \ttfamily [filterType]}$=${\normalfont \ttfamily
     highPass} or {\normalfont \ttfamily lowPass} respectively) a mass-dependent threshold. The threshold is linearly interpolated
     in log({\normalfont \ttfamily [rateStarFormation]}) vs. log({\normalfont \ttfamily [massStellar]}).
    </description>
