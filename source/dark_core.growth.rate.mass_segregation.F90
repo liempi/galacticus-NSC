@@ -30,7 +30,7 @@
    <description>
     A dark core mass rate where the mass evolution takes place over a timescale for galactic \glspl{nsc}.
     \begin{equation}
-     \dot{M}_\mathrm{dark core}^\mathrm{NSC} = \epsilon_\bullet f_\mathrm{IMF}^\mathrm{boost} f_\mathrm{} \dot{M}_\star^\mathrm{NSC},
+     \dot{M}_\mathrm{dark core}^\mathrm{NSC} = \epsilon_\bullet f_\mathrm{IMF}^\mathrm{boost} f_\mathrm{placed-in} \dot{M}_\star^\mathrm{NSC},
     \end{equation}    
     where $\epsilon_\bullet=${\normalfont \ttfamily [efficiency]} is a free parameter, and $\dot{M}_\star^\mathrm{NSC}$ is the
     star formation rate of the \glspl{nsc} component.
