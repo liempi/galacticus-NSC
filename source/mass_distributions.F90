@@ -1,5 +1,5 @@
 !! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
-!!           2019, 2020, 2021, 2022, 2023, 2024, 2025
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
 !!    Andrew Benson <abenson@carnegiescience.edu>
 !!
 !! This file is part of Galacticus.
@@ -798,7 +798,7 @@ module Mass_Distributions
    <data>type            (interpolator), allocatable               :: velocityDispersion1D__                                                                                       </data>
    <data>double precision              , allocatable, dimension(:) :: velocityDispersionRadialVelocity__                     , velocityDispersionRadialRadius__                    </data>
    <data>double precision                                          :: velocityDispersionRadialRadiusMinimum__   =+huge(0.0d0), velocityDispersionRadialRadiusMaximum__=-huge(0.0d0)</data>
-   <data>double precision                                          :: velocityDispersionRadialRadiusOuter__                                                                        </data>
+   <data>double precision                                          :: velocityDispersionRadialRadiusOuter__     =+huge(0.0d0)                                                      </data>
    <data>double precision                                          :: toleranceRelativeVelocityDispersion       =1.0d-6                                                            </data>
    <data>double precision                                          :: toleranceRelativeVelocityDispersionMaximum=1.0d-3                                                            </data>
   </functionClass>

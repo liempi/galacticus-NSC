@@ -1,5 +1,5 @@
 !! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
-!!           2019, 2020, 2021, 2022, 2023, 2024, 2025
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
 !!    Andrew Benson <abenson@carnegiescience.edu>
 !!
 !! This file is part of Galacticus.
@@ -735,7 +735,7 @@ contains
                    self%propertyValuesInactive(1:self%propertyCountInactive)=self%propertyValuesInactiveSaved(1:self%propertyCountInactive)
                 else if (present(status)) then
                    call displayMessage('ODE integration failed '//{introspection:location})
-                   status=errorStatusFail
+                   status=errorStatusUnderflow
                    return
                 else
                    call Error_Report  ('ODE integration failed '//{introspection:location})
