@@ -35,9 +35,7 @@
      A property extractor class for the velocity dispersion at a set of radii.
      !!}
      private
-     integer  :: radiusNuclearStarClustersID     , stellarMassNuclearStarClustersID , &
-         &       velocityNuclearStarClustersID   , ageNuclearStarClustersID         , &
-         &       gasMassNuclearStarClustersID    , criticalMassNuclearStarClustersID
+     integer  :: radiusDarkCoreBlackHoleFormationID
    contains
      procedure :: extract      => blackHoleSeedingDarkCoresExtract
      procedure :: name         => blackHoleSeedingDarkCoresName
@@ -77,6 +75,9 @@ contains
     !!}
     implicit none
     type          (nodePropertyExtractorBlackHoleSeedingDarkCores) :: self
+    !![
+    <addMetaProperty component="NSC" name="darkCoreRadiusBlackHoleFormation" id="self%radiusDarkCoreBlackHoleFormationID" isEvolvable="no" isCreator="no"/>
+    !!]
     return
   end function blackHoleSeedingDarkCoresConstructorInternal
 
@@ -113,7 +114,7 @@ contains
     type  (varying_string                                )                :: blackHoleSeedingDarkCoresName
     !$GLC attributes unused :: self
     
-    blackHoleSeedingDarkCoresName=var_str('blackHoleSeedMass')
+    blackHoleSeedingDarkCoresName=var_str('darkCoreSeedingRadius')
     return
   end function blackHoleSeedingDarkCoresName
 
@@ -125,7 +126,7 @@ contains
     class (nodePropertyExtractorBlackHoleSeedingDarkCores), intent(inout) :: self
     type  (varying_string                                )                :: blackHoleSeedingDarkCoresDescription
 
-    blackHoleSeedingDarkCoresDescription=var_str('Black hole seed mass [M⊙].')
+    blackHoleSeedingDarkCoresDescription=var_str('Radius of the dark core at the black hole seeding [Mpc].')
     return
   end function blackHoleSeedingDarkCoresDescription
 
@@ -133,10 +134,10 @@ contains
     !!{
     Return the units of the {\normalfont \ttfamily BlackHoleSeedingDarkCores} properties in the SI system.
     !!}
-    use :: Numerical_Constants_Astronomical, only : massSolar
+    use :: Numerical_Constants_Astronomical, only : megaParsec
     implicit none
     class (nodePropertyExtractorBlackHoleSeedingDarkCores), intent(inout):: self
     !$GLC attributes unused :: self
-    blackHoleSeedingDarkCoresUnitsInSI = massSolar
+    blackHoleSeedingDarkCoresUnitsInSI = megaParsec
     return
   end function blackHoleSeedingDarkCoresUnitsInSI

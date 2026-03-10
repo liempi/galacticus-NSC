@@ -144,8 +144,8 @@ contains
     darkCoreMassSegregationRate =+0.0d0
 
     ! Get the nuclear star cluster component.
-    nuclearStarCluster                 => node                                      %        NSC(    )
-    nuclearStarClusterStarFormationRate=  self%starFormationRateNuclearStarClusters_%       rate(node)
+    nuclearStarCluster                 => node                                      %NSC (    )
+    nuclearStarClusterStarFormationRate=  self%starFormationRateNuclearStarClusters_%rate(node)
     
     if (nuclearStarClusterStarFormationRate<=0.0d0) return
 

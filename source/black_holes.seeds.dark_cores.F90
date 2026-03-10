@@ -36,9 +36,10 @@
      based on the model of \cite{vergara_global_2023} and \cite{escala_observational_2021}.
      !!}
      private
-     double precision                                   :: massEfficiency              , velocityThreshold, &
+     double precision                                   :: massEfficiency              , velocityThreshold                 , &
       &                                                    massDarkCoreThreshold
-     integer                                            :: darkCoreVelocityDispersionID 
+     integer                                            :: darkCoreVelocityDispersionID, radiusDarkCoreBlackHoleFormationID, &
+      &                                                    darkCoreRadiusID
     contains
      procedure :: timescale        => darkCoreTimescale
      procedure :: mass             => darkCoresMass
@@ -106,7 +107,9 @@ contains
     <constructorAssign variables="massEfficiency, velocityThreshold, massDarkCoreThreshold"/>
     !!]
     !![
-    <addMetaProperty component="NSC" name="darkCoreVelocityDispersion" id="self%darkCoreVelocityDispersionID" isEvolvable="no" isCreator="no" />
+    <addMetaProperty component="NSC" name="darkCoreVelocityDispersion"       id="self%darkCoreVelocityDispersionID"       isEvolvable="no" isCreator="no" />
+    <addMetaProperty component="NSC" name="darkCoreRadius"                   id="self%darkCoreRadiusID"                   isEvolvable="no" isCreator="no" />
+    <addMetaProperty component="NSC" name="darkCoreRadiusBlackHoleFormation" id="self%radiusDarkCoreBlackHoleFormationID" isEvolvable="no" isCreator="yes"/>
     !!]
     return
   end function darkCoresConstructorInternal
@@ -145,7 +148,6 @@ contains
         nuclearStarClusterStellarMass=  nuclearStarCluster%              massStellar(                                 )
         darkCoreVelocityDispersion   =  nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreVelocityDispersionID)
 
-
         if (nuclearStarClusterRadius<0.0d0.or.nuclearStarClusterStellarMass<0.0d0.or.darkCoreVelocityDispersion<=0.0d0) return 
 
         ! We use the gravitational wave timescale as the binding energy stored in the binaries is lost via GW emission.
@@ -179,7 +181,7 @@ contains
     class           (blackHoleSeedsDarkCores), intent(inout)          :: self
     type            (treeNode               ), intent(inout)          :: node
     class           (nodeComponentNSC       )               , pointer :: nuclearStarCluster
-    double precision                                                  :: velocityDispersionDarkCore
+    double precision                                                  :: velocityDispersionDarkCore, radiusDarkCore
     
     ! Get the nuclear star cluster component.
     nuclearStarCluster => node%NSC()
@@ -198,6 +200,7 @@ contains
              &  .or.                                       &
              &   nuclearStarCluster%radius     () <= 0.0d0 &
              & ) return
+          radiusDarkCore             = nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreRadiusID            )
 
           ! Get the velocity dispersion of the dark core.
           velocityDispersionDarkCore = nuclearStarCluster%floatRank0MetaPropertyGet(self%darkCoreVelocityDispersionID)
@@ -209,10 +212,14 @@ contains
               &       +8.0d0                                                  & 
               &      )
             ! Adjust black hole stellar mass of the nuclear star cluster
-            call nuclearStarCluster%massDarkCoreSet(                                   &
-              &                                     +nuclearStarCluster%massDarkCore() &
-              &                                     -mass                              &
-              &                                    )
+            call nuclearStarCluster%massDarkCoreSet          (                                   &
+              &                                               +nuclearStarCluster%massDarkCore() &
+              &                                               -mass                              &
+              &                                              )
+            call nuclearStarCluster%floatRank0MetaPropertySet(                                         &
+              &                                               self%radiusDarkCoreBlackHoleFormationID, &
+              &                                               radiusDarkCore                           &
+              &                                               )
           else
             mass=+0.0d0
           end if 
