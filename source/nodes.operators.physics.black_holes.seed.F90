@@ -38,8 +38,8 @@
      private
      class(blackHoleSeedsClass    ), pointer :: blackHoleSeeds_                  => null()
      class(cosmologyFunctionsClass), pointer :: cosmologyFunctions_              => null() 
-     integer                                 :: blackHoleSeedsFormationChannelID          , blackHoleSeedsFormationRedshiftID, &
-       &                                        blackHoleSeedsFormationTimescaleID        , blackHoleSeedsFormationMassID             
+     integer                                 :: blackHoleSeedFormationChannelID          , blackHoleSeedFormationRedshiftID, &
+       &                                        blackHoleSeedFormationTimescaleID        , blackHoleSeedMassID             
    contains
      final     ::                          blackHolesSeedDestructor
      procedure :: autoHook              => blackHolesSeedAutoHook
@@ -100,10 +100,10 @@ contains
     !!]
 
     !![
-    <addMetaProperty component="blackHole" type="float"   name="blackHoleSeedsFormationMass"      id="self%blackHoleSeedsFormationMassID"      isEvolvable="no" isCreator="yes"/>
-    <addMetaProperty component="blackHole" type="float"   name="blackHoleSeedsFormationRedshift"  id="self%blackHoleSeedsFormationRedshiftID"  isEvolvable="no" isCreator="yes"/>
-    <addMetaProperty component="blackHole" type="float"   name="blackHoleSeedsFormationTimescale" id="self%blackHoleSeedsFormationTimescaleID" isEvolvable="no" isCreator="yes"/>
-    <addMetaProperty component="blackHole" type="integer" name="blackHoleSeedsFormationChannel"   id="self%blackHoleSeedsFormationChannelID"   isEvolvable="no" isCreator="yes"/>
+    <addMetaProperty component="blackHole" type="float"   name="blackHoleSeedMass"               id="self%blackHoleSeedMassID"               isEvolvable="no" isCreator="yes"/>
+    <addMetaProperty component="blackHole" type="float"   name="blackHoleSeedFormationRedshift"  id="self%blackHoleSeedFormationRedshiftID"  isEvolvable="no" isCreator="yes"/>
+    <addMetaProperty component="blackHole" type="float"   name="blackHoleSeedFormationTimescale" id="self%blackHoleSeedFormationTimescaleID" isEvolvable="no" isCreator="yes"/>
+    <addMetaProperty component="blackHole" type="integer" name="blackHoleSeedFormationChannel"   id="self%blackHoleSeedFormationChannelID"   isEvolvable="no" isCreator="yes"/>
     !!]
     return
   end function blackHolesSeedConstructorInternal
@@ -164,14 +164,14 @@ contains
              &                                                              self%cosmologyFunctions_%expansionFactor(time) &
              &                                                             )
 
-       call blackHole%massSet                    (                                                                       massSeed)
-       call blackHole%  floatRank0MetaPropertySet(self%blackHoleSeedsFormationMassID     ,                               massSeed)
-       call blackHole%  floatRank0MetaPropertySet(self%blackHoleSeedsFormationRedshiftID ,                           redshiftSeed)
-       call blackHole%  floatRank0MetaPropertySet(self%blackHoleSeedsFormationTimescaleID,                          timescaleSeed)
-       call blackHole%integerRank0MetaPropertySet(self%blackHoleSeedsFormationChannelID  ,    formationChannel%                ID)
+       call blackHole%massSet                    (                                                                      massSeed)
+       call blackHole%  floatRank0MetaPropertySet(self%blackHoleSeedMassID              ,                               massSeed)
+       call blackHole%  floatRank0MetaPropertySet(self%blackHoleSeedFormationRedshiftID ,                           redshiftSeed)
+       call blackHole%  floatRank0MetaPropertySet(self%blackHoleSeedFormationTimescaleID,                          timescaleSeed)
+       call blackHole%integerRank0MetaPropertySet(self%blackHoleSeedFormationChannelID  ,    formationChannel%                ID)
 
        if ( blackHole%spinIsSettable()) &
-            & call blackHole%spinSet             (                                        self%blackHoleSeeds_%spin        (node))
+            & call blackHole%spinSet             (                                       self%blackHoleSeeds_%spin        (node))
     end if
     return
   end subroutine blackHolesSeedNodeInitialize
@@ -235,14 +235,14 @@ contains
 
     blackHole        => node                 %blackHole       (autoCreate=.true.)
     formationChannel =  self_%blackHoleSeeds_%formationChannel(           node  )
-    call        blackHole%                    massSet(                                         massSeed_          )
-    call        blackHole%  floatRank0MetaPropertySet(self_%blackHoleSeedsFormationMassID     ,massSeed_          )
-    call        blackHole%  floatRank0MetaPropertySet(self_%blackHoleSeedsFormationRedshiftID ,redshiftSeed_      )
-    call        blackHole%  floatRank0MetaPropertySet(self_%blackHoleSeedsFormationTimescaleID,timescaleSeed_     )
-    call        blackHole%integerRank0MetaPropertySet(self_%blackHoleSeedsFormationChannelID  ,formationChannel%ID)
+    call        blackHole%                    massSet(                                        massSeed_          )
+    call        blackHole%  floatRank0MetaPropertySet(self_%blackHoleSeedMassID              ,massSeed_          )
+    call        blackHole%  floatRank0MetaPropertySet(self_%blackHoleSeedFormationRedshiftID ,redshiftSeed_      )
+    call        blackHole%  floatRank0MetaPropertySet(self_%blackHoleSeedFormationTimescaleID,timescaleSeed_     )
+    call        blackHole%integerRank0MetaPropertySet(self_%blackHoleSeedFormationChannelID  ,formationChannel%ID)
 
     if (blackHole%spinIsSettable()) &
-         & call blackHole%                    spinSet(                                         spinSeed_          )
+         & call blackHole%                    spinSet(                                        spinSeed_          )
     return 
   end subroutine blackHoleCreate
 
@@ -261,16 +261,16 @@ contains
     class is (nodeOperatorBlackHolesSeed)
        ! Set the formation channel to that of the more massive black hole.
        if (blackHole1%mass() > blackHole2%mass()) then
-          call blackHoleMerged%  floatRank0MetaPropertySet(self%blackHoleSeedsFormationMassID     ,blackHole1%  floatRank0MetaPropertyGet(self%blackHoleSeedsFormationMassID     ))
-          call blackHoleMerged%  floatRank0MetaPropertySet(self%blackHoleSeedsFormationRedshiftID ,blackHole1%  floatRank0MetaPropertyGet(self%blackHoleSeedsFormationRedshiftID ))
-          call blackHoleMerged%  floatRank0MetaPropertySet(self%blackHoleSeedsFormationTimescaleID,blackHole1%  floatRank0MetaPropertyGet(self%blackHoleSeedsFormationTimescaleID))
-          call blackHoleMerged%integerRank0MetaPropertySet(self%blackHoleSeedsFormationChannelID  ,blackHole1%integerRank0MetaPropertyGet(self%blackHoleSeedsFormationChannelID  ))
+          call blackHoleMerged%  floatRank0MetaPropertySet(self%blackHoleSeedMassID              ,blackHole1%  floatRank0MetaPropertyGet(self%blackHoleSeedMassID              ))
+          call blackHoleMerged%  floatRank0MetaPropertySet(self%blackHoleSeedFormationRedshiftID ,blackHole1%  floatRank0MetaPropertyGet(self%blackHoleSeedFormationRedshiftID ))
+          call blackHoleMerged%  floatRank0MetaPropertySet(self%blackHoleSeedFormationTimescaleID,blackHole1%  floatRank0MetaPropertyGet(self%blackHoleSeedFormationTimescaleID))
+          call blackHoleMerged%integerRank0MetaPropertySet(self%blackHoleSeedFormationChannelID  ,blackHole1%integerRank0MetaPropertyGet(self%blackHoleSeedFormationChannelID  ))
 
       else
-          call blackHoleMerged%  floatRank0MetaPropertySet(self%blackHoleSeedsFormationMassID     ,blackHole2%  floatRank0MetaPropertyGet(self%blackHoleSeedsFormationMassID     ))
-          call blackHoleMerged%integerRank0MetaPropertySet(self%blackHoleSeedsFormationChannelID  ,blackHole2%integerRank0MetaPropertyGet(self%blackHoleSeedsFormationChannelID  ))
-          call blackHoleMerged%  floatRank0MetaPropertySet(self%blackHoleSeedsFormationRedshiftID ,blackHole2%  floatRank0MetaPropertyGet(self%blackHoleSeedsFormationRedshiftID ))
-          call blackHoleMerged%  floatRank0MetaPropertySet(self%blackHoleSeedsFormationTimescaleID,blackHole2%  floatRank0MetaPropertyGet(self%blackHoleSeedsFormationTimescaleID))
+          call blackHoleMerged%  floatRank0MetaPropertySet(self%blackHoleSeedMassID              ,blackHole2%  floatRank0MetaPropertyGet(self%blackHoleSeedMassID              ))
+          call blackHoleMerged%integerRank0MetaPropertySet(self%blackHoleSeedFormationChannelID  ,blackHole2%integerRank0MetaPropertyGet(self%blackHoleSeedFormationChannelID  ))
+          call blackHoleMerged%  floatRank0MetaPropertySet(self%blackHoleSeedFormationRedshiftID ,blackHole2%  floatRank0MetaPropertyGet(self%blackHoleSeedFormationRedshiftID ))
+          call blackHoleMerged%  floatRank0MetaPropertySet(self%blackHoleSeedFormationTimescaleID,blackHole2%  floatRank0MetaPropertyGet(self%blackHoleSeedFormationTimescaleID))
       end if
     class default
        call Error_Report('incorrect class'//{introspection:location})

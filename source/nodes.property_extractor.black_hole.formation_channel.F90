@@ -33,7 +33,7 @@
      A node property extractor class which extracts the formation channel for black hole seeds.
      !!}
      private
-     integer :: blackHoleSeedsFormationChannelID
+     integer :: blackHoleSeedFormationChannelID
    contains
      procedure :: extract     => blackHoleFormationChannelExtract
      procedure :: name        => blackHoleFormationChannelName
@@ -74,7 +74,7 @@ contains
     type(nodePropertyExtractorBlackHoleFormationChannel) :: self
     
     !![
-    <addMetaProperty component="blackHole" name="blackHoleSeedsFormationChannel" type="integer" id="self%blackHoleSeedsFormationChannelID" isCreator="no"/>
+    <addMetaProperty component="blackHole" name="blackHoleSeedsFormationChannel" type="integer" id="self%blackHoleSeedFormationChannelID" isCreator="no"/>
     !!]
     return
   end function blackHoleFormationChannelConstructorInternal
@@ -101,7 +101,7 @@ contains
        blackHoleFormationChannelExtract=blackHoleFormationChannelUndetermined%ID
     class default
        ! Extract the formation channel.
-       blackHoleFormationChannelExtract=blackHole                            %integerRank0MetaPropertyGet(self%blackHoleSeedsFormationChannelID)
+       blackHoleFormationChannelExtract=blackHole                            %integerRank0MetaPropertyGet(self%blackHoleSeedFormationChannelID)
     end select
     return
   end function blackHoleFormationChannelExtract

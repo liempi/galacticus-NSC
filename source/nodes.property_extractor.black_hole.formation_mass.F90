@@ -22,124 +22,140 @@
   !!}
 
   !![
-  <nodePropertyExtractor name="nodePropertyExtractorBlackHoleFormationMass">
+  <nodePropertyExtractor name="nodePropertyExtractorBlackHoleSeedMass">
    <description>
-    A node property extractor class which extracts the formation redshift for black hole seeds.
+    A node property extractor class which extracts mass of the black hole seed.
    </description>
   </nodePropertyExtractor>
   !!]
-  type, extends(nodePropertyExtractorScalar) :: nodePropertyExtractorBlackHoleFormationMass
+  type, extends(nodePropertyExtractorList) :: nodePropertyExtractorBlackHoleSeedMass
      !!{
      A node property extractor class which extracts the mass of the black hole seeds.
      !!}
      private
-     integer :: blackHoleSeedsFormationMassID
+     integer :: blackHoleSeedMassID
    contains
-     procedure :: extract     => blackHoleFormationMassExtract
-     procedure :: name        => blackHoleFormationMassName
-     procedure :: description => blackHoleFormationMassDescription
-     procedure :: unitsInSI   => blackHoleFormationMassUnitsInSI
-  end type nodePropertyExtractorBlackHoleFormationMass
+     procedure :: elementCount => blackHoleSeedElementCount
+     procedure :: extract      => blackHoleSeedMassExtract
+     procedure :: names        => blackHoleSeedMassNames
+     procedure :: descriptions => blackHoleSeedMassDescriptions
+     procedure :: unitsInSI    => blackHoleSeedMassUnitsInSI
+  end type nodePropertyExtractorBlackHoleSeedMass
 
-  interface nodePropertyExtractorBlackHoleFormationMass
+  interface nodePropertyExtractorBlackHoleSeedMass
      !!{
-     Constructors for the {\normalfont \ttfamily blackHoleFormationMass} node property extractor class.
+     Constructors for the {\normalfont \ttfamily blackHoleSeedMass} node property extractor class.
      !!}
-     module procedure blackHoleFormationMassConstructorParameters
-     module procedure blackHoleFormationMassConstructorInternal
-  end interface nodePropertyExtractorBlackHoleFormationMass
+     module procedure blackHoleSeedMassConstructorParameters
+     module procedure blackHoleSeedMassConstructorInternal
+  end interface nodePropertyExtractorBlackHoleSeedMass
 
 contains
 
-  function blackHoleFormationMassConstructorParameters(parameters) result(self)
+  function blackHoleSeedMassConstructorParameters(parameters) result(self)
     !!{
-    Constructor for the {\normalfont \ttfamily blackHoleFormationMass} node property extractor class which takes a parameter set as input.
+    Constructor for the {\normalfont \ttfamily blackHoleSeedMass} node property extractor class which takes a parameter set as input.
     !!}
     use :: Input_Parameters, only : inputParameters
     implicit none
-    type(nodePropertyExtractorBlackHoleFormationMass)                :: self
-    type(inputParameters                                ), intent(inout) :: parameters
+    type(nodePropertyExtractorBlackHoleSeedMass)                :: self
+    type(inputParameters                       ), intent(inout) :: parameters
 
-    self=nodePropertyExtractorBlackHoleFormationMass()
+    self=nodePropertyExtractorBlackHoleSeedMass()
     !![
     <inputParametersValidate source="parameters"/>
     !!]
     return
-  end function blackHoleFormationMassConstructorParameters
+  end function blackHoleSeedMassConstructorParameters
 
-  function blackHoleFormationMassConstructorInternal() result(self)
+  function blackHoleSeedMassConstructorInternal() result(self)
     !!{
-    Internal constructor for the {\normalfont \ttfamily blackHoleFormationMass} node property extractor class.
+    Internal constructor for the {\normalfont \ttfamily blackHoleSeedMass} node property extractor class.
     !!}
     implicit none
-    type(nodePropertyExtractorBlackHoleFormationMass) :: self
+    type(nodePropertyExtractorBlackHoleSeedMass) :: self
     
     !![
-    <addMetaProperty component="blackHole" name="blackHoleSeedsFormationMass" type="float" id="self%blackHoleSeedsFormationMassID" isCreator="no"/>
+    <addMetaProperty component="blackHole" name="blackHoleSeedMass" type="float" id="self%blackHoleSeedMassID" isCreator="no"/>
     !!]
     return
-  end function blackHoleFormationMassConstructorInternal
+  end function blackHoleSeedMassConstructorInternal
 
-  function blackHoleFormationMassExtract(self,node,instance)
+  integer function blackHoleSeedElementCount(self)
     !!{
-    Implement a {\normalfont \ttfamily blackHoleFormationMass} node property extractor.
+    Return a count of the number of properties extracted.
+    !!}
+    implicit none
+    class(nodePropertyExtractorBlackHoleSeedMass), intent(inout) :: self
+
+    blackHoleSeedElementCount=1
+    return
+  end function blackHoleSeedElementCount
+
+  function blackHoleSeedMassExtract(self,node,instance) result(seedMass)
+    !!{
+    Implement a {\normalfont \ttfamily blackHoleSeedMass} node property extractor.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentBlackHole, nodeComponentBlackHoleStandard
     implicit none
-    double precision                                                                       :: blackHoleFormationMassExtract
-    class           (nodePropertyExtractorBlackHoleFormationMass), intent(inout), target   :: self
-    type            (treeNode                                   ), intent(inout), target   :: node
-    type            (multiCounter                               ), intent(inout), optional :: instance
-    class           (nodeComponentBlackHole                     )               , pointer  :: blackHole
+    double precision                                        , dimension(:,:), allocatable :: seedMass
+    class           (nodePropertyExtractorBlackHoleSeedMass), intent(inout)               :: self
+    type            (treeNode                              ), intent(inout)               :: node
+    type            (multiCounter                          ), intent(inout) , optional    :: instance
+    class           (nodeComponentBlackHole                )                , pointer     :: blackHole
+    integer                                                                               :: i        , countBlackHoles
     !$GLC attributes unused :: instance
-
-    blackHole => node%blackHole()
-    select type (blackHole)
-    class is (nodeComponentBlackHole)
-       ! No black hole exists - the formation redshift is undetermined.
-       blackHoleFormationMassExtract=-1.0d0
-    class default
-       ! Extract the formation redshift.
-       blackHoleFormationMassExtract=blackHole%floatRank0MetaPropertyGet(self%blackHoleSeedsFormationMassID)
-    end select
+    
+    countBlackHoles=node%blackHoleCount()
+    allocate(seedMass(countBlackHoles,1))
+    do i=1,countBlackHoles
+       blackHole      => node     %                blackHole(instance=i              )
+       seedMass (i,1) =  blackHole%floatRank0MetaPropertyGet(self%blackHoleSeedMassID)
+    end do
     return
-  end function blackHoleFormationMassExtract
+  end function blackHoleSeedMassExtract
 
-  function blackHoleFormationMassName(self)
+  subroutine blackHoleSeedMassNames(self,names)
     !!{
-    Return the name of the blackHoleFormationMass property.
+    Return the name of the blackHoleSeedMass property.
     !!}
     implicit none
-    type (varying_string                             )                :: blackHoleFormationMassName
-    class(nodePropertyExtractorBlackHoleFormationMass), intent(inout) :: self
+    class(nodePropertyExtractorBlackHoleSeedMass), intent(inout)                             :: self
+    type (varying_string                        ), intent(inout), dimension(:) , allocatable :: names
     !$GLC attributes unused :: self
-  
-    blackHoleFormationMassName=var_str('blackHoleSeedsMass')
+    
+    allocate(names(1))
+    names(1)=var_str('blackHoleSeedMass')
     return
-  end function blackHoleFormationMassName
+  end subroutine blackHoleSeedMassNames
   
-  function blackHoleFormationMassDescription(self) result(description)
+  subroutine blackHoleSeedMassDescriptions(self,descriptions) 
     !!{
-    Return a description of the blackHoleFormationMass property.
+    Return a description of the blackHoleSeedMass property.
     !!}
     implicit none
-    type     (varying_string                                 )                :: description
-    class    (nodePropertyExtractorBlackHoleFormationMass), intent(inout) :: self
+    class(nodePropertyExtractorBlackHoleSeedMass), intent(inout) :: self
+    type (varying_string                        ), intent(inout), dimension(:) , allocatable :: descriptions
     !$GLC attributes unused :: self
-
-    description='Indicates the mass of the black hole seed (M☉).'
+    
+    allocate(descriptions(1))
+    descriptions(1)=var_str('Indicates the mass of the black hole seed (M☉).')
     return
-  end function blackHoleFormationMassDescription
+  end subroutine blackHoleSeedMassDescriptions
 
-  double precision function blackHoleFormationMassUnitsInSI(self)
+  function blackHoleSeedMassUnitsInSI(self) result(unitsInSI)
     !!{
     Return the units of the bound mass radius property in the SI system.
     !!}
+    use :: Numerical_Constants_Astronomical, only : massSolar
     implicit none
-    class(nodePropertyExtractorBlackHoleFormationMass), intent(inout) :: self
+    class           (nodePropertyExtractorBlackHoleSeedMass), intent(inout)              :: self
+    double precision                                        , dimension(:) , allocatable :: unitsInSI
+
     !$GLC attributes unused :: self
 
-    blackHoleFormationMassUnitsInSI=1.0d0
+    allocate(unitsInSI(1))
+    unitsInSI(1)=massSolar
     return
-  end function blackHoleFormationMassUnitsInSI
+  end function blackHoleSeedMassUnitsInSI
 

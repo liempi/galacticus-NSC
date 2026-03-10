@@ -33,7 +33,7 @@
      A node property extractor class which extracts the formation redshift for black hole seeds.
      !!}
      private
-     integer :: blackHoleSeedsFormationRedshiftID
+     integer :: blackHoleSeedFormationRedshiftID
    contains
      procedure :: extract     => blackHoleFormationRedshiftExtract
      procedure :: name        => blackHoleFormationRedshiftName
@@ -75,7 +75,7 @@ contains
     type(nodePropertyExtractorBlackHoleFormationRedshift) :: self
     
     !![
-    <addMetaProperty component="blackHole" name="blackHoleSeedsFormationRedshift" type="float" id="self%blackHoleSeedsFormationRedshiftID" isCreator="no"/>
+    <addMetaProperty component="blackHole" name="blackHoleSeedsFormationRedshift" type="float" id="self%blackHoleSeedFormationRedshiftID" isCreator="no"/>
     !!]
     return
   end function blackHoleFormationRedshiftConstructorInternal
@@ -100,7 +100,7 @@ contains
        blackHoleFormationRedshiftExtract=-1.0d0
     class default
        ! Extract the formation redshift.
-       blackHoleFormationRedshiftExtract=blackHole%floatRank0MetaPropertyGet(self%blackHoleSeedsFormationRedshiftID)
+       blackHoleFormationRedshiftExtract=blackHole%floatRank0MetaPropertyGet(self%blackHoleSeedFormationRedshiftID)
     end select
     return
   end function blackHoleFormationRedshiftExtract

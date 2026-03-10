@@ -33,7 +33,7 @@
      A node property extractor class which extracts the formation timescale for black hole seeds.
      !!}
      private
-     integer :: blackHoleSeedsFormationTimescaleID
+     integer :: blackHoleSeedFormationTimescaleID
    contains
      procedure :: extract     => blackHoleFormationTimescaleExtract
      procedure :: name        => blackHoleFormationTimescaleName
@@ -75,7 +75,7 @@ contains
     type(nodePropertyExtractorBlackHoleFormationTimescale) :: self
     
     !![
-    <addMetaProperty component="blackHole" name="blackHoleSeedsFormationTimescale" type="float" id="self%blackHoleSeedsFormationTimescaleID" isCreator="no"/>
+    <addMetaProperty component="blackHole" name="blackHoleSeedFormationTimescale" type="float" id="self%blackHoleSeedFormationTimescaleID" isCreator="no"/>
     !!]
     return
   end function blackHoleFormationTimescaleConstructorInternal
@@ -100,7 +100,7 @@ contains
        blackHoleFormationTimescaleExtract=-1.0d0
     class default
        ! Extract the formation redshift.
-       blackHoleFormationTimescaleExtract=blackHole%floatRank0MetaPropertyGet(self%blackHoleSeedsFormationTimescaleID)
+       blackHoleFormationTimescaleExtract=blackHole%floatRank0MetaPropertyGet(self%blackHoleSeedFormationTimescaleID)
     end select
     return
   end function blackHoleFormationTimescaleExtract
@@ -114,7 +114,7 @@ contains
     class(nodePropertyExtractorBlackHoleFormationTimescale), intent(inout) :: self
     !$GLC attributes unused :: self
   
-    blackHoleFormationTimescaleName=var_str('blackHoleSeedsFormationTimescale')
+    blackHoleFormationTimescaleName=var_str('blackHoleSeedFormationTimescale')
     return
   end function blackHoleFormationTimescaleName
   
