@@ -35,7 +35,7 @@
      private
      integer :: blackHoleSeedMassID
    contains
-     procedure :: elementCount => blackHoleSeedElementCount
+     procedure :: elementCount => blackHoleSeedMassElementCount
      procedure :: extract      => blackHoleSeedMassExtract
      procedure :: names        => blackHoleSeedMassNames
      procedure :: descriptions => blackHoleSeedMassDescriptions
@@ -81,22 +81,22 @@ contains
     return
   end function blackHoleSeedMassConstructorInternal
 
-  integer function blackHoleSeedElementCount(self)
+  integer function blackHoleSeedMassElementCount(self)
     !!{
     Return a count of the number of properties extracted.
     !!}
     implicit none
     class(nodePropertyExtractorBlackHoleSeedMass), intent(inout) :: self
 
-    blackHoleSeedElementCount=1
+    blackHoleSeedMassElementCount=1
     return
-  end function blackHoleSeedElementCount
+  end function blackHoleSeedMassElementCount
 
   function blackHoleSeedMassExtract(self,node,instance) result(seedMass)
     !!{
     Implement a {\normalfont \ttfamily blackHoleSeedMass} node property extractor.
     !!}
-    use :: Galacticus_Nodes, only : nodeComponentBlackHole, nodeComponentBlackHoleStandard
+    use :: Galacticus_Nodes, only : nodeComponentBlackHole
     implicit none
     double precision                                        , dimension(:,:), allocatable :: seedMass
     class           (nodePropertyExtractorBlackHoleSeedMass), intent(inout)               :: self

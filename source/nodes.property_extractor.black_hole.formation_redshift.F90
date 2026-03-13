@@ -22,124 +22,138 @@
   !!}
 
   !![
-  <nodePropertyExtractor name="nodePropertyExtractorBlackHoleFormationRedshift">
+  <nodePropertyExtractor name="nodePropertyExtractorBlackHoleSeedRedshift">
    <description>
     A node property extractor class which extracts the formation redshift for black hole seeds.
    </description>
   </nodePropertyExtractor>
   !!]
-  type, extends(nodePropertyExtractorScalar) :: nodePropertyExtractorBlackHoleFormationRedshift
+  type, extends(nodePropertyExtractorList) :: nodePropertyExtractorBlackHoleSeedRedshift
      !!{
      A node property extractor class which extracts the formation redshift for black hole seeds.
      !!}
      private
-     integer :: blackHoleSeedFormationRedshiftID
+     integer :: blackHoleSeedRedshiftID
    contains
-     procedure :: extract     => blackHoleFormationRedshiftExtract
-     procedure :: name        => blackHoleFormationRedshiftName
-     procedure :: description => blackHoleFormationRedshiftDescription
-     procedure :: unitsInSI   => blackHoleFormationRedshiftUnitsInSI
-  end type nodePropertyExtractorBlackHoleFormationRedshift
+     procedure :: elementCount => blackHoleSeedRedshiftElementCount 
+     procedure :: extract      => blackHoleSeedRedshiftExtract
+     procedure :: names        => blackHoleSeedRedshiftNames
+     procedure :: descriptions => blackHoleSeedRedshiftDescriptions
+     procedure :: unitsInSI    => blackHoleSeedRedshiftUnitsInSI
+  end type nodePropertyExtractorBlackHoleSeedRedshift
 
-  interface nodePropertyExtractorBlackHoleFormationRedshift
+  interface nodePropertyExtractorBlackHoleSeedRedshift
      !!{
-     Constructors for the {\normalfont \ttfamily blackHoleFormationRedshift} node property extractor class.
+     Constructors for the {\normalfont \ttfamily BlackHoleSeedRedshift} node property extractor class.
      !!}
-     module procedure blackHoleFormationRedshiftConstructorParameters
-     module procedure blackHoleFormationRedshiftConstructorInternal
-  end interface nodePropertyExtractorBlackHoleFormationRedshift
+     module procedure blackHoleSeedRedshiftConstructorParameters
+     module procedure blackHoleSeedRedshiftConstructorInternal
+  end interface nodePropertyExtractorBlackHoleSeedRedshift
 
 contains
 
-  function blackHoleFormationRedshiftConstructorParameters(parameters) result(self)
+  function blackHoleSeedRedshiftConstructorParameters(parameters) result(self)
     !!{
-    Constructor for the {\normalfont \ttfamily blackHoleFormationRedshift} node property extractor class which takes a parameter set as input.
+    Constructor for the {\normalfont \ttfamily BlackHoleSeedRedshift} node property extractor class which takes a parameter set as input.
     !!}
     use :: Input_Parameters, only : inputParameters
     implicit none
-    type(nodePropertyExtractorBlackHoleFormationRedshift)                :: self
-    type(inputParameters                                ), intent(inout) :: parameters
+    type(nodePropertyExtractorBlackHoleSeedRedshift)                :: self
+    type(inputParameters                           ), intent(inout) :: parameters
 
-    self=nodePropertyExtractorBlackHoleFormationRedshift()
+    self=nodePropertyExtractorBlackHoleSeedRedshift()
     !![
     <inputParametersValidate source="parameters"/>
     !!]
     return
-  end function blackHoleFormationRedshiftConstructorParameters
+  end function blackHoleSeedRedshiftConstructorParameters
 
-  function blackHoleFormationRedshiftConstructorInternal() result(self)
+  function blackHoleSeedRedshiftConstructorInternal() result(self)
     !!{
-    Internal constructor for the {\normalfont \ttfamily blackHoleFormationRedshift} node property extractor class.
+    Internal constructor for the {\normalfont \ttfamily BlackHoleSeedRedshift} node property extractor class.
     !!}
     implicit none
-    type(nodePropertyExtractorBlackHoleFormationRedshift) :: self
+    type(nodePropertyExtractorBlackHoleSeedRedshift) :: self
     
     !![
-    <addMetaProperty component="blackHole" name="blackHoleSeedsFormationRedshift" type="float" id="self%blackHoleSeedFormationRedshiftID" isCreator="no"/>
+    <addMetaProperty component="blackHole" name="blackHoleSeedRedshift" type="float" id="self%blackHoleSeedRedshiftID" isCreator="no"/>
     !!]
     return
-  end function blackHoleFormationRedshiftConstructorInternal
+  end function blackHoleSeedRedshiftConstructorInternal
 
-  function blackHoleFormationRedshiftExtract(self,node,instance)
+  integer function blackHoleSeedRedshiftElementCount(self)
     !!{
-    Implement a {\normalfont \ttfamily blackHoleFormationRedshift} node property extractor.
+    Return a count of the number of properties extracted.
     !!}
-    use :: Galacticus_Nodes, only : nodeComponentBlackHole, nodeComponentBlackHoleStandard
     implicit none
-    double precision                                                                           :: blackHoleFormationRedshiftExtract
-    class           (nodePropertyExtractorBlackHoleFormationRedshift), intent(inout), target   :: self
-    type            (treeNode                                       ), intent(inout), target   :: node
-    type            (multiCounter                                   ), intent(inout), optional :: instance
-    class           (nodeComponentBlackHole                         )               , pointer  :: blackHole
+    class(nodePropertyExtractorBlackHoleSeedRedshift), intent(inout) :: self
+
+    blackHoleSeedRedshiftElementCount=1
+    return
+  end function blackHoleSeedRedshiftElementCount
+
+  function blackHoleSeedRedshiftExtract(self,node,instance) result(seedRedshift)
+    !!{
+    Implement a {\normalfont \ttfamily BlackHoleSeedRedshift} node property extractor.
+    !!}
+    use :: Galacticus_Nodes, only : nodeComponentBlackHole
+    implicit none
+    double precision                                            , dimension(:,:), allocatable  :: seedRedshift
+    class           (nodePropertyExtractorBlackHoleSeedRedshift), intent(inout)                :: self
+    type            (treeNode                                  ), intent(inout)                :: node
+    type            (multiCounter                              ), intent(inout) , optional     :: instance
+    class           (nodeComponentBlackHole                    )                , pointer      :: blackHole
+    integer                                                                                    :: i           , countBlackHoles
     !$GLC attributes unused :: instance
 
-    blackHole => node%blackHole()
-    select type (blackHole)
-    class is (nodeComponentBlackHole)
-       ! No black hole exists - the formation redshift is undetermined.
-       blackHoleFormationRedshiftExtract=-1.0d0
-    class default
-       ! Extract the formation redshift.
-       blackHoleFormationRedshiftExtract=blackHole%floatRank0MetaPropertyGet(self%blackHoleSeedFormationRedshiftID)
-    end select
+    countBlackHoles=node%blackHoleCount()
+    allocate(seedRedshift(countBlackHoles,1))
+    do i=1,countBlackHoles
+       blackHole         => node     %                blackHole(instance=i                  )
+       seedRedshift(i,1) =  blackHole%floatRank0MetaPropertyGet(self%blackHoleSeedRedshiftID)
+    end do
     return
-  end function blackHoleFormationRedshiftExtract
+  end function blackHoleSeedRedshiftExtract
 
-  function blackHoleFormationRedshiftName(self)
+  subroutine blackHoleSeedRedshiftNames(self,names)
     !!{
-    Return the name of the blackHoleFormationRedshift property.
+    Return the name of the BlackHoleSeedRedshift property.
     !!}
     implicit none
-    type (varying_string                                 )                :: blackHoleFormationRedshiftName
-    class(nodePropertyExtractorBlackHoleFormationRedshift), intent(inout) :: self
+    class(nodePropertyExtractorBlackHoleSeedRedshift), intent(inout) :: self
+    type (varying_string                            ), intent(inout), dimension(:) , allocatable :: names
     !$GLC attributes unused :: self
-  
-    blackHoleFormationRedshiftName=var_str('blackHoleSeedsFormationRedshift')
+    
+    allocate(names(1))
+    names(1)=var_str('blackHoleSeedRedshift')
     return
-  end function blackHoleFormationRedshiftName
+  end subroutine blackHoleSeedRedshiftNames
   
-  function blackHoleFormationRedshiftDescription(self) result(description)
+  subroutine blackHoleSeedRedshiftDescriptions(self,descriptions)
     !!{
-    Return a description of the blackHoleFormationRedshift property.
+    Return a description of the BlackHoleSeedRedshift property.
     !!}
     implicit none
-    type     (varying_string                                 )                :: description
-    class    (nodePropertyExtractorBlackHoleFormationRedshift), intent(inout) :: self
+    class(nodePropertyExtractorBlackHoleSeedRedshift), intent(inout)                             :: self
+    type (varying_string                            ), intent(inout), dimension(:) , allocatable :: descriptions
+
     !$GLC attributes unused :: self
-
-    description='Indicates the redshift of the black hole seed formation.'
+    allocate(descriptions(1))
+    descriptions(1)=var_str('Indicates the redshift of the black hole seed formation.')
     return
-  end function blackHoleFormationRedshiftDescription
+  end subroutine blackHoleSeedRedshiftDescriptions
 
-  double precision function blackHoleFormationRedshiftUnitsInSI(self)
+  function blackHoleSeedRedshiftUnitsInSI(self) result(unitsInSI)
     !!{
     Return the units of the bound mass radius property in the SI system.
     !!}
     implicit none
-    class(nodePropertyExtractorBlackHoleFormationRedshift), intent(inout) :: self
+    class           (nodePropertyExtractorBlackHoleSeedRedshift), intent(inout)              :: self
+    double precision                                            , dimension(:) , allocatable :: unitsInSI
     !$GLC attributes unused :: self
 
-    blackHoleFormationRedshiftUnitsInSI=1.0d0
+    allocate(unitsInSI(1))
+    unitsInSI(1)=1.0d0
     return
-  end function blackHoleFormationRedshiftUnitsInSI
+  end function blackHoleSeedRedshiftUnitsInSI
 
