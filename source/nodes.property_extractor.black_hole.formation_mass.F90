@@ -134,7 +134,7 @@ contains
     Return a description of the blackHoleSeedMass property.
     !!}
     implicit none
-    class(nodePropertyExtractorBlackHoleSeedMass), intent(inout) :: self
+    class(nodePropertyExtractorBlackHoleSeedMass), intent(inout)                             :: self
     type (varying_string                        ), intent(inout), dimension(:) , allocatable :: descriptions
     !$GLC attributes unused :: self
     
