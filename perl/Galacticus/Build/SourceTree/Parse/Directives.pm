@@ -6,8 +6,8 @@ use warnings;
 use utf8;
 use Data::Dumper;
 use XML::Simple;
-use XML::SAX::ParserFactory;
-use XML::Validator::Schema;
+use XML::LibXML;
+use Text::Template 'fill_in_string';
 
 # Insert hooks for our functions.
 $Galacticus::Build::SourceTree::Hooks::parseHooks      {'directives'} = \&Parse_Directives;
@@ -16,8 +16,13 @@ $Galacticus::Build::SourceTree::Hooks::postprocessHooks{'directives'} = \&PostPr
 sub Parse_Directives {
     # Get the tree.
     my $tree = shift();
+    # Initialize state storables database.
+    our $stateStorables;
     # Get an XML parser.
     my $xml = new XML::Simple();
+    # Get state storables database if we do not have it.
+    $stateStorables = $xml->XMLin($ENV{'BUILDPATH'}."/stateStorables.xml")
+	if ( ! $stateStorables && -e $ENV{'BUILDPATH'}."/stateStorables.xml" );
     # Walk the tree, looking for code blocks.
     my $node  = $tree;
     my $depth = 0;
@@ -111,16 +116,162 @@ sub Parse_Directives {
 		    }
 		    my $directiveName = (keys %{$directive})[0];
 		    # Validate the directive if possible.
-		    if ( -e $ENV{'GALACTICUS_EXEC_PATH'}."/schema/".$directiveName.".xsd" ) {
-			my $validator = XML::Validator::Schema->new(file => $ENV{'GALACTICUS_EXEC_PATH'}."/schema/".$directiveName.".xsd");
-			my $parser    = XML::SAX::ParserFactory->parser(Handler => $validator); 
-			eval { $parser->parse_string($strippedDirective) };
+		    my $schema;
+		    if ( $stateStorables && exists($stateStorables->{'functionClasses'}{$directiveName."Class"}) ) {
+			# functionClass instances - create a custom schema for this instance.
+			$functionClass::name = $directiveName;
+			my $schemaDocument = fill_in_string(<<'SCHEMA', PACKAGE => 'functionClass');
+<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="{$name}">
+    <xs:complexType>
+      <xs:sequence>
+       <xs:element name="description"       type="xs:string" minOccurs="1" maxOccurs="1"/>
+       <xs:element name="descriptorSpecial" type="xs:string" minOccurs="0" maxOccurs="1"/>
+       <xs:element name="linkedList"                         minOccurs="0" maxOccurs="1" >
+        <xs:complexType>
+         <xs:attribute name="type"       use="required"/>
+         <xs:attribute name="variable"   use="required"/>
+         <xs:attribute name="next"       use="required"/>
+         <xs:attribute name="object"     use="required"/>
+         <xs:attribute name="objectType" use="required"/>
+         <xs:attribute name="module"     use="optional"/>
+        </xs:complexType>
+       </xs:element>
+       <xs:element name="deepCopy"                     minOccurs="0" maxOccurs="1" >
+        <xs:complexType>
+         <xs:sequence>
+          <xs:element name="ignore"        minOccurs="0" maxOccurs="1" >
+           <xs:complexType>
+            <xs:attribute name="variables" use="required"/>
+           </xs:complexType>
+          </xs:element>
+          <xs:element name="functionClass" minOccurs="0" maxOccurs="1" >
+           <xs:complexType>
+            <xs:attribute name="variables" use="required"/>
+           </xs:complexType>
+          </xs:element>
+          <xs:element name="increment"     minOccurs="0" maxOccurs="1" >
+           <xs:complexType>
+            <xs:attribute name="variables" use="required"/>
+            <xs:attribute name="atomic"    use="optional" >
+             <xs:simpleType>
+              <xs:restriction base="xs:string">
+               <xs:enumeration value="no" />
+               <xs:enumeration value="yes"/>
+              </xs:restriction>
+             </xs:simpleType>
+            </xs:attribute>
+           </xs:complexType>
+          </xs:element>
+          <xs:element name="setTo"         minOccurs="0" maxOccurs="1" >
+           <xs:complexType>
+            <xs:attribute name="variables" use="required"/>
+            <xs:attribute name="value"     use="required"/>
+           </xs:complexType>
+          </xs:element>
+         </xs:sequence>
+        </xs:complexType>
+       </xs:element>
+       <xs:element name="stateStorable"                minOccurs="0" maxOccurs="1" >
+        <xs:complexType>
+         <xs:sequence>
+          <xs:element name="functionClass" minOccurs="0" maxOccurs="1"         >
+           <xs:complexType>
+            <xs:attribute name="variables" use="required"/>
+           </xs:complexType>
+          </xs:element>
+          <xs:element name="restoreTo"     minOccurs="0" maxOccurs="unbounded" >
+           <xs:complexType>
+            <xs:attribute name="variables" use="required"/>
+            <xs:attribute name="state"     use="required"/>
+           </xs:complexType>
+          </xs:element>
+          <xs:element name="exclude"       minOccurs="0" maxOccurs="1"         >
+           <xs:complexType>
+            <xs:attribute name="variables" use="required"/>
+           </xs:complexType>
+          </xs:element>
+         </xs:sequence>
+        </xs:complexType>
+       </xs:element>
+       <xs:element name="stateStore"                   minOccurs="0" maxOccurs="1" >
+        <xs:complexType>
+         <xs:sequence>
+          <xs:element name="stateStore" minOccurs="1" maxOccurs="1" >
+           <xs:complexType>
+            <xs:attribute name="variables" use="required"/>
+            <xs:attribute name="store"     use="required"/>
+            <xs:attribute name="restore"   use="required"/>
+            <xs:attribute name="module"    use="required"/>
+           </xs:complexType>
+          </xs:element>
+         </xs:sequence>
+        </xs:complexType>
+       </xs:element>
+       <xs:element name="runTimeFileDependencies"      minOccurs="0" maxOccurs="1" >
+        <xs:complexType>
+         <xs:attribute name="paths" use="required"/>
+        </xs:complexType>
+       </xs:element>
+      </xs:sequence>
+      <xs:attribute name="name"      use="required"/>
+      <xs:attribute name="recursive" use="optional" >
+       <xs:simpleType>
+        <xs:restriction base="xs:string">
+         <xs:enumeration value="no" />
+         <xs:enumeration value="yes"/>
+        </xs:restriction>
+       </xs:simpleType>
+      </xs:attribute>
+      <xs:attribute name="abstract"  use="optional" >
+       <xs:simpleType>
+        <xs:restriction base="xs:string">
+         <xs:enumeration value="no" />
+         <xs:enumeration value="yes"/>
+        </xs:restriction>
+       </xs:simpleType>
+      </xs:attribute>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>
+SCHEMA
+			$schema = XML::LibXML::Schema->new( string => $schemaDocument );
+		    } elsif ( $stateStorables && grep {$_ eq $directiveName} @{$stateStorables->{'eventHookStatics'}} ) {
+			# eventHookStatic instances - create a custom schema for this instance.
+			$eventHookStatic::name = $directiveName;
+			my $schemaDocument = fill_in_string(<<'SCHEMA', PACKAGE => 'eventHookStatic');
+<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:simpleType name="yesNo">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="yes"/>
+      <xs:enumeration value="no" />
+    </xs:restriction>
+  </xs:simpleType> 
+  <xs:element name="{$name}">
+    <xs:complexType>
+      <xs:attribute name="function"  use="required"             />
+      <xs:attribute name="after"     use="optional"             />
+      <xs:attribute name="before"    use="optional"             />
+      <xs:attribute name="useGlobal" use="optional" type="yesNo"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>
+SCHEMA
+			$schema = XML::LibXML::Schema->new( string => $schemaDocument );
+		    } elsif ( -e $ENV{'GALACTICUS_EXEC_PATH'}."/schema/".$directiveName.".xsd" ) {
+			$schema = XML::LibXML::Schema->new( location =>  $ENV{'GALACTICUS_EXEC_PATH'}."/schema/".$directiveName.".xsd");
+		    }
+		    if ( $schema ) {
+			my $document = XML::LibXML->load_xml( string => $strippedDirective );
+			eval { $schema->validate( $document ) };
 			if ( $@ ) {
 			    my $nodeParent = $node;
 			    while ( $nodeParent->{'type'} ne "file" ){
 				$nodeParent = $nodeParent->{'parent'};
 			    }
-			    die "Galacticus::Build::SourceTree::Parse::Directives(): validation failed in file ".$nodeParent->{'name'}." at line ".$node->{'line'}.":\n".$@;
+			    die "Galacticus::Build::SourceTree::Parse::Directives(): validation of directive '".$directiveName."' failed in file ".$nodeParent->{'name'}." at line ".$node->{'line'}.":\n".$@;
 			}
 		    }
 		    # Create a new node.

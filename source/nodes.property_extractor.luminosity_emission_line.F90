@@ -44,8 +44,7 @@
   !![
   <nodePropertyExtractor name="nodePropertyExtractorLuminosityEmissionLine">
    <description>
-    An emission line luminosity property extractor class. The luminosity of the named emission line (given by the {\normalfont
-    \ttfamily lineNames} parameter: if multiple lines are named, the sum of their luminosities) is computed.
+    An emission line luminosity property extractor class. The luminosities of the named emission lines (given by the \mono{lineNames} parameter) are computed.
    </description>
    <runTimeFileDependencies paths="cloudyTableFileName"/>
   </nodePropertyExtractor>
@@ -96,6 +95,7 @@
      procedure :: names                   => emissionLineLuminosityNames
      procedure :: descriptions            => emissionLineLuminosityDescriptions
      procedure :: unitsInSI               => emissionLineLuminosityUnitsInSI
+     procedure :: metaData                => emissionLineLuminosityMetaData
      procedure :: luminosityMean          => emissionLineLuminosityMean
      procedure :: indexTemplateTime       => emissionLineLuminosityIndexTemplateTime
      procedure :: indexTemplateNode       => emissionLineLuminosityIndexTemplateNode 
@@ -446,7 +446,7 @@ contains
   
   integer function emissionLineLuminosityElementCount(self,time)
     !!{
-    Return the number of elements in the {\normalfont \ttfamily emissionLineLuminosity} property extractors.
+    Return the number of elements in the \mono{emissionLineLuminosity} property extractors.
     !!}
     implicit none
     class     (nodePropertyExtractorLuminosityEmissionLine), intent(inout) :: self
@@ -459,7 +459,7 @@ contains
 
   function emissionLineLuminosityExtract(self,node,time,instance) result(luminosity)
     !!{
-    Implement a {\normalfont \ttfamily luminosityEmissionLine} property extractor.
+    Implement a \mono{luminosityEmissionLine} property extractor.
     !!}
     use :: Galacticus_Nodes          , only : nodeComponentDisk, nodeComponentSpheroid
     use :: Galactic_Structure_Options, only : componentTypeDisk, componentTypeSpheroid, componentTypeAll
@@ -516,7 +516,7 @@ contains
 
   subroutine emissionLineLuminosityNames(self,time,names)
     !!{
-    Return the names of the {\normalfont \ttfamily emissionLines}.
+    Return the names of the \mono{emissionLines}.
     !!}
     use :: Galactic_Structure_Options, only : enumerationComponentTypeDecode
     implicit none
@@ -532,7 +532,7 @@ contains
   
   subroutine emissionLineLuminosityDescriptions(self,time,descriptions)
     !!{
-    Return descriptions of the {\normalfont \ttfamily emission line luminosity} property.
+    Return descriptions of the \mono{emission line luminosity} property.
     !!}
     implicit none
     class           (nodePropertyExtractorLuminosityEmissionLine), intent(inout)                            :: self
@@ -547,7 +547,7 @@ contains
   
   function emissionLineLuminosityUnitsInSI(self,time) result(unitsInSI)
   !!{
-    Return the units of the {\normalfont \ttfamily emissionLineLuminosity} properties in the SI system.
+    Return the units of the \mono{emissionLineLuminosity} properties in the SI system.
     !!}
     use :: Numerical_Constants_Units, only : ergs
     implicit none
@@ -560,6 +560,22 @@ contains
     unitsInSI=ergs
     return
   end function emissionLineLuminosityUnitsInSI
+
+  subroutine emissionLineLuminosityMetaData(self,node,indexProperty,metaDataRank0,metaDataRank1)
+    !!{
+    Interface for tuple property meta-data.
+    !!}
+    implicit none
+    class  (nodePropertyExtractorLuminosityEmissionLine), intent(inout) :: self
+    type   (treeNode                                   ), intent(inout) :: node
+    integer                                             , intent(in   ) :: indexProperty
+    type   (doubleHash                                 ), intent(inout) :: metaDataRank0
+    type   (rank1DoubleHash                            ), intent(inout) :: metaDataRank1
+    !$GLC attributes unused :: node, metaDataRank1
+
+    call metaDataRank0%set('wavelength',self%wavelengths(indexProperty))
+    return
+  end subroutine emissionLineLuminosityMetaData
 
   integer function emissionLineLuminosityIndexTemplateTime(self,time) result(indexTemplate)
     !!{

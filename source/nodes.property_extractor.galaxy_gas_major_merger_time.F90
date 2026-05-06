@@ -19,9 +19,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorGalaxyGasMajorMergerTime">
-   <description>
-     A node property extractor which extracts the times of gas-mass-based major mergers for each galaxy.
-   </description>
+   <description>Extracts the cosmic times of gas-mass-based major merger events for each galaxy, where merger significance is determined by the gas mass ratio of the merging pair rather than total or stellar mass.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorList) :: nodePropertyExtractorGalaxyGasMajorMergerTime
@@ -112,7 +110,7 @@ contains
   
   subroutine galaxyGasMajorMergerTimeNames(self,names)
     !!{
-    Return the names of the {\normalfont \ttfamily galaxyGasMajorMergerTime} properties.
+    Return the names of the \mono{galaxyGasMajorMergerTime} properties.
     !!}
     implicit none
     class(nodePropertyExtractorGalaxyGasMajorMergerTime), intent(inout)                             :: self
@@ -126,7 +124,7 @@ contains
 
   subroutine galaxyGasMajorMergerTimeDescriptions(self,descriptions)
     !!{
-    Return the descriptions of the {\normalfont \ttfamily galaxyGasMajorMergerTime} properties.
+    Return the descriptions of the \mono{galaxyGasMajorMergerTime} properties.
     !!}
     implicit none
     class(nodePropertyExtractorGalaxyGasMajorMergerTime), intent(inout)                             :: self
@@ -140,7 +138,7 @@ contains
 
   function galaxyGasMajorMergerTimeUnitsInSI(self) result(unitsInSI)
     !!{
-    Return the units of the {\normalfont \ttfamily galaxyGasMajorMergerTime} properties in the SI system.
+    Return the units of the \mono{galaxyGasMajorMergerTime} properties in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : gigaYear
     implicit none

@@ -22,7 +22,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorPeakHeight">
-   <description>A property extractor class for peak height of the halo.</description>
+   <description>Extracts the peak height $\nu = \delta_c / \sigma(M)$ of a dark matter halo, the ratio of the linear collapse threshold to the mass-variance, which parametrizes halo formation probability and is used in excursion-set and bias analyses.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorTuple) :: nodePropertyExtractorPeakHeight
@@ -112,7 +112,7 @@ contains
 
   integer function peakHeightElementCount(self,time)
     !!{
-    Return the number of elements in the {\normalfont \ttfamily peakHeight} property extractors.
+    Return the number of elements in the \mono{peakHeight} property extractors.
     !!}
     implicit none
     class           (nodePropertyExtractorPeakHeight), intent(inout) :: self
@@ -157,7 +157,7 @@ contains
 
   subroutine peakHeightNames(self,time,names)
     !!{
-    Return the names of the {\normalfont \ttfamily peakHeight} properties.
+    Return the names of the \mono{peakHeight} properties.
     !!}
     implicit none
     class           (nodePropertyExtractorPeakHeight), intent(inout)                             :: self
@@ -175,7 +175,7 @@ contains
 
   subroutine peakHeightDescriptions(self,time,descriptions)
     !!{
-    Return the descriptions of the {\normalfont \ttfamily peakHeight} properties.
+    Return the descriptions of the \mono{peakHeight} properties.
     !!}
     implicit none
     class           (nodePropertyExtractorPeakHeight), intent(inout)                             :: self
@@ -193,7 +193,7 @@ contains
 
   function peakHeightUnitsInSI(self,time)
     !!{
-    Return the units of the {\normalfont \ttfamily peakHeight} properties in the SI system.
+    Return the units of the \mono{peakHeight} properties in the SI system.
     !!}
     implicit none
     double precision                                 , dimension(:) , allocatable :: peakHeightUnitsInSI

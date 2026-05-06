@@ -28,14 +28,18 @@ Implements a virial radius output analysis property extractor class.
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorRadiusVirial">
-   <description>A virial radius output analysis property extractor class.</description>
+   <description>A property extractor that returns the virial radius (in Mpc) of the dark-matter-only
+    halo---the radius enclosing the density contrast specified by the \mono{virialDensityContrastDefinition}
+    object, with the profile computed using \refClass{darkMatterProfileDMOClass}. Two density contrast
+    objects must be provided: one for the profile interpolation and one for the mass definition. If
+    \mono{useLastIsolatedTime} is \mono{true}, the density contrast is evaluated at the halo's last
+    isolated time rather than the current time, yielding the conventionally-defined virial radius.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorScalar) :: nodePropertyExtractorRadiusVirial
      !!{
      A virial radius property extractor output analysis class. The property extracted is the ''\gls{dmou}'' virial radius,
-     defined as the radius enclosing a density contrast as defined by the supplied {\normalfont \ttfamily
-     virialDensityContrast} class object. Note that the density contrast is defined here at the time at which the halo
+     defined as the radius enclosing a density contrast as defined by the supplied \mono{virialDensityContrast} class object. Note that the density contrast is defined here at the time at which the halo
      presently exists, \emph{not} at the time at which is was last isolated (as is used for standard definition of virial
      radius).
      !!}

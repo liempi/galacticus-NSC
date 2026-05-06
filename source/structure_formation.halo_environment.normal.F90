@@ -31,7 +31,7 @@ Implements a normally-distributed halo environment.
 
   !![
   <haloEnvironment name="haloEnvironmentNormal">
-   <description>Implements a normally-distributed halo environment.</description>
+   <description>Implements a halo environment in which the large-scale overdensity follows a Gaussian (normal) probability distribution, modeling the statistical distribution of cosmic large-scale density fields around dark matter halos. The filtering scale and redshift at which the environment is defined are set by \mono{[massEnvironment]} or \mono{[radiusEnvironment]} and \mono{[redshift]}.</description>
    <deepCopy>
     <functionClass variables="sphericalCollapseSolver_, distributionOverdensity, distributionOverdensityMassive"/>
    </deepCopy>
@@ -132,7 +132,7 @@ contains
       <name>redshift</name>
       <source>parameters</source>
       <defaultValue>0.0d0</defaultValue>
-      <description>The redshift at which the environment is defined.</description>
+      <description>The redshift at which the large-scale environmental overdensity is defined; the linear density variance and growth factor are evaluated at the corresponding cosmic time to normalize the Gaussian environmental PDF.</description>
     </inputParameter>
     !!]
     time=cosmologyFunctions_%cosmicTime(cosmologyFunctions_%expansionFactorFromRedshift(redshift))
@@ -290,7 +290,7 @@ contains
 
   double precision function normalOverdensityLinear(self,node,presentDay)
     !!{
-    Return the environment of the given {\normalfont \ttfamily node}.
+    Return the environment of the given \mono{node}.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentBasic, treeNode
     implicit none
@@ -350,7 +350,7 @@ contains
 
   double precision function normalOverdensityLinearGradientTime(self,node)
     !!{
-    Return the time gradient of the environment of the given {\normalfont \ttfamily node}.
+    Return the time gradient of the environment of the given \mono{node}.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentBasic
     implicit none
@@ -369,7 +369,7 @@ contains
 
   double precision function normalOverdensityNonLinear(self,node)
     !!{
-    Return the environment of the given {\normalfont \ttfamily node}.
+    Return the environment of the given \mono{node}.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentBasic
     implicit none
@@ -447,7 +447,7 @@ contains
 
   subroutine normalOverdensityLinearSet(self,node,overdensity)
     !!{
-    Set the environmental linear overdensity in the given {\normalfont \ttfamily node}.
+    Set the environmental linear overdensity in the given \mono{node}.
     !!}
     use :: Error, only : Error_Report
     implicit none

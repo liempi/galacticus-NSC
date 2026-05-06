@@ -28,7 +28,7 @@ Implements a node property extractor that fits for a tidal truncation radius for
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorTidallyTruncatedNFWFit">
-   <description>A node property extractor that fits for a tidal truncation radius for an NFW profile.</description>
+   <description>Fits a tidally truncated NFW profile to the dark matter halo, extracting the best-fit tidal truncation radius and associated structural parameters, useful for characterizing the degree of tidal stripping experienced by satellite subhalos.</description>
   <deepCopy>
     <functionClass variables="darkMatterProfileDMONFW_"/>
    </deepCopy>
@@ -131,7 +131,7 @@ contains
 
   integer function tidallyTruncatedNFWFitElementCount(self,time)
     !!{
-    Return the number of elements in the {\normalfont \ttfamily tidallyTruncatedNFWFit} property extractors.
+    Return the number of elements in the \mono{tidallyTruncatedNFWFit} property extractors.
     !!}
     implicit none
     class           (nodePropertyExtractorTidallyTruncatedNFWFit), intent(inout) :: self
@@ -180,11 +180,12 @@ contains
     !$GLC attributes unused :: instance
 
     allocate(tidallyTruncatedNFWFitExtract(3))
-    darkMatterProfile                => node                                        %darkMatterProfile(            )
-    massDistribution_                => self               %darkMatterProfileDMO_   %get              (node        )
-    massDistributionNFW              => self               %darkMatterProfileDMONFW_%get              (node        )
-    coordinates                      = [darkMatterProfile%scale(),0.0d0,0.0d0]
-    tidallyTruncatedNFWFitExtract(3) =  massDistributionNFW                         %density          (coordinates)
+    darkMatterProfile                =>  node                                        %darkMatterProfile(           )
+    massDistribution_                =>  self               %darkMatterProfileDMO_   %get              (node       )
+    massDistributionNFW              =>  self               %darkMatterProfileDMONFW_%get              (node       )
+    coordinates                      =  [darkMatterProfile%scale(),0.0d0,0.0d0]
+    tidallyTruncatedNFWFitExtract(3) =  +4.0d0                                                                       & ! ρ(rₛ)=ρₛ/4, so multiply by 4 to recover ρₛ.
+         &                              *massDistributionNFW                         %density          (coordinates)
     if (node%isSatellite()) then
        ! Extract required properties.
        radiusVirial =  self             %darkMatterHaloScale_%radiusVirial        (       node                                )
@@ -216,20 +217,26 @@ contains
           fractionDensity(i)=+massDistribution_  %density(coordinates) &
                &             /massDistributionNFW%density(coordinates)
        end do
-       ! Optimize the fit.
-       allocate(minimizer_)
-       minimizer_=multiDMinimizer(1_c_size_t,fitMetric)
-       call minimizer_%set(x=[log(radiusVirial)],stepSize=[fractionStep])
-       iteration=0
-       converged=.false.
-       do while (.not.converged .and. iteration < 100)
-          call minimizer_%iterate()
-          iteration=iteration+1
-          converged=minimizer_%testSize(toleranceAbsolute=1.0d-3*radiusScale)
-       end do
-       locationMinimum                 =minimizer_%x()
-       tidallyTruncatedNFWFitExtract(1)=exp      (locationMinimum(1))
-       tidallyTruncatedNFWFitExtract(2)=fitMetric(locationMinimum   )
+       ! Check for the case of no truncation.
+       if (all(fractionDensity == 1.0d0)) then
+          tidallyTruncatedNFWFitExtract(1)=huge(0.0d0)
+          tidallyTruncatedNFWFitExtract(2)=0.0d0
+       else
+          ! Optimize the fit.
+          allocate(minimizer_)
+          minimizer_=multiDMinimizer(1_c_size_t,fitMetric)
+          call minimizer_%set(x=[log(radiusVirial)],stepSize=[fractionStep])
+          iteration=0
+          converged=.false.
+          do while (.not.converged .and. iteration < 100)
+             call minimizer_%iterate()
+             iteration=iteration+1
+             converged=minimizer_%testSize(toleranceAbsolute=1.0d-3*radiusScale)
+          end do
+          locationMinimum                 =minimizer_%x()
+          tidallyTruncatedNFWFitExtract(1)=exp      (locationMinimum(1))
+          tidallyTruncatedNFWFitExtract(2)=fitMetric(locationMinimum   )
+       end if
     else
        tidallyTruncatedNFWFitExtract(1)=huge(0.0d0)
        tidallyTruncatedNFWFitExtract(2)=     0.0d0

@@ -27,7 +27,14 @@
   use :: Radiation_Fields                    , only : radiationFieldCosmicMicrowaveBackground
   !![
   <nodePropertyExtractor name="nodePropertyExtractorCGMCoolingFunction">
-   <description>A property extractor class for the CGM cooling function at a set of radii.</description>
+   <description>A property extractor that returns the radiative cooling function
+    $\Lambda(T,n_\mathrm{H},Z)$ (in erg~cm$^3$~s$^{-1}$) of the circumgalactic medium at a
+    user-specified set of radii in the hot halo, evaluated using the supplied
+    \refClass{coolingFunctionClass} object with local density, temperature, and metallicity. The
+    \mono{radiusSpecifiers} parameter defines the radii; \mono{includeRadii} and
+    \mono{includeDensity} optionally add the radius (Mpc) and hydrogen number density
+    (cm$^{-3}$) columns to the output. The \mono{label} suffix distinguishes multiple instances
+    of this extractor.</description>
    <deepCopy>
     <functionClass variables="radiation"/>
    </deepCopy>
@@ -204,7 +211,7 @@ contains
 
   integer function cgmCoolingFunctionElementCount(self,time)
     !!{
-    Return the number of elements in the {\normalfont \ttfamily cgmCoolingFunction} property extractors.
+    Return the number of elements in the \mono{cgmCoolingFunction} property extractors.
     !!}
     implicit none
     class           (nodePropertyExtractorCGMCoolingFunction), intent(inout) :: self
@@ -217,7 +224,7 @@ contains
 
   function cgmCoolingFunctionSize(self,time)
     !!{
-    Return the number of array elements in the {\normalfont \ttfamily cgmCoolingFunction} property extractors.
+    Return the number of array elements in the \mono{cgmCoolingFunction} property extractors.
     !!}
     implicit none
     integer         (c_size_t                               )                :: cgmCoolingFunctionSize
@@ -231,7 +238,7 @@ contains
 
   function cgmCoolingFunctionExtract(self,node,time,instance)
     !!{
-    Implement a {\normalfont \ttfamily cgmCoolingFunction} property extractor.
+    Implement a \mono{cgmCoolingFunction} property extractor.
     !!}
     use :: Abundances_Structure                , only : abundances
     use :: Chemical_Abundances_Structure       , only : chemicalAbundances
@@ -400,7 +407,7 @@ contains
 
   subroutine cgmCoolingFunctionNames(self,names,time)
     !!{
-    Return the names of the {\normalfont \ttfamily cgmCoolingFunction} properties.
+    Return the names of the \mono{cgmCoolingFunction} properties.
     !!}
     implicit none
     class           (nodePropertyExtractorCGMCoolingFunction), intent(inout)                             :: self
@@ -417,7 +424,7 @@ contains
 
   subroutine cgmCoolingFunctionDescriptions(self,descriptions,time)
     !!{
-    Return descriptions of the {\normalfont \ttfamily cgmCoolingFunction} property.
+    Return descriptions of the \mono{cgmCoolingFunction} property.
     !!}
     implicit none
     class           (nodePropertyExtractorCGMCoolingFunction), intent(inout)                             :: self
@@ -436,7 +443,7 @@ contains
 
   subroutine cgmCoolingFunctionColumnDescriptions(self,descriptions,values,valuesDescription,valuesUnitsInSI,time)
     !!{
-    Return column descriptions of the {\normalfont \ttfamily cgmCoolingFunction} property.
+    Return column descriptions of the \mono{cgmCoolingFunction} property.
     !!}
     implicit none
     class           (nodePropertyExtractorCGMCoolingFunction), intent(inout)                            :: self
@@ -457,7 +464,7 @@ contains
 
   function cgmCoolingFunctionUnitsInSI(self,time)
     !!{
-    Return the units of the {\normalfont \ttfamily cgmCoolingFunction} properties in the SI system.
+    Return the units of the \mono{cgmCoolingFunction} properties in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : megaParsec
     use :: Numerical_Constants_Prefixes    , only : centi

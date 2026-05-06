@@ -33,7 +33,7 @@
 
   !![
   <mergerTreeOperator name="mergerTreeOperatorOutputRootMasses">
-   <description>Output a file of tree root masses (and weights).</description>
+   <description>A merger tree operator which outputs a file containing the root halo masses and statistical weights of all merger trees, enabling post-processing analysis of the sampled halo mass distribution. The output redshift is set by \mono{[redshift]}, optionally restricted to always-isolated halos via \mono{[alwaysIsolatedOnly]}, with the output filename specified by \mono{[fileName]}.</description>
   </mergerTreeOperator>
   !!]
   type, extends(mergerTreeOperatorClass) :: mergerTreeOperatorOutputRootMasses
@@ -154,7 +154,7 @@ contains
   
   subroutine outputRootMassesOperatePreEvolution(self,tree)
     !!{
-    Compute conditional mass function on {\normalfont \ttfamily tree}.
+    Compute conditional mass function on \mono{tree}.
     !!}
     use :: Galacticus_Nodes    , only : mergerTree                   , nodeComponentBasic, treeNode
     use :: Merger_Tree_Walkers , only : mergerTreeWalkerIsolatedNodes

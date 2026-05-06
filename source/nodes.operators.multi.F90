@@ -28,7 +28,7 @@
 
   !![
   <nodeOperator name="nodeOperatorMulti">
-   <description>A multi node operator property process class.</description>
+   <description>A node operator class that applies a linked list of multiple child \refClass{nodeOperatorClass} objects sequentially to each node, enabling a composite set of physical processes to be executed as a single operator.</description>
    <linkedList type="multiProcessList" variable="processes" next="next" object="process_" objectType="nodeOperatorClass"/>
   </nodeOperator>
   !!]
@@ -41,7 +41,7 @@
    contains
      !![
      <methods>
-	<method method="isActive" description="Return true if the operators are active for the given {\normalfont \ttfamily node}."/>
+	<method method="isActive" description="Return true if the operators are active for the given \mono{node}."/>
      </methods>
      !!]
      final     ::                                        multiDestructor
@@ -424,7 +424,7 @@ contains
 
   logical function multiIsActive(self,node) result(isActive)
     !!{
-    Return true if the operators are active for the given {\normalfont \ttfamily node}.
+    Return true if the operators are active for the given \mono{node}.
     !!}
     implicit none
     class(nodeOperatorMulti), intent(inout) :: self

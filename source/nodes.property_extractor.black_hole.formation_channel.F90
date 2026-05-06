@@ -23,9 +23,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorBlackHoleFormationChannel">
-   <description>
-    A node property extractor class which extracts the formation channel for black hole seeds.
-   </description>
+   <description>Extracts the formation channel identifier for black hole seeds in each node, enabling classification of black holes by their seeding mechanism (e.g., direct collapse, stellar remnants) for statistical analysis.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorIntegerScalar) :: nodePropertyExtractorBlackHoleFormationChannel
@@ -81,7 +79,7 @@ contains
 
   function blackHoleFormationChannelExtract(self,node,time,instance)
     !!{
-    Implement a {\normalfont \ttfamily blackHoleFormationChannel} node property extractor.
+    Implement a \mono{blackHoleFormationChannel} node property extractor.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentBlackHole               , nodeComponentBlackHoleStandard
     use :: Black_Hole_Seeds, only : blackHoleFormationChannelUndetermined

@@ -28,7 +28,7 @@ Implements a fixed halo environment.
 
   !![
   <haloEnvironment name="haloEnvironmentFixed">
-   <description>Implements a fixed halo environment.</description>
+   <description>Implements a halo environment with a fixed, user-specified overdensity, representing a deterministic large-scale density field around a halo. The environmental overdensity is set by \mono{[overdensity]}, while the filtering scale for variance computations is specified by either \mono{[radiusEnvironment]} or the corresponding environmental mass \mono{[massEnvironment]}.</description>
    <deepCopy>
     <functionClass variables="sphericalCollapseSolver_"/>
    </deepCopy>
@@ -92,7 +92,7 @@ contains
     <inputParameter>
       <name>overdensity</name>
       <source>parameters</source>
-      <description>The overdensity of the environment.</description>
+      <description>The fixed linear overdensity $\delta$ of the large-scale environment assigned uniformly to all halos; a positive value places halos in an overdense region, while negative values simulate voids.</description>
     </inputParameter>
     <inputParameter>
       <name>radiusEnvironment</name>
@@ -180,7 +180,7 @@ contains
 
   double precision function fixedHEOverdensityLinear(self,node,presentDay)
     !!{
-    Return the environment of the given {\normalfont \ttfamily node}.
+    Return the environment of the given \mono{node}.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentBasic, treeNode
     implicit none
@@ -203,7 +203,7 @@ contains
 
   double precision function fixedHEOverdensityLinearGradientTime(self,node)
     !!{
-    Return the time gradient of the environment of the given {\normalfont \ttfamily node}.
+    Return the time gradient of the environment of the given \mono{node}.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentBasic
     implicit none
@@ -222,7 +222,7 @@ contains
 
   double precision function fixedHEOverdensityNonLinear(self,node)
     !!{
-    Return the environment of the given {\normalfont \ttfamily node}.
+    Return the environment of the given \mono{node}.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentBasic
     implicit none

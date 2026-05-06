@@ -109,7 +109,7 @@ contains
     <inputParameter>
       <name>mass</name>
       <defaultValue>1.0d0</defaultValue>
-      <description>The mass of the cored profile.</description>
+      <description>The total mass (in $\mathrm{M}_\odot$) of the cored NFW halo, used to set the density normalization when the concentration and virial radius are provided instead of \mono{densityNormalization}.</description>
       <source>parameters</source>
     </inputParameter>
     <inputParameter>
@@ -259,7 +259,7 @@ contains
   
   double precision function coredNFWDensity(self,coordinates) result(density)
     !!{
-    Return the density at the specified {\normalfont \ttfamily coordinates} in a cored NFW mass distribution.
+    Return the density at the specified \mono{coordinates} in a cored NFW mass distribution.
     !!}
     implicit none
     class           (massDistributionCoredNFW), intent(inout) :: self
@@ -277,7 +277,7 @@ contains
   
   double precision function coredNFWDensityGradientRadial(self,coordinates,logarithmic) result(densityGradient)
     !!{
-    Return the radial density gradient at the specified {\normalfont \ttfamily coordinates} in a cored NFW mass distribution.
+    Return the radial density gradient at the specified \mono{coordinates} in a cored NFW mass distribution.
     !!}
     implicit none
     class           (massDistributionCoredNFW), intent(inout), target   :: self

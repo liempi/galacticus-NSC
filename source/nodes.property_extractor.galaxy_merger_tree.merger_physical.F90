@@ -19,9 +19,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorGalaxyMergerTreeMergerPhysical">
-   <description>
-     A node property extractor which extracts the physical properties of galaxy merger trees.
-   </description>
+   <description>Extracts physical (floating-point) properties associated with merger events in galaxy merger trees, such as masses, mass ratios, and times of mergers between progenitor galaxies.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorList) :: nodePropertyExtractorGalaxyMergerTreeMergerPhysical
@@ -112,7 +110,7 @@ contains
   
   subroutine galaxyMergerTreeMergerPhysicalNames(self,names)
     !!{
-    Return the names of the {\normalfont \ttfamily galaxyMergerTreeMergerPhysical} properties.
+    Return the names of the \mono{galaxyMergerTreeMergerPhysical} properties.
     !!}
     implicit none
     class(nodePropertyExtractorGalaxyMergerTreeMergerPhysical), intent(inout)                             :: self
@@ -126,7 +124,7 @@ contains
 
   subroutine galaxyMergerTreeMergerPhysicalDescriptions(self,descriptions)
     !!{
-    Return the descriptions of the {\normalfont \ttfamily galaxyMergerTreeMergerPhysical} properties.
+    Return the descriptions of the \mono{galaxyMergerTreeMergerPhysical} properties.
     !!}
     implicit none
     class(nodePropertyExtractorGalaxyMergerTreeMergerPhysical), intent(inout)                             :: self
@@ -140,7 +138,7 @@ contains
 
   function galaxyMergerTreeMergerPhysicalUnitsInSI(self) result(unitsInSI)
     !!{
-    Return the units of the {\normalfont \ttfamily galaxyMergerTreeMergerPhysical} properties in the SI system.
+    Return the units of the \mono{galaxyMergerTreeMergerPhysical} properties in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : gigaYear, massSolar
     implicit none

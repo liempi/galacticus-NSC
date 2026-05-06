@@ -85,6 +85,7 @@ Chandrasekhar
 Charlot
 Cholesky
 Clopper
+Comptonized
 Correa
 Covington
 Creasey
@@ -139,6 +140,7 @@ ISCO
 Inoue
 Jacobian
 Jerjen
+Jessop
 Jiang
 Jianling
 Jianming
@@ -192,6 +194,7 @@ Osterbrock
 PDF
 PDFs
 POSIX
+Poulton
 PRIMUS
 Padmanabhan
 Palla
@@ -294,6 +297,7 @@ arcseconds
 arcminute
 arcminutes
 asymptotes
+autocorrelation
 axion
 backtrace
 baldry
@@ -343,6 +347,7 @@ conformal
 continuua
 convolved
 convolving
+coronae
 correlator
 cosecant
 covariance
@@ -492,6 +497,7 @@ intershell
 intracluster
 intrinsics
 ionizations
+isocurvature
 isodensity
 isoelectronic
 isotropically
@@ -703,6 +709,7 @@ sinusoid
 situ
 smtp
 soliton
+solitonic
 sphericalization
 spheroid
 splashback

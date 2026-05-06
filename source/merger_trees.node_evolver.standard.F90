@@ -61,7 +61,7 @@
     <description>
       The standard merger tree node evolver.
 
-      If the parameter {\normalfont \ttfamily [enforceNonNegativity] = true} then properties which are marked as being
+      If the parameter \mono{[enforceNonNegativity] = true} then properties which are marked as being
       non-negative (e.g. masses) are evolved in such a way to ensure that they remain non-negative. This typically requires
       smaller time step size and so longer run times. In some cases it may be impossible to ensure non-negativity even for
       arbitrarily small timesteps\footnote{This can occur if a property as a non-zero, negative derivative as the property
@@ -361,7 +361,7 @@ contains
 
   subroutine standardEvolve(self,tree,node,timeEnd,interrupted,functionInterrupt,galacticStructureSolver__,treeLock,systemClockMaximum,status)
     !!{
-    Evolves {\normalfont \ttfamily node} to time {\normalfont \ttfamily timeEnd}, or until evolution is interrupted.
+    Evolves \mono{node} to time \mono{timeEnd}, or until evolution is interrupted.
     !!}
     use            :: Display               , only : displayIndent              , displayMessage                                  , displayUnindent                                , displayMagenta    , &
          &                                           displayReset
@@ -374,28 +374,6 @@ contains
     use, intrinsic :: ISO_C_Binding         , only : c_funloc                   , c_funptr                                        , c_null_funptr
     use            :: Numerical_Integration2, only : integratorMultiVectorized1D, integratorMultiVectorizedCompositeGaussKronrod1D, integratorMultiVectorizedCompositeTrapezoidal1D
     use            :: ODE_Solver_Error_Codes, only : odeSolverInterrupt
-    !![
-    <include directive="preEvolveTask"      type="moduleUse">
-    !!]
-    include 'objects.tree_node.pre_evolve.modules.inc'
-    !![
-    </include>
-    <include directive="scaleSetTask"       type="moduleUse">
-    !!]
-    include 'objects.tree_node.set_scale.modules.inc'
-    !![
-    </include>
-    <include directive="inactiveSetTask"    type="moduleUse">
-    !!]
-    include 'objects.tree_node.set_inactive.modules.inc'
-    !![
-    </include>
-    <include directive="analyticSolverTask" type="moduleUse">
-    !!]
-    include 'objects.tree_node.analytic_solver_task.modules.inc'
-    !![
-    </include>
-    !!]
     implicit none
     class           (mergerTreeNodeEvolverStandard      )             , intent(inout), target  :: self
     type            (mergerTree                         )             , intent(inout)          :: tree
@@ -433,12 +411,9 @@ contains
     call treeLock              %set                     (    )
     call self    %nodeOperator_%differentialEvolutionPre(node)
     !![
-    <include directive="preEvolveTask" type="functionCall" functionType="void">
-     <functionArgs>node</functionArgs>
-    !!]
-    include 'objects.tree_node.pre_evolve.inc'
-    !![
-    </include>
+    <eventHookStatic name="preEvolveTask">
+     <callWith>node</callWith>
+    </eventHookStatic>
     !!]
     call treeLock              %unset                   (    )
 
@@ -455,12 +430,9 @@ contains
     ! Attempt to find analytic solutions.
     solvedAnalytically=.false.
     !![
-    <include directive="analyticSolverTask" type="functionCall" functionType="void">
-     <functionArgs>node,timeStart,timeEnd,solvedAnalytically</functionArgs>
-    !!]
-    include 'objects.tree_node.analytic_solver_task.inc'
-    !![
-    </include>
+    <eventHookStatic name="analyticSolverTask">
+     <callWith>node,timeStart,timeEnd,solvedAnalytically</callWith>
+    </eventHookStatic>
     !!]
     ! Check if an analytic solution was available - use numerical solution if not.
     if (solvedAnalytically) then
@@ -521,12 +493,9 @@ contains
           call node%odeStepAnalyticsInitialize()
           if (jacobianSolver) then
              !![
-             <include directive="inactiveSetTask" type="functionCall" functionType="void">
-              <functionArgs>node</functionArgs>
-             !!]
-             include 'objects.tree_node.set_inactive.inc'
-             !![
-             </include>
+             <eventHookStatic name="inactiveSetTask">
+              <callWith>node</callWith>
+             </eventHookStatic>
              !!]
              call self%nodeOperator_%differentialEvolutionInactives(node)
           end if
@@ -552,12 +521,9 @@ contains
           ! Compute scales for all properties and extract from the node.
           call node%odeStepScalesInitialize()
           !![
-          <include directive="scaleSetTask" type="functionCall" functionType="void">
-           <functionArgs>node</functionArgs>
-          !!]
-          include 'objects.tree_node.set_scale.inc'
-          !![
-          </include>
+          <eventHookStatic name="scaleSetTask">
+           <callWith>node</callWith>
+          </eventHookStatic>
           !!]
           call self%nodeOperator_%differentialEvolutionScales(node)
           call node%serializeScales(self%propertyScalesActive  ,self%propertyTypeODE       )
@@ -1040,16 +1006,9 @@ contains
 
   subroutine standardDerivativesCompute(node,interrupt,functionInterruptReturn,propertyType)
     !!{
-    Call routines to set all derivatives for {\normalfont \ttfamily node}.
+    Call routines to set all derivatives for \mono{node}.
     !!}
     use :: Calculations_Resets, only : Calculations_Reset
-    !![
-    <include directive="rateComputeTask" type="moduleUse">
-    !!]
-    include 'objects.node.component.derivatives.modules.inc'
-    !![
-    </include>
-    !!]
     implicit none
     type     (treeNode), intent(inout)          :: node
     logical            , intent(  out)          :: interrupt
@@ -1071,14 +1030,6 @@ contains
     ! Do not attempt to compute derivatives for nodes which are not solvable.
     if (.not.node%isSolvable) return
     ! Call component routines to compute derivatives.
-    !![
-    <include directive="rateComputeTask" type="functionCall" functionType="void">
-     <functionArgs>node,interrupt,functionInterrupt,propertyType</functionArgs>
-    !!]
-    include 'objects.node.component.derivatives.inc'
-    !![
-    </include>
-    !!]
     call self_%nodeOperator_%differentialEvolution(node,interrupt,functionInterrupt,propertyType)
     ! Return the procedure pointer.
     functionInterruptReturn => functionInterrupt
@@ -1188,13 +1139,6 @@ contains
     !!}
     use, intrinsic :: ISO_C_Binding, only : c_double   , c_int
     use            :: Interface_GSL, only : GSL_Success, GSL_Continue
-    !![
-    <include directive="postStepTask" type="moduleUse">
-    !!]
-    include 'objects.tree_node.post_step.modules.inc'
-    !![
-    </include>
-    !!]
     implicit none
     real   (kind=c_double), intent(in   ), value        :: time
     real   (kind=c_double), intent(inout), dimension(*) :: y
@@ -1204,12 +1148,9 @@ contains
     call self_%nodeOperator_%differentialEvolutionSolveAnalytics(    self_%activeNode          ,time                 )
     call self_%nodeOperator_%differentialEvolutionPostStep      (    self_%activeNode          ,postStepStatus       )
     !![
-    <include directive="postStepTask" type="functionCall" functionType="void">
-     <functionArgs>self_%activeNode,postStepStatus</functionArgs>
-    !!]
-    include 'objects.tree_node.post_step.inc'
-    !![
-    </include>
+    <eventHookStatic name="postStepTask">
+     <callWith>self_%activeNode,postStepStatus</callWith>
+    </eventHookStatic>
     !!]
     ! If the post-step processing returned a non-success error code - indicating that the node state was changed - reserialize the
     ! node state to the ODE solver arrays.
@@ -1275,7 +1216,7 @@ contains
 
   subroutine standardPromote(self,node)
     !!{
-    Transfer the properties of {\normalfont \ttfamily node} to its parent node, then destroy it.
+    Transfer the properties of \mono{node} to its parent node, then destroy it.
     !!}
     use :: Display        , only : displayMessage, displayVerbosity, verbosityLevelInfo
     use :: String_Handling, only : operator(//)
@@ -1363,18 +1304,11 @@ contains
 
   subroutine standardMerge(self,node)
     !!{
-    Handles instances where {\normalfont \ttfamily node} is about to merge with its parent node.
+    Handles instances where \mono{node} is about to merge with its parent node.
     !!}
     use :: Display         , only : displayMessage    , displayVerbosity, verbosityLevelInfo
     use :: Galacticus_Nodes, only : nodeComponentBasic
     use :: String_Handling , only : operator(//)
-    !![
-    <include directive="nodeMergerTask" type="moduleUse">
-    !!]
-    include 'events.node_mergers.process.modules.inc'
-    !![
-    </include>
-    !!]
     implicit none
     class    (mergerTreeNodeEvolverStandard), intent(inout) :: self
     type     (treeNode                     ), intent(inout) :: node
@@ -1392,12 +1326,9 @@ contains
     end if
     ! Call subroutines to perform any necessary processing prior to this node merger event.
     !![
-    <include directive="nodeMergerTask" type="functionCall" functionType="void">
-     <functionArgs>node</functionArgs>
-    !!]
-    include 'events.node_mergers.process.inc'
-    !![
-    </include>
+    <eventHookStatic name="nodeMergerTask">
+     <callWith>node</callWith>
+    </eventHookStatic>
     !!]
     call self%nodeOperator_        %nodesMerge(node)
     ! Process the merger.

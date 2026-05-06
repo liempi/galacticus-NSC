@@ -189,6 +189,21 @@ runs:
       run: |
         sudo perl -MCPAN -e shell
         sudo perl -MCPAN -e 'install Bundle::CPAN'
+    - name: Configure CPAN mirrors
+      shell: bash
+      run: |
+        sudo perl -MCPAN -e '
+          CPAN::HandleConfig->load();
+          $CPAN::Config->{pushy_https} = 0;
+          $CPAN::Config->{urllist} = [
+            q{https://cpan.metacpan.org/},
+            q{https://www.cpan.org/},
+            q{https://cpan.perl.org/},
+            q{http://ftp.funet.fi/pub/languages/perl/CPAN/},
+            q{ftp://ftp.cpan.org/pub/CPAN/},
+          ];
+          CPAN::HandleConfig->commit();
+        '
     - name: Install Perl modules
       shell: bash
       run: |
@@ -202,6 +217,7 @@ runs:
         sudo perl -MCPAN -e 'force("install","PkgConfig")'
         sudo perl -MCPAN -e 'force("install","Alien::Base::Wrapper")'
         sudo perl -MCPAN -e 'force("install","Alien::Libxml2")'
+        sudo perl -MCPAN -e 'force("install","XML::LibXML")'
         sudo perl -MCPAN -e 'force("install","XML::LibXML::SAX")'
         sudo perl -MCPAN -e 'force("install","XML::LibXML::SAX::Parser")'
         if [[ "${OS_VER}" -ge 12 ]]; then
@@ -210,8 +226,6 @@ runs:
            sudo perl -MXML::SAX -e "XML::SAX->add_parser('XML::LibXML::SAX::Parser')->save_parsers()" || true
            sudo perl -MXML::SAX -e "XML::SAX->add_parser('XML::LibXML::SAX')->save_parsers()" || true
         fi
-        sudo perl -MCPAN -e 'force("install","XML::SAX::ParserFactory")'
-        sudo perl -MCPAN -e 'force("install","XML::Validator::Schema")'
         sudo perl -MCPAN -e 'force("install","Text::Template")'
         sudo perl -MCPAN -e 'force("install","Text::Levenshtein")'
         sudo perl -MCPAN -e 'force("install","List::Uniq")'

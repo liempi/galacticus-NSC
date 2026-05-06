@@ -113,7 +113,7 @@ contains
     <inputParameter>
       <name>mass</name>
       <defaultValue>1.0d0</defaultValue>
-      <description>The mass of the cored profile.</description>
+      <description>The total mass (in $\mathrm{M}_\odot$) of the cusp-NFW halo, used to set the density normalization when the concentration and virial radius are provided instead of \mono{densityNormalization}.</description>
       <source>parameters</source>
     </inputParameter>
     <inputParameter>
@@ -258,7 +258,7 @@ contains
   
   double precision function cuspNFWDensity(self,coordinates) result(density)
     !!{
-    Return the density at the specified {\normalfont \ttfamily coordinates} in a cusp-NFW mass distribution.
+    Return the density at the specified \mono{coordinates} in a cusp-NFW mass distribution.
     !!}
     implicit none
     class           (massDistributionCuspNFW), intent(inout) :: self
@@ -277,7 +277,7 @@ contains
   
   double precision function cuspNFWDensityGradientRadial(self,coordinates,logarithmic) result(densityGradient)
     !!{
-    Return the radial density gradient at the specified {\normalfont \ttfamily coordinates} in a cusp-NFW mass distribution.
+    Return the radial density gradient at the specified \mono{coordinates} in a cusp-NFW mass distribution.
     !!}
     implicit none
     class           (massDistributionCuspNFW), intent(inout), target   :: self
@@ -303,7 +303,7 @@ contains
 
   double precision function cuspNFWMassEnclosedBySphere(self,radius) result(mass)
     !!{
-    Return the mass enclosed by a sphere of the specified {\normalfont \ttfamily radius} in a cusp-NFW mass distribution.
+    Return the mass enclosed by a sphere of the specified \mono{radius} in a cusp-NFW mass distribution.
     !!}
     use :: Numerical_Constants_Math, only : Pi
     implicit none

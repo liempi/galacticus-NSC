@@ -25,7 +25,13 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorDensityProfile">
-   <description>A property extractor class for the density at a set of radii.</description>
+   <description>A property extractor that returns the mass density profile
+    (in $\mathrm{M}_\odot \, \mathrm{Mpc}^{-3}$) of a galaxy or halo component at a
+    user-specified set of radii. The \mono{radiusSpecifiers} parameter provides a list of radius
+    definitions (e.g.\ multiples of the virial radius, disk radius, or half-mass radius), supporting
+    both galactic structural radii and fixed physical radii. If \mono{includeRadii} is \mono{true},
+    the corresponding radii (in Mpc) are also written to the output file as a second column alongside
+    the density values.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorArray) :: nodePropertyExtractorDensityProfile
@@ -147,7 +153,7 @@ contains
 
   integer function densityProfileElementCount(self,time)
     !!{
-    Return the number of elements in the {\normalfont \ttfamily densityProfile} property extractors.
+    Return the number of elements in the \mono{densityProfile} property extractors.
     !!}
     implicit none
     class           (nodePropertyExtractorDensityProfile), intent(inout) :: self
@@ -160,7 +166,7 @@ contains
 
   function densityProfileSize(self,time)
     !!{
-    Return the number of array elements in the {\normalfont \ttfamily densityProfile} property extractors.
+    Return the number of array elements in the \mono{densityProfile} property extractors.
     !!}
     implicit none
     integer         (c_size_t                           )                :: densityProfileSize
@@ -174,7 +180,7 @@ contains
 
   function densityProfileExtract(self,node,time,instance)
     !!{
-    Implement a {\normalfont \ttfamily densityProfile} property extractor.
+    Implement a \mono{densityProfile} property extractor.
     !!}
     use :: Galactic_Structure_Options          , only : componentTypeAll               , massTypeGalactic            , massTypeStellar
     use :: Galactic_Structure_Radii_Definitions, only : radiusTypeDarkMatterScaleRadius, radiusTypeDiskHalfMassRadius, radiusTypeDiskRadius                      , radiusTypeGalacticLightFraction   , &
@@ -287,7 +293,7 @@ contains
 
   subroutine densityProfileNames(self,names,time)
     !!{
-    Return the names of the {\normalfont \ttfamily densityProfile} properties.
+    Return the names of the \mono{densityProfile} properties.
     !!}
     implicit none
     class           (nodePropertyExtractorDensityProfile), intent(inout)                             :: self
@@ -303,7 +309,7 @@ contains
 
   subroutine densityProfileDescriptions(self,descriptions,time)
     !!{
-    Return descriptions of the {\normalfont \ttfamily densityProfile} property.
+    Return descriptions of the \mono{densityProfile} property.
     !!}
     implicit none
     class           (nodePropertyExtractorDensityProfile), intent(inout)                             :: self
@@ -320,7 +326,7 @@ contains
 
   subroutine densityProfileColumnDescriptions(self,descriptions,values,valuesDescription,valuesUnitsInSI,time)
     !!{
-    Return column descriptions of the {\normalfont \ttfamily densityProfile} property.
+    Return column descriptions of the \mono{densityProfile} property.
     !!}
     implicit none
     class           (nodePropertyExtractorDensityProfile), intent(inout)                            :: self
@@ -341,7 +347,7 @@ contains
 
   function densityProfileUnitsInSI(self,time)
     !!{
-    Return the units of the {\normalfont \ttfamily densityProfile} properties in the SI system.
+    Return the units of the \mono{densityProfile} properties in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : massSolar, megaParsec
     implicit none

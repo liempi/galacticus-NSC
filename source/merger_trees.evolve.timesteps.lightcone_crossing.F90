@@ -27,8 +27,8 @@
 
   !![
   <mergerTreeEvolveTimestep name="mergerTreeEvolveTimestepLightconeCrossing">
-   <description>  
-    A merger tree evolution timestepping class which limits the step to the next lightcone crossing.
+   <description>
+    A merger tree evolution timestepping class which limits the integration timestep so that nodes are output precisely when they cross a lightcone boundary, enabling the construction of mock lightcone catalogs. The lightcone geometry is provided by the \mono{[geometryLightcone]} object, with optional diagnostic reporting for specific node indices listed in \mono{[nodeIndicesReport]}.
    </description>
   </mergerTreeEvolveTimestep>
   !!]
@@ -129,7 +129,7 @@ contains
 
   double precision function lightconeCrossingTimeEvolveTo(self,timeEnd,node,task,taskSelf,report,lockNode,lockType)
     !!{
-    Determine a suitable timestep for {\normalfont \ttfamily node} such that it does not exceed the time of the next lightconeCrossing merger.
+    Determine a suitable timestep for \mono{node} such that it does not exceed the time of the next lightconeCrossing merger.
     !!}
     use :: Display               , only : displayMessage
     use :: Evolve_To_Time_Reports, only : Evolve_To_Time_Report

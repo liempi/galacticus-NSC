@@ -24,7 +24,7 @@
 
   !![
   <outputAnalysis name="outputAnalysisLocalGroupMassSizeRelation">
-   <description>An output analysis class for Local Group satellite galaxy mass-size relations.</description>
+   <description>Computes the stellar mass--half-light radius relation for Local Group satellite galaxies, comparing model predictions against observed data with stellar mass and size random/systematic error polynomial coefficients, binomial covariance parameters, and position-type selection.</description>
   </outputAnalysis>
   !!]
   type, extends(outputAnalysisClass) :: outputAnalysisLocalGroupMassSizeRelation
@@ -524,7 +524,7 @@ contains
 
   subroutine localGroupMassSizeRelationAnalyze(self,node,iOutput)
     !!{
-    Implement a {\normalfont \ttfamily localGroupMassSizeRelation} output analysis.
+    Implement a \mono{localGroupMassSizeRelation} output analysis.
     !!}
     implicit none
     class  (outputAnalysisLocalGroupMassSizeRelation), intent(inout) :: self
@@ -537,7 +537,7 @@ contains
 
   subroutine localGroupMassSizeRelationReduce(self,reduced)
     !!{
-    Implement a {\normalfont \ttfamily localGroupMassSizeRelation} output analysis reduction.
+    Implement a \mono{localGroupMassSizeRelation} output analysis reduction.
     !!}
     use :: Error, only : Error_Report
     implicit none
@@ -555,7 +555,7 @@ contains
 
   subroutine localGroupMassSizeRelationFinalize(self,groupName)
     !!{
-    Implement a {\normalfont \ttfamily localGroupMassSizeRelation} output analysis finalization.
+    Implement a \mono{localGroupMassSizeRelation} output analysis finalization.
     !!}
     implicit none
     class(outputAnalysisLocalGroupMassSizeRelation), intent(inout)           :: self
@@ -567,7 +567,7 @@ contains
 
   double precision function localGroupMassSizeRelationLogLikelihood(self)
     !!{
-    Return the log-likelihood of a {\normalfont \ttfamily localGroupMassSizeRelation} output analysis.
+    Return the log-likelihood of a \mono{localGroupMassSizeRelation} output analysis.
     !!}
     implicit none
     class(outputAnalysisLocalGroupMassSizeRelation), intent(inout) :: self

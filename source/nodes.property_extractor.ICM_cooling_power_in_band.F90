@@ -27,7 +27,13 @@ Implements an intracluster medium cooling power in band property extractor class
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorICMCoolingPowerInBand">
-   <description>An intracluster medium cooling power in band property extractor class.</description>
+   <description>A property extractor that returns the fraction of the hot halo (ICM) radiative
+    cooling power emitted within a specified X-ray photon energy band---the ratio of in-band to
+    bolometric cooling luminosity, integrated over the virial radius. The \mono{energyLow} and
+    \mono{energyHigh} parameters specify the energy band boundaries in keV (e.g.\ 0.5--2.0~keV for
+    soft X-ray). The \mono{label} suffix distinguishes multiple instances of this extractor.
+    Requires a \refClass{coolingFunctionClass} object to evaluate the cooling emissivity at each
+    radius as a function of density, temperature, and metallicity.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorScalar) :: nodePropertyExtractorICMCoolingPowerInBand
@@ -311,7 +317,7 @@ contains
 
   double precision function icmCoolingPowerInBandUnitsInSI(self)
     !!{
-    Return the units of the {\normalfont \ttfamily icmCoolingPowerInBand} properties in the SI system.
+    Return the units of the \mono{icmCoolingPowerInBand} properties in the SI system.
     !!}
     implicit none
     class(nodePropertyExtractorICMCoolingPowerInBand), intent(inout) :: self

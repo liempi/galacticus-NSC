@@ -77,7 +77,7 @@ contains
     !![
     <inputParameter>
       <name>variogramFitOption</name>
-      <description>Option controlling how the variogram is to be fit.</description>
+      <description>Option controlling how the binned semi-variance data are aggregated before fitting the exponential variogram model; allowed values are \mono{mean}, \mono{median} (default), or \mono{maximum} of the residuals within each separation bin.</description>
       <defaultValue>var_str('median')</defaultValue>
       <source>parameters</source>
     </inputParameter>
@@ -132,7 +132,7 @@ contains
 
   double precision function exponentialVariogram(self,separation)
     !!{
-    Compute the variogram at the given {\normalfont \ttfamily separation}. Here we use the ``exponential model'':
+    Compute the variogram at the given \mono{separation}. Here we use the ``exponential model'':
     \begin{equation}
       \gamma(h) =C_0 + C_1 [ 1 - \exp\left(-\frac{h}{a}\right)]
     \end{equation}

@@ -22,9 +22,7 @@
   
   !![
   <nodePropertyExtractor name="nodePropertyExtractorRadiativeEfficiencyBlackHoles">
-   <description>
-     A node property extractor which extracts a list of all super-massive black hole radiative efficiencies.
-   </description>
+   <description>Extracts a list of radiative efficiencies for all supermassive black holes in each node, providing the fraction of accreted mass-energy radiated as electromagnetic radiation for each black hole.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorList) :: nodePropertyExtractorRadiativeEfficiencyBlackHoles
@@ -145,7 +143,7 @@ contains
   
   subroutine radiativeEfficiencyBlackHolesNames(self,names)
     !!{
-    Return the names of the {\normalfont \ttfamily radiativeEfficiencyBlackHoles} properties.
+    Return the names of the \mono{radiativeEfficiencyBlackHoles} properties.
     !!}
     implicit none
     class(nodePropertyExtractorRadiativeEfficiencyBlackHoles), intent(inout)                             :: self
@@ -159,7 +157,7 @@ contains
 
   subroutine radiativeEfficiencyBlackHolesDescriptions(self,descriptions)
     !!{
-    Return the descriptions of the {\normalfont \ttfamily radiativeEfficiencyBlackHoles} properties.
+    Return the descriptions of the \mono{radiativeEfficiencyBlackHoles} properties.
     !!}
     implicit none
     class(nodePropertyExtractorRadiativeEfficiencyBlackHoles), intent(inout)                             :: self
@@ -173,7 +171,7 @@ contains
 
   function radiativeEfficiencyBlackHolesUnitsInSI(self) result(unitsInSI)
     !!{
-    Return the units of the {\normalfont \ttfamily radiativeEfficiencyBlackHoles} properties in the SI system.
+    Return the units of the \mono{radiativeEfficiencyBlackHoles} properties in the SI system.
     !!}
     implicit none
     double precision                                                    , dimension(:) , allocatable :: unitsInSI

@@ -25,9 +25,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorNodeMajorMergerRecentCount">
-   <description>
-   Implements a node property extractor which extracts the number of recent node major mergers.
-   </description>
+   <description>Extracts the count of major halo merger events that occurred within a configurable lookback time window, enabling statistical analysis of recent merger activity across the halo population.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorIntegerScalar) :: nodePropertyExtractorNodeMajorMergerRecentCount
@@ -107,7 +105,7 @@ contains
 
   function nodeMajorMergerRecentCountExtract(self,node,time,instance)
     !!{
-    Implement a {\normalfont \ttfamily nodeMajorMergerRecentCount} node property extractor.
+    Implement a \mono{nodeMajorMergerRecentCount} node property extractor.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentBasic
     implicit none

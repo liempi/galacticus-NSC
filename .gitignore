@@ -54,3 +54,4 @@ source/texfrag
 __pycache__
 .DS_Store
 testSuite/.DS_Store
+.vscode

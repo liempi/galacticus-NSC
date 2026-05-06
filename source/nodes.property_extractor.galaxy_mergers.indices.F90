@@ -19,9 +19,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorGalaxyMergersIndices">
-   <description>
-     A node property extractor which extracts the indices properties of galaxy-galaxy mergers.
-   </description>
+   <description>Extracts integer index properties of galaxy-galaxy merger events (as distinct from halo mergers), such as node indices of the merging galaxy pair, enabling reconstruction of the galaxy merger history.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorIntegerList) :: nodePropertyExtractorGalaxyMergersIndices
@@ -112,7 +110,7 @@ contains
   
   subroutine galaxyMergersIndicesNames(self,names)
     !!{
-    Return the names of the {\normalfont \ttfamily galaxyMergersIndices} properties.
+    Return the names of the \mono{galaxyMergersIndices} properties.
     !!}
     implicit none
     class(nodePropertyExtractorGalaxyMergersIndices), intent(inout)                             :: self
@@ -126,7 +124,7 @@ contains
 
   subroutine galaxyMergersIndicesDescriptions(self,descriptions)
     !!{
-    Return the descriptions of the {\normalfont \ttfamily galaxyMergersIndices} properties.
+    Return the descriptions of the \mono{galaxyMergersIndices} properties.
     !!}
     implicit none
     class(nodePropertyExtractorGalaxyMergersIndices), intent(inout)                             :: self
@@ -140,7 +138,7 @@ contains
 
   function galaxyMergersIndicesUnitsInSI(self) result(unitsInSI)
     !!{
-    Return the units of the {\normalfont \ttfamily galaxyMergersIndices} properties in the SI system.
+    Return the units of the \mono{galaxyMergersIndices} properties in the SI system.
     !!}
     implicit none
     double precision                                           , dimension(:) , allocatable :: unitsInSI

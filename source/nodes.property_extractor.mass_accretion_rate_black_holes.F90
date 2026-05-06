@@ -21,9 +21,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorMassAccretionRateBlackHoles">
-   <description>
-     A node property extractor which extracts a list of all super-massive black hole mass accretion rates.
-   </description>
+   <description>Extracts a list of mass accretion rates for all supermassive black holes in each node, enabling output of per-black-hole accretion activity for analysis of AGN populations and feedback.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorList) :: nodePropertyExtractorMassAccretionRateBlackHoles
@@ -140,7 +138,7 @@ contains
 
   subroutine massAccretionRateBlackHolesNames(self,names)
     !!{
-    Return the names of the {\normalfont \ttfamily massAccretionRateBlackHoles} properties.
+    Return the names of the \mono{massAccretionRateBlackHoles} properties.
     !!}
     implicit none
     class(nodePropertyExtractorMassAccretionRateBlackHoles), intent(inout)                             :: self
@@ -154,7 +152,7 @@ contains
 
   subroutine massAccretionRateBlackHolesDescriptions(self,descriptions)
     !!{
-    Return the descriptions of the {\normalfont \ttfamily massAccretionRateBlackHoles} properties.
+    Return the descriptions of the \mono{massAccretionRateBlackHoles} properties.
     !!}
     implicit none
     class(nodePropertyExtractorMassAccretionRateBlackHoles), intent(inout)                             :: self
@@ -168,7 +166,7 @@ contains
 
   function massAccretionRateBlackHolesUnitsInSI(self) result(unitsInSI)
     !!{
-    Return the units of the {\normalfont \ttfamily massAccretionRateBlackHoles} properties in the SI system.
+    Return the units of the \mono{massAccretionRateBlackHoles} properties in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : massSolar, gigaYear
     implicit none

@@ -23,7 +23,7 @@
 
   !![
   <outputAnalysis name="outputAnalysisMorphologicalFractionGAMAMoffett2016">
-   <description>A morphological fraction output analysis class for the analysis of \cite{moffett_galaxy_2016}.</description>
+   <description>Computes the early-type morphological fraction as a function of stellar mass for comparison with the \gls{gama} \cite{moffett_galaxy_2016} survey, classifying galaxies by spheroid-to-total ratio threshold (\mono{ratioEarlyType}) with stellar mass and classification error polynomial coefficients.</description>
   </outputAnalysis>
   !!]
   type, extends(outputAnalysisMeanFunction1D) :: outputAnalysisMorphologicalFractionGAMAMoffett2016
@@ -472,7 +472,7 @@ contains
 
   subroutine morphologicalFractionGAMAMoffett2016Finalize(self,groupName)
     !!{
-    Implement a {\normalfont \ttfamily morphologicalFractionGAMAMoffett2016} output analysis finalization.
+    Implement a \mono{morphologicalFractionGAMAMoffett2016} output analysis finalization.
     !!}
     use :: Output_HDF5, only : outputFile
     use :: HDF5_Access, only : hdf5Access

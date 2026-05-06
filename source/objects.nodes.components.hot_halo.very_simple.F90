@@ -86,9 +86,7 @@ module Node_Component_Hot_Halo_Very_Simple
 contains
 
   !![
-  <nodeComponentInitializationTask>
-   <unitName>Node_Component_Hot_Halo_Very_Simple_Initialize</unitName>
-  </nodeComponentInitializationTask>
+  <nodeComponentInitializationTask function="Node_Component_Hot_Halo_Very_Simple_Initialize"/>
   !!]
   subroutine Node_Component_Hot_Halo_Very_Simple_Initialize(parameters)
     !!{
@@ -143,13 +141,11 @@ contains
   end subroutine Node_Component_Hot_Halo_Very_Simple_Outflowing_Abundances_Rate
 
   !![
-  <scaleSetTask>
-   <unitName>Node_Component_Hot_Halo_Very_Simple_Scale_Set</unitName>
-  </scaleSetTask>
+  <scaleSetTask function="Node_Component_Hot_Halo_Very_Simple_Scale_Set"/>
   !!]
   subroutine Node_Component_Hot_Halo_Very_Simple_Scale_Set(node)
     !!{
-    Set scales for properties of {\normalfont \ttfamily node}.
+    Set scales for properties of \mono{node}.
     !!}
     use :: Abundances_Structure, only : unitAbundances
     use :: Galacticus_Nodes    , only : nodeComponentBasic     , nodeComponentHotHalo, nodeComponentHotHaloVerySimple, treeNode, &

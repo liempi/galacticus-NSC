@@ -199,9 +199,7 @@ module Node_Component_NSC_Standard
 contains
 
   !![
-  <nodeComponentInitializationTask>
-   <unitName>Node_Component_NSC_Standard_Initialize</unitName>
-  </nodeComponentInitializationTask>
+  <nodeComponentInitializationTask function="Node_Component_NSC_Standard_Initialize"/>
   !!]
   subroutine Node_Component_NSC_Standard_Initialize(parameters)
     !!{
@@ -251,9 +249,7 @@ contains
   end subroutine Node_Component_NSC_Standard_Initialize
 
   !![
-  <nodeComponentThreadInitializationTask>
-   <unitName>Node_Component_NSC_Standard_Thread_Initialize</unitName>
-  </nodeComponentThreadInitializationTask>
+  <nodeComponentThreadInitializationTask function="Node_Component_NSC_Standard_Thread_Initialize"/>
   !!]
   subroutine Node_Component_NSC_Standard_Thread_Initialize(parameters)
     !!{
@@ -324,9 +320,7 @@ contains
   end subroutine Node_Component_NSC_Standard_Thread_Initialize
 
   !![
-  <nodeComponentThreadUninitializationTask>
-   <unitName>Node_Component_NSC_Standard_Thread_Uninitialize</unitName>
-  </nodeComponentThreadUninitializationTask>
+  <nodeComponentThreadUninitializationTask function="Node_Component_NSC_Standard_Thread_Uninitialize"/>
   !!]
   subroutine Node_Component_NSC_Standard_Thread_Uninitialize()
     !!{
@@ -357,9 +351,7 @@ contains
   end subroutine Node_Component_NSC_Standard_Thread_Uninitialize
 
   !![
-  <preEvolveTask>
-  <unitName>Node_Component_NSC_Standard_Pre_Evolve</unitName>
-  </preEvolveTask>
+  <preEvolveTask function="Node_Component_NSC_Standard_Pre_Evolve"/>
   !!]
   subroutine Node_Component_NSC_Standard_Pre_Evolve(node)
     !!{
@@ -412,9 +404,7 @@ contains
   end subroutine postEvolve
 
   !![
-  <postStepTask>
-    <unitName>Node_Component_NSC_Standard_Post_Step</unitName>
-  </postStepTask>
+  <postStepTask function="Node_Component_NSC_Standard_Post_Step"/>
   !!]
   subroutine Node_Component_NSC_Standard_Post_Step(node,status)
     !!{
@@ -704,13 +694,11 @@ contains
   end subroutine Node_Component_NSC_Standard_Stellar_Prprts_History_Rate
 
   !![
-  <scaleSetTask>
-   <unitName>Node_Component_NSC_Standard_Scale_Set</unitName>
-  </scaleSetTask>
+  <scaleSetTask function="Node_Component_NSC_Standard_Scale_Set"/>
   !!]
   subroutine Node_Component_NSC_Standard_Scale_Set(node)
     !!{
-    Set scales for properties of {\normalfont \ttfamily node}.
+    Set scales for properties of \mono{node}.
     !!}
     use :: Abundances_Structure          , only : abs                   , abundances      , max                     , operator(*)            , &
           &                                       unitAbundances
@@ -848,13 +836,11 @@ contains
   end subroutine Node_Component_NSC_Standard_Create
 
   !![
-  <inactiveSetTask>
-   <unitName>Node_Component_NSC_Standard_Inactive</unitName>
-  </inactiveSetTask>
+  <inactiveSetTask function="Node_Component_NSC_Standard_Inactive"/>
   !!]
   subroutine Node_Component_NSC_Standard_Inactive(node)
     !!{
-    Set Jacobian zero status for properties of {\normalfont \ttfamily node}.
+    Set Jacobian zero status for properties of \mono{node}.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentNSC, nodeComponentNSCStandard, treeNode
     implicit none
@@ -873,7 +859,7 @@ contains
 
   subroutine satelliteMerger(self,node)
     !!{
-    Transfer any standard nuclear star cluster associated with {\normalfont \ttfamily node} to its host halo.
+    Transfer any standard nuclear star cluster associated with \mono{node} to its host halo.
     !!}
     use :: Abundances_Structure            , only : zeroAbundances
     use :: Error                           , only : Error_Report
@@ -1285,7 +1271,7 @@ contains
 
   subroutine Node_Component_NSC_Standard_Star_Formation_History_Extend(node,timeEnd)
     !!{
-    Extend the range of a star formation history in a standard nuclear star cluster component for {\normalfont \ttfamily node}.
+    Extend the range of a star formation history in a standard nuclear star cluster component for \mono{node}.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentNSC, treeNode
     implicit none
@@ -1306,7 +1292,7 @@ contains
 
   subroutine Node_Component_NSC_Standard_Stellar_Prprts_History_Extend(node,timeEnd)
     !!{
-    Extend the range of a stellar properties history in a standard nuclear star cluster component for {\normalfont \ttfamily node}.
+    Extend the range of a stellar properties history in a standard nuclear star cluster component for \mono{node}.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentNSC, treeNode
     implicit none
@@ -1360,9 +1346,7 @@ contains
    end subroutine mergerTreeExtraOutput
 
   !![
-  <stateStoreTask>
-   <unitName>Node_Component_NSC_Standard_State_Store</unitName>
-  </stateStoreTask>
+  <stateStoreTask function="Node_Component_NSC_Standard_State_Store"/>
   !!]
   subroutine Node_Component_NSC_Standard_State_Store(stateFile,gslStateFile,stateOperationID)
     !!{
@@ -1384,9 +1368,7 @@ contains
   end subroutine Node_Component_NSC_Standard_State_Store
 
   !![
-  <stateRetrieveTask>
-   <unitName>Node_Component_NSC_Standard_State_Retrieve</unitName>
-  </stateRetrieveTask>
+  <stateRetrieveTask function="Node_Component_NSC_Standard_State_Retrieve"/>
   !!]
   subroutine Node_Component_NSC_Standard_State_Retrieve(stateFile,gslStateFile,stateOperationID)
     !!{

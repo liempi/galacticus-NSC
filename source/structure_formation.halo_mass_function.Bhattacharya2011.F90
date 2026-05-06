@@ -25,7 +25,7 @@
 
   !![
   <haloMassFunction name="haloMassFunctionBhattacharya2011">
-   <description>The halo mass function is computed from the function given by \cite{bhattacharya_mass_2011}.</description>
+   <description>The dark matter halo mass function is computed using the redshift-dependent fitting function of \cite{bhattacharya_mass_2011}, calibrated against N-body simulations. The shape parameters $\bar{a}$, $\bar{p}$, $\bar{q}$, and normalization $\bar{A}$ of the fit can each be specified via input parameters.</description>
   </haloMassFunction>
   !!]
   type, extends(haloMassFunctionClass) :: haloMassFunctionBhattacharya2011
@@ -210,7 +210,7 @@ contains
 
   double precision function bhattacharya2011A(self,time,mass)
     !!{
-    Return the parameter $\bar{a}$ in the {\normalfont \ttfamily bhattacharya2011} halo mass function at the given time and mass.
+    Return the parameter $\bar{a}$ in the \mono{bhattacharya2011} halo mass function at the given time and mass.
     !!}
     implicit none
     class           (haloMassFunctionBhattacharya2011), intent(inout) :: self
@@ -223,7 +223,7 @@ contains
 
   double precision function bhattacharya2011P(self,time,mass)
     !!{
-    Return the parameter $\bar{p}$ in the {\normalfont \ttfamily bhattacharya2011} halo mass function at the given time and mass.
+    Return the parameter $\bar{p}$ in the \mono{bhattacharya2011} halo mass function at the given time and mass.
     !!}
     implicit none
     class           (haloMassFunctionBhattacharya2011), intent(inout) :: self
@@ -236,7 +236,7 @@ contains
 
   double precision function bhattacharya2011Q(self,time,mass)
     !!{
-    Return the parameter $\bar{q}$ in the {\normalfont \ttfamily bhattacharya2011} halo mass function at the given time and mass.
+    Return the parameter $\bar{q}$ in the \mono{bhattacharya2011} halo mass function at the given time and mass.
     !!}
     implicit none
     class           (haloMassFunctionBhattacharya2011), intent(inout) :: self
@@ -249,7 +249,7 @@ contains
 
   double precision function bhattacharya2011Normalization(self,time,mass)
     !!{
-    Return the normalization, $\bar{A}$, in the {\normalfont \ttfamily bhattacharya2011} halo mass function at the given time and mass.
+    Return the normalization, $\bar{A}$, in the \mono{bhattacharya2011} halo mass function at the given time and mass.
     !!}
     implicit none
     class           (haloMassFunctionBhattacharya2011), intent(inout) :: self

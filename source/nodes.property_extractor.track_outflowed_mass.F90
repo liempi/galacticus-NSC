@@ -23,9 +23,7 @@
   
   !![
   <nodePropertyExtractor name="nodePropertyExtractorTrackOutflowedMass">
-   <description>
-    A property extractor class for the mass and metal mass of gas outflowed to the \gls{cgm}.
-   </description>
+   <description>Extracts the cumulative mass and metal mass of gas that has been outflowed to the circumgalactic medium (\gls{cgm}) via stellar and AGN feedback, as tracked by the \refClass{nodeOperatorTrackOutflowedMass} operator.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorTuple) :: nodePropertyExtractorTrackOutflowedMass
@@ -84,7 +82,7 @@ contains
 
   integer function trackOutflowedMassElementCount(self,time)
     !!{
-    Return the number of elements in the {\normalfont \ttfamily trackOutflowedMass} property extractors.
+    Return the number of elements in the \mono{trackOutflowedMass} property extractors.
     !!}
     implicit none
     class           (nodePropertyExtractorTrackOutflowedMass), intent(inout) :: self
@@ -97,7 +95,7 @@ contains
 
   function trackOutflowedMassExtract(self,node,time,instance)
     !!{
-    Implement a {\normalfont \ttfamily trackOutflowedMass} property extractor.
+    Implement a \mono{trackOutflowedMass} property extractor.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentHotHalo
     implicit none
@@ -129,7 +127,7 @@ contains
 
   subroutine trackOutflowedMassNames(self,time,names)
     !!{
-    Return the names of the {\normalfont \ttfamily trackOutflowedMass} properties.
+    Return the names of the \mono{trackOutflowedMass} properties.
     !!}
     implicit none
     class           (nodePropertyExtractorTrackOutflowedMass), intent(inout)                             :: self
@@ -145,7 +143,7 @@ contains
 
   subroutine trackOutflowedMassDescriptions(self,time,descriptions)
     !!{
-    Return descriptions of the {\normalfont \ttfamily trackOutflowedMass} property.
+    Return descriptions of the \mono{trackOutflowedMass} property.
     !!}
     implicit none
     class           (nodePropertyExtractorTrackOutflowedMass), intent(inout)                             :: self
@@ -161,7 +159,7 @@ contains
 
   function trackOutflowedMassUnitsInSI(self,time)
     !!{
-    Return the units of the {\normalfont \ttfamily trackOutflowedMass} properties in the SI system.
+    Return the units of the \mono{trackOutflowedMass} properties in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : massSolar
     implicit none

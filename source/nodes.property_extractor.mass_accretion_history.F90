@@ -19,9 +19,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorMassAccretionHistory">
-   <description>
-     A node property extractor which extracts the mass accretion history for each node.
-   </description>
+   <description>Extracts the mass accretion history (a time series of halo mass values) for each node along the main progenitor branch, enabling analysis of halo growth histories across cosmic time.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorList) :: nodePropertyExtractorMassAccretionHistory
@@ -115,7 +113,7 @@ contains
   
   subroutine massAccretionHistoryNames(self,names)
     !!{
-    Return the names of the {\normalfont \ttfamily massAccretionHistory} properties.
+    Return the names of the \mono{massAccretionHistory} properties.
     !!}
     implicit none
     class(nodePropertyExtractorMassAccretionHistory), intent(inout)                             :: self
@@ -130,7 +128,7 @@ contains
 
   subroutine massAccretionHistoryDescriptions(self,descriptions)
     !!{
-    Return the descriptions of the {\normalfont \ttfamily massAccretionHistory} properties.
+    Return the descriptions of the \mono{massAccretionHistory} properties.
     !!}
     implicit none
     class(nodePropertyExtractorMassAccretionHistory), intent(inout)                             :: self
@@ -145,7 +143,7 @@ contains
 
   function massAccretionHistoryUnitsInSI(self) result(unitsInSI)
     !!{
-    Return the units of the {\normalfont \ttfamily massAccretionHistory} properties in the SI system.
+    Return the units of the \mono{massAccretionHistory} properties in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : massSolar, gigaYear
     implicit none

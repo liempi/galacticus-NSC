@@ -22,9 +22,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorJetPowerBlackHoles">
-   <description>
-     A node property extractor which extracts a list of all super-massive jet powers.
-   </description>
+   <description>Extracts a list of jet power values for all supermassive black holes in a node, enabling output of the mechanical AGN feedback power contributed by each black hole separately.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorList) :: nodePropertyExtractorJetPowerBlackHoles
@@ -145,7 +143,7 @@ contains
 
   subroutine jetPowerBlackHolesNames(self,names)
     !!{
-    Return the names of the {\normalfont \ttfamily jetPowerBlackHoles} properties.
+    Return the names of the \mono{jetPowerBlackHoles} properties.
     !!}
     implicit none
     class(nodePropertyExtractorJetPowerBlackHoles), intent(inout)                             :: self
@@ -159,7 +157,7 @@ contains
 
   subroutine jetPowerBlackHolesDescriptions(self,descriptions)
     !!{
-    Return the descriptions of the {\normalfont \ttfamily jetPowerBlackHoles} properties.
+    Return the descriptions of the \mono{jetPowerBlackHoles} properties.
     !!}
     implicit none
     class(nodePropertyExtractorJetPowerBlackHoles), intent(inout)                             :: self
@@ -173,7 +171,7 @@ contains
 
   function jetPowerBlackHolesUnitsInSI(self) result(unitsInSI)
     !!{
-    Return the units of the {\normalfont \ttfamily jetPowerBlackHoles} properties in the SI system.
+    Return the units of the \mono{jetPowerBlackHoles} properties in the SI system.
     !!}
     use :: Numerical_Constants_Prefixes    , only : kilo
     use :: Numerical_Constants_Astronomical, only : massSolar, gigaYear

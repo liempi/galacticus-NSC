@@ -26,13 +26,11 @@ module Node_Component_Satellite_Orbiting
   !!{
   Implements the orbiting satellite component.
   !!}
-  use :: Cosmology_Parameters   , only : cosmologyParametersClass
-  use :: Cosmology_Functions    , only : cosmologyFunctionsClass
-  use :: Virial_Density_Contrast, only : virialDensityContrastClass
-  use :: Dark_Matter_Halo_Scales, only : darkMatterHaloScaleClass
-  use :: Kepler_Orbits          , only : keplerOrbit
-  use :: Tensors                , only : tensorRank2Dimension3Symmetric
-  use :: Virial_Orbits          , only : virialOrbit                    , virialOrbitClass
+  use :: Dark_Matter_Halo_Scales          , only : darkMatterHaloScaleClass
+  use :: Kepler_Orbits                    , only : keplerOrbit
+  use :: Satellites_Bound_Mass_Initialize , only : satelliteMassBoundInitializorClass
+  use :: Tensors                          , only : tensorRank2Dimension3Symmetric
+  use :: Virial_Orbits                    , only : virialOrbit                       , virialOrbitClass
   implicit none
   private
   public :: Node_Component_Satellite_Orbiting_Scale_Set        , Node_Component_Satellite_Orbiting_Create             , &
@@ -102,37 +100,20 @@ module Node_Component_Satellite_Orbiting
       <type>double</type>
       <rank>0</rank>
       <attributes isSettable="true" isGettable="true" isEvolvable="true" />
-      <output unitsInSI="kilo**2/megaParsec**2" comment="Energy/radius^2 of satellite."/>
+      <output unitsInSI="kilo**2/megaParsec**2" comment="Specific energy/radius² of satellite in units of (km/s)²/Mpc²."/>
     </property>
    </properties>
   </component>
   !!]
 
-  !![
-  <enumeration>
-   <name>initializationTypeMassBound</name>
-   <description>Specify how to initialize the bound mass of a satellite halo.</description>
-   <encodeFunction>yes</encodeFunction>
-   <entry label="basicMass"      />
-   <entry label="maximumRadius"  />
-   <entry label="densityContrast"/>
-  </enumeration>
-  !!]
-
   ! Objects used by this module.
-  class(virialDensityContrastClass), pointer :: virialDensityContrast_, virialDensityContrastDefinition_
-  class(cosmologyParametersClass  ), pointer :: cosmologyParameters_
-  class(cosmologyFunctionsClass   ), pointer :: cosmologyFunctions_
-  class(darkMatterHaloScaleClass  ), pointer :: darkMatterHaloScale_
-  class(virialOrbitClass          ), pointer :: virialOrbit_
-  !$omp threadprivate(darkMatterHaloScale_,virialOrbit_,virialDensityContrast_,virialDensityContrastDefinition_,cosmologyParameters_,cosmologyFunctions_)
+  class(darkMatterHaloScaleClass           ), pointer :: darkMatterHaloScale_
+  class(virialOrbitClass                   ), pointer :: virialOrbit_
+  class(satelliteMassBoundInitializorClass ), pointer :: satelliteMassBoundInitializor_
+  !$omp threadprivate(darkMatterHaloScale_,virialOrbit_,satelliteMassBoundInitializor_)
 
   ! Option controlling whether or not unbound virial orbits are acceptable.
-  logical                                                      :: acceptUnboundOrbits
-
-  ! Option controlling how to initialize the bound mass of satellite halos.
-  type            (enumerationInitializationTypeMassBoundType) :: initializationTypeMassBound
-  double precision                                             :: radiusMaximumOverRadiusVirial
+  logical :: acceptUnboundOrbits
 
   ! A threadprivate object used to track to which thread events are attached.
   integer :: thread
@@ -141,22 +122,17 @@ module Node_Component_Satellite_Orbiting
 contains
 
   !![
-  <nodeComponentInitializationTask>
-   <unitName>Node_Component_Satellite_Orbiting_Initialize</unitName>
-  </nodeComponentInitializationTask>
+  <nodeComponentInitializationTask function="Node_Component_Satellite_Orbiting_Initialize"/>
   !!]
   subroutine Node_Component_Satellite_Orbiting_Initialize(parameters)
     !!{
     Initializes the orbiting satellite methods module.
     !!}
-    use :: Error             , only : Error_Report
     use :: Galacticus_Nodes  , only : defaultSatelliteComponent, nodeComponentSatelliteOrbiting
-    use :: ISO_Varying_String, only : char                     , var_str                       , varying_string
     use :: Input_Parameters  , only : inputParameter           , inputParameters
     implicit none
     type(inputParameters               ), intent(inout) :: parameters
     type(nodeComponentSatelliteOrbiting)                :: satellite
-    type(varying_string                )                :: initializationTypeMassBoundText
     type(inputParameters               )                :: subParameters
 
     ! Initialize the module if necessary.
@@ -165,37 +141,12 @@ contains
        subParameters=parameters%subParameters('componentSatellite')
        !![
        <inputParameter>
-         <name>initializationTypeMassBound</name>
-         <defaultValue>var_str('basicMass')</defaultValue>
-         <description>Specify how to initialize the bound mass of a satellite halo. By default, the initial bound mass of a satellite halo is set to the node mass.</description>
-         <source>subParameters</source>
-         <variable>initializationTypeMassBoundText</variable>
-       </inputParameter>
-       !!]
-       initializationTypeMassBound=enumerationInitializationTypeMassBoundEncode(char(initializationTypeMassBoundText),includesPrefix=.false.)
-       !![
-       <inputParameter>
-         <name>radiusMaximumOverRadiusVirial</name>
-         <defaultValue>1.0d0</defaultValue>
-         <description>The maximum radius of the satellite halo in units of its virial radius. If {\normalfont \ttfamily [initializationTypeMassBound]} is set to 'maximumRadius', this value will be used to compute the initial bound mass of the satellite halo assuming that its density profile is 0 beyond this maximum radius.</description>
-         <source>subParameters</source>
-       </inputParameter>
-       <inputParameter>
          <name>acceptUnboundOrbits</name>
          <defaultValue>.false.</defaultValue>
          <description>If true, accept unbound virial orbits for satellites, otherwise reject them.</description>
          <source>subParameters</source>
        </inputParameter>
        !!]
-       ! Validate the parameters.
-       select case (initializationTypeMassBound%ID)
-       case (initializationTypeMassBoundMaximumRadius  %ID)
-          if (radiusMaximumOverRadiusVirial <= 0.0d0) then
-             call Error_Report('specify a positive maximum radius for the satellite'//{introspection:location})
-          end if
-       case default
-          ! Do nothing.
-       end select
        ! Specify the function to use for setting virial orbits.
        call satellite%virialOrbitSetFunction(Node_Component_Satellite_Orbiting_Virial_Orbit_Set)
        call satellite%virialOrbitFunction   (Node_Component_Satellite_Orbiting_Virial_Orbit    )
@@ -206,9 +157,7 @@ contains
   end subroutine Node_Component_Satellite_Orbiting_Initialize
 
   !![
-  <nodeComponentThreadInitializationTask>
-   <unitName>Node_Component_Satellite_Orbiting_Thread_Initialize</unitName>
-  </nodeComponentThreadInitializationTask>
+  <nodeComponentThreadInitializationTask function="Node_Component_Satellite_Orbiting_Thread_Initialize"/>
   !!]
   subroutine Node_Component_Satellite_Orbiting_Thread_Initialize(parameters)
     !!{
@@ -216,7 +165,7 @@ contains
     !!}
     use :: Error           , only : Error_Report
     use :: Galacticus_Nodes, only : defaultSatelliteComponent
-    use :: Input_Parameters, only : inputParameter             , inputParameters
+    use :: Input_Parameters, only : inputParameters
     use :: Events_Hooks    , only : satellitePreHostChangeEvent, nodePromotionEvent, openMPThreadBindingAtLevel, subhaloPromotionEvent, &
          &                          dependencyDirectionBefore  , dependencyExact
 
@@ -229,18 +178,10 @@ contains
        ! Find our parameters.
        subParameters=parameters%subParameters('componentSatellite')
        !![
-       <objectBuilder class="cosmologyFunctions"    name="cosmologyFunctions_"    source="subParameters"/>
-       <objectBuilder class="cosmologyParameters"   name="cosmologyParameters_"   source="subParameters"/>
-       <objectBuilder class="virialDensityContrast" name="virialDensityContrast_" source="subParameters"/>
-       <objectBuilder class="darkMatterHaloScale"   name="darkMatterHaloScale_"   source="subParameters"/>
-       <objectBuilder class="virialOrbit"           name="virialOrbit_"           source="subParameters"/>
+       <objectBuilder class="darkMatterHaloScale"          name="darkMatterHaloScale_"          source="subParameters"/>
+       <objectBuilder class="virialOrbit"                  name="virialOrbit_"                  source="subParameters"/>
+       <objectBuilder class="satelliteMassBoundInitializor" name="satelliteMassBoundInitializor_" source="subParameters"/>
        !!]
-       virialDensityContrastDefinition_ => null()
-       if (initializationTypeMassBound%ID == initializationTypeMassBoundDensityContrast%ID) then
-          !![
-          <objectBuilder class="virialDensityContrast" name="virialDensityContrastDefinition_" source="subParameters" parameterName="virialDensityContrastDefinition"/>
-          !!]
-       end if
        dependenciesSubhaloPromotion(1)=dependencyExact(dependencyDirectionBefore,'mergerTreeNodeEvolver')
        call       subhaloPromotionEvent%attach(thread,subhaloPromotion      ,openMPThreadBindingAtLevel,label='nodeComponentSatelliteOrbiting',dependencies=dependenciesSubhaloPromotion)
        call          nodePromotionEvent%attach(thread,nodePromotion         ,openMPThreadBindingAtLevel,label='nodeComponentSatelliteOrbiting'                                          )
@@ -252,9 +193,7 @@ contains
   end subroutine Node_Component_Satellite_Orbiting_Thread_Initialize
 
   !![
-  <nodeComponentThreadUninitializationTask>
-   <unitName>Node_Component_Satellite_Orbiting_Thread_Uninitialize</unitName>
-  </nodeComponentThreadUninitializationTask>
+  <nodeComponentThreadUninitializationTask function="Node_Component_Satellite_Orbiting_Thread_Uninitialize"/>
   !!]
   subroutine Node_Component_Satellite_Orbiting_Thread_Uninitialize()
     !!{
@@ -266,17 +205,10 @@ contains
 
     if (defaultSatelliteComponent%orbitingIsActive()) then
        !![
-       <objectDestructor name="cosmologyFunctions_"   />
-       <objectDestructor name="cosmologyParameters_"  />
-       <objectDestructor name="virialDensityContrast_"/>
-       <objectDestructor name="darkMatterHaloScale_"  />
-       <objectDestructor name="virialOrbit_"          />
+       <objectDestructor name="darkMatterHaloScale_"          />
+       <objectDestructor name="virialOrbit_"                  />
+       <objectDestructor name="satelliteMassBoundInitializor_"/>
        !!]
-       if (initializationTypeMassBound%ID == initializationTypeMassBoundDensityContrast%ID) then
-          !![
-          <objectDestructor name="virialDensityContrastDefinition_"/>
-          !!]
-       end if
        if (      subhaloPromotionEvent%isAttached(thread,subhaloPromotion      )) call       subhaloPromotionEvent%detach(thread,subhaloPromotion      )
        if (satellitePreHostChangeEvent%isAttached(thread,satellitePreHostChange)) call satellitePreHostChangeEvent%detach(thread,satellitePreHostChange)
        if (         nodePromotionEvent%isAttached(thread,nodePromotion         )) call          nodePromotionEvent%detach(thread,nodePromotion         )
@@ -285,9 +217,7 @@ contains
   end subroutine Node_Component_Satellite_Orbiting_Thread_Uninitialize
 
   !![
-  <mergerTreeInitializeTask>
-   <unitName>Node_Component_Satellite_Orbiting_Tree_Initialize</unitName>
-  </mergerTreeInitializeTask>
+  <mergerTreeInitializeTask function="Node_Component_Satellite_Orbiting_Tree_Initialize"/>
   !!]
   subroutine Node_Component_Satellite_Orbiting_Tree_Initialize(node)
     !!{
@@ -309,13 +239,11 @@ contains
   end subroutine Node_Component_Satellite_Orbiting_Tree_Initialize
 
   !![
-  <scaleSetTask>
-   <unitName>Node_Component_Satellite_Orbiting_Scale_Set</unitName>
-  </scaleSetTask>
+  <scaleSetTask function="Node_Component_Satellite_Orbiting_Scale_Set"/>
   !!]
   subroutine Node_Component_Satellite_Orbiting_Scale_Set(node)
     !!{
-    Set scales for properties of {\normalfont \ttfamily node}.
+    Set scales for properties of \mono{node}.
     !!}
     use :: Galacticus_Nodes                , only : nodeComponentSatellite, nodeComponentSatelliteOrbiting, nodeComponentBasic, treeNode
     use :: Numerical_Constants_Astronomical, only : gigaYear              , megaParsec
@@ -387,9 +315,7 @@ contains
   end subroutine Node_Component_Satellite_Orbiting_Initializor
 
   !![
-  <nodeMergerTask>
-   <unitName>Node_Component_Satellite_Orbiting_Create</unitName>
-  </nodeMergerTask>
+  <nodeMergerTask function="Node_Component_Satellite_Orbiting_Create"/>
   !!]
   subroutine Node_Component_Satellite_Orbiting_Create(node)
     !!{
@@ -441,7 +367,7 @@ contains
   
   subroutine nodePromotion(self,node)
     !!{
-    Ensure that {\normalfont \ttfamily node} is ready for promotion to its parent. In this case, we simply copy any preexisting satellite orbit
+    Ensure that \mono{node} is ready for promotion to its parent. In this case, we simply copy any preexisting satellite orbit
     from the parent.
     !!}
     use :: Error           , only : Error_Report
@@ -588,51 +514,20 @@ contains
     !!{
     Set the initial bound mass of the satellite.
     !!}
-    use :: Mass_Distributions                  , only : massDistributionClass
-    use :: Dark_Matter_Profile_Mass_Definitions, only : Dark_Matter_Profile_Mass_Definition
-    use :: Error                               , only : Error_Report
-    use :: Galacticus_Nodes                    , only : nodeComponentSatellite             , nodeComponentSatelliteOrbiting, nodeComponentBasic, treeNode
+    use :: Galacticus_Nodes, only : nodeComponentSatellite, nodeComponentSatelliteOrbiting, treeNode
     implicit none
-    class           (nodeComponentSatellite), intent(inout) :: satellite
-    type            (treeNode              ), intent(inout) :: node
-    class           (nodeComponentBasic    ), pointer       :: basic
-    class           (massDistributionClass ), pointer       :: massDistribution_
-    double precision                                        :: massSatellite    , maximumRadius
+    class(nodeComponentSatellite), intent(inout) :: satellite
+    type (treeNode              ), intent(inout) :: node
 
     select type (satellite)
     class is (nodeComponentSatelliteOrbiting)
-       select case (initializationTypeMassBound%ID)
-       case (initializationTypeMassBoundBasicMass      %ID)
-          ! Do nothing. The bound mass of this satellite is set to the node mass by default.
-       case (initializationTypeMassBoundMaximumRadius  %ID)
-          ! Set the initial bound mass of this satellite by integrating the density profile up to a maximum radius.
-          maximumRadius     =  +                     radiusMaximumOverRadiusVirial                &
-               &               *darkMatterHaloScale_%radiusVirial                 (node         )
-          massDistribution_ =>  node                %massDistribution             (             )
-          massSatellite     =   massDistribution_   %massEnclosedBySphere         (maximumRadius)
-          call satellite%boundMassSet(massSatellite)
-       case (initializationTypeMassBoundDensityContrast%ID)
-          ! Set the initial bound mass of this satellite by assuming a specified density contrast.
-          basic         => node%basic()
-          massSatellite =  Dark_Matter_Profile_Mass_Definition(                                                                                                    &
-               &                                                                      node                                                                       , &
-               &                                               densityContrast       =virialDensityContrastDefinition_%densityContrast(basic%mass(),basic%time()), &
-               &                                               cosmologyParameters_  =cosmologyParameters_                                                       , &
-               &                                               cosmologyFunctions_   =cosmologyFunctions_                                                        , &
-               &                                               virialDensityContrast_=virialDensityContrast_                                                       &
-               &                                              )
-          call satellite%boundMassSet(massSatellite)
-       case default
-          call Error_Report('type of method to initialize the bound mass of satellites can not be recognized. Available options are "basicMass", "maximumRadius", "densityContrast"'//{introspection:location})
-       end select
+       call satellite%boundMassSet(satelliteMassBoundInitializor_%massBound(node))
     end select
     return
   end subroutine Node_Component_Satellite_Orbiting_Bound_Mass_Initialize
 
   !![
-  <stateStoreTask>
-   <unitName>Node_Component_Satellite_Orbiting_State_Store</unitName>
-  </stateStoreTask>
+  <stateStoreTask function="Node_Component_Satellite_Orbiting_State_Store"/>
   !!]
   subroutine Node_Component_Satellite_Orbiting_State_Store(stateFile,gslStateFile,stateOperationID)
     !!{
@@ -647,15 +542,13 @@ contains
 
     call displayMessage('Storing state for: componentSatellite -> orbiting',verbosity=verbosityLevelInfo)
     !![
-    <stateStore variables="darkMatterHaloScale_ virialOrbit_ virialDensityContrast_ virialDensityContrastDefinition_ cosmologyParameters_ cosmologyFunctions_"/>
+    <stateStore variables="darkMatterHaloScale_ virialOrbit_ satelliteMassBoundInitializor_"/>
     !!]
     return
   end subroutine Node_Component_Satellite_Orbiting_State_Store
 
   !![
-  <stateRetrieveTask>
-   <unitName>Node_Component_Satellite_Orbiting_State_Restore</unitName>
-  </stateRetrieveTask>
+  <stateRetrieveTask function="Node_Component_Satellite_Orbiting_State_Restore"/>
   !!]
   subroutine Node_Component_Satellite_Orbiting_State_Restore(stateFile,gslStateFile,stateOperationID)
     !!{
@@ -670,7 +563,7 @@ contains
 
     call displayMessage('Retrieving state for: componentSatellite -> orbiting',verbosity=verbosityLevelInfo)
     !![
-    <stateRestore variables="darkMatterHaloScale_ virialOrbit_ virialDensityContrast_ virialDensityContrastDefinition_ cosmologyParameters_ cosmologyFunctions_"/>
+    <stateRestore variables="darkMatterHaloScale_ virialOrbit_ satelliteMassBoundInitializor_"/>
     !!]
     return
   end subroutine Node_Component_Satellite_Orbiting_State_Restore

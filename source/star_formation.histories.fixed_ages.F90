@@ -29,22 +29,21 @@
   <starFormationHistory name="starFormationHistoryFixedAges" recursive="yes">
    <description>
      A star formation histories class which records star formation in logarithmically-sized time bins of fixed age and split by
-     metallicity. The minimum age is specified via the {\normalfont \ttfamily [ageMinimum]} parameter (the maximum age is always
-     the age of the universe), with the number of ages specified via {\normalfont \ttfamily [countAges]}. (One additional bin, at
+     metallicity. The minimum age is specified via the \mono{[ageMinimum]} parameter (the maximum age is always
+     the age of the universe), with the number of ages specified via \mono{[countAges]}. (One additional bin, at
      age zero, is always added.) This class is intended for use with lightcone output where the lightcone crossing times for each
      node can be computed in advance. One star formation history is computed for each lightcone crossing.
      
      The time associated with each bin is the maximum time for which star formation will be accumulated to the bin, with the
      minimum time corresponding to the value associated with the previous bin (or $t=0$ for the first bin).
      
-     The metallicity bins are arranged logarithmically in metallicity with {\normalfont \ttfamily [countMetallicities]} bins
-     between {\normalfont \ttfamily [metallicityMinimum]} and {\normalfont \ttfamily [metallicityMaximum]} (specified in Solar
+     The metallicity bins are arranged logarithmically in metallicity with \mono{[countMetallicities]} bins
+     between \mono{[metallicityMinimum]} and \mono{[metallicityMaximum]} (specified in Solar
      units). Note that the metallicity associated with each bin is the maximum metallicity for that bin, with the minimum
      metallicity corresponding to the value associated with the previous bin (or zero metallicity for the first bin). Note that a
-     final bin, extending to infinite metallicity, is always added automatically. If {\normalfont \ttfamily
-     [countMetallicities]}$=0$ is set, then the star formation history is not split by metallicity (i.e. a single metallicity bin
+     final bin, extending to infinite metallicity, is always added automatically. If \mono{[countMetallicities]}$=0$ is set, then the star formation history is not split by metallicity (i.e. a single metallicity bin
      encompassing all metallicities from zero to infinity is used). Alternatively, specific metallicity bin boundaries can be set
-     via the {\normalfont \ttfamily [metallicityBoundaries]} parameter---a final boundary corresponding to infinity is always
+     via the \mono{[metallicityBoundaries]} parameter---a final boundary corresponding to infinity is always
      added automatically.
    </description>
    <deepCopy>
@@ -397,7 +396,7 @@ contains
 
   subroutine fixedAgesRate(self,node,historyStarFormation,abundancesFuel,rateStarFormation)
     !!{
-    Set the rate the star formation history for {\normalfont \ttfamily node}.
+    Set the rate the star formation history for \mono{node}.
     !!}
     use :: Abundances_Structure, only : abundances        , metallicityTypeLinearByMassSolar
     use :: Arrays_Search       , only : searchArray
@@ -840,7 +839,7 @@ contains
        write (label,'(e16.10)') basic%time         ( )
        message="time ("//label//") "
        write (label,'(e16.10)')       timesCrossing(1)
-       message=message//"does not match expected time ("//label//") for node "//node%index()
+       message=message//"does not match expected time ("//label//") for node "//node%index()//" (star formation history created in progenitor "//basic%longIntegerRank0MetaPropertyGet(self%createdInID)//")"
        call Error_Report(message//{introspection:location})
     end if
     ! Set the times for this output. Note that the times stored in the history object are relative to t=0, so we increment them by
@@ -938,14 +937,7 @@ contains
     !!{
     Perform a deep copy of the object.
     !!}
-    use :: Error             , only : Error_Report
-#ifdef OBJECTDEBUG
-    use :: Display           , only : displayMessage            , verbosityLevelSilent
-    use :: MPI_Utilities     , only : mpiSelf
-    use :: Function_Classes  , only : debugReporting
-    use :: ISO_Varying_String, only : operator(//)              , var_str
-    use :: String_Handling   , only : operator(//)
-#endif
+    use :: Error, only : Error_Report
     implicit none
     class(starFormationHistoryFixedAges), intent(inout), target :: self
     class(starFormationHistoryClass    ), intent(inout)         :: destination
@@ -996,9 +988,6 @@ contains
                 self%geometryLightcone_%copiedSelf => destination%geometryLightcone_
                 call destination%geometryLightcone_%autoHook()
              end if
-#ifdef OBJECTDEBUG
-             if (debugReporting.and.mpiSelf%isMaster()) call displayMessage(var_str('functionClass[own] (class : ownerName : ownerLoc : objectLoc : sourceLoc): darkmatterprofiledmo_ : [destination] : ')//loc(destination)//' : '//loc(destination%geometryLightcone_)//' : '//{introspection:location:compact},verbosityLevelSilent)
-#endif
           end if
           nullify(destination%cosmologyFunctions_)
           if (associated(self%cosmologyFunctions_)) then
@@ -1016,9 +1005,6 @@ contains
                 self%cosmologyFunctions_%copiedSelf => destination%cosmologyFunctions_
                 call destination%cosmologyFunctions_%autoHook()
              end if
-#ifdef OBJECTDEBUG
-             if (debugReporting.and.mpiSelf%isMaster()) call displayMessage(var_str('functionClass[own] (class : ownerName : ownerLoc : objectLoc : sourceLoc): darkmatterprofiledmo_ : [destination] : ')//loc(destination)//' : '//loc(destination%cosmologyFunctions_)//' : '//{introspection:location:compact},verbosityLevelSilent)
-#endif
           end if
        end if
     class default

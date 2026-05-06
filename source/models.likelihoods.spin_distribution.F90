@@ -40,7 +40,7 @@
 
   !![
   <posteriorSampleLikelihood name="posteriorSampleLikelihoodSpinDistribution">
-   <description>A posterior sampling likelihood class which implements a likelihood for halo spin distributions.</description>
+   <description>A posterior sampling likelihood class which evaluates the likelihood of modeled dark matter halo spin parameter distributions against N-body simulation measurements, accounting for halo mass function weighting and N-body mass errors. The target spin distribution file is set by \mono{[fileName]}, with redshift, mass limits, and N-body particle count constraints specified by \mono{[redshift]}, \mono{[massMinimum]}, and \mono{[countMinimum]}.</description>
    <runTimeFileDependencies paths="fileName"/>
   </posteriorSampleLikelihood>
   !!]
@@ -140,7 +140,7 @@ contains
       <source>parameters</source>
       <defaultValue>100.0d0</defaultValue>
       <defaultSource>A large range which will include (almost) the entirety of the distribution.</defaultSource>
-      <description>The multiplicative range of the log-normal distribution used to model the distribution of the mass and energy terms in the spin parameter. Specifically, the lognormal distribution is truncated outside the range $(\lambda_\mathrm{m}/R,\lambda_\mathrm{m} R$, where $\lambda_\mathrm{m}$ is the measured spin, and $R=${\normalfont \ttfamily [logNormalRange]}</description>
+      <description>The multiplicative range of the log-normal distribution used to model the distribution of the mass and energy terms in the spin parameter. Specifically, the lognormal distribution is truncated outside the range $(\lambda_\mathrm{m}/R,\lambda_\mathrm{m} R$, where $\lambda_\mathrm{m}$ is the measured spin, and $R=$\mono{[logNormalRange]}</description>
     </inputParameter>
     <objectBuilder class="cosmologyFunctions"           name="cosmologyFunctions_"           source="parameters"/>
     <objectBuilder class="haloMassFunction"             name="haloMassFunction_"             source="parameters"/>

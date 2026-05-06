@@ -36,7 +36,7 @@ Implements a merger tree build controller class which performs subsampling of br
 
   !![
   <mergerTreeBuildController name="mergerTreeBuildControllerSubsample">
-   <description>A merger tree build controller class which performs subsampling of branches.</description>
+   <description>A merger tree build controller class which performs probabilistic subsampling of branches during tree construction, retaining low-mass branches with a mass-dependent probability $P(M) = P_0 (M/M_0)^\alpha$ for $M &lt; M_0$. The mass threshold $M_0$, sampling rate $P_0$, and exponent $\alpha$ are set by \mono{[massThreshold]}, \mono{[subsamplingRateAtThreshold]}, and \mono{[exponent]}, with node weights adjusted to compensate.</description>
   </mergerTreeBuildController>
   !!]
   type, extends(mergerTreeBuildControllerClass) :: mergerTreeBuildControllerSubsample
@@ -46,13 +46,13 @@ Implements a merger tree build controller class which performs subsampling of br
      \begin{equation}
        P(M) = \left\{ \begin{array}{ll} 1 &amp; \hbox{if } M \ge M_0 \\ P_0 (M/M_0)^\alpha &amp; \hbox{if } M &lt; M_0, \end{array} \right.
      \end{equation}
-     where $M_0=${\normalfont \ttfamily [massThreshold]}, $P_0=${\normalfont \ttfamily [subsamplingRateAtThreshold]} and
-     $\alpha=${\normalfont \ttfamily [exponent]}, otherwise being pruned. Node weights are adjusted to account for this pruning.
+     where $M_0=$\mono{[massThreshold]}, $P_0=$\mono{[subsamplingRateAtThreshold]} and
+     $\alpha=$\mono{[exponent]}, otherwise being pruned. Node weights are adjusted to account for this pruning.
 
      If, after pruning, a section of tree is branchless, the nodes along that branch can be consolidated into fewer nodes with the
-     constraint that the mass of the node increases by a fractional amount {\normalfont \ttfamily [factorMassGrowthConsolidate]}
+     constraint that the mass of the node increases by a fractional amount \mono{[factorMassGrowthConsolidate]}
      relative to its child node. This avoids having very long, non-branching runs of nodes with only tiny mass differences between
-     each parent and child. If {\normalfont \ttfamily [factorMassGrowthConsolidate]}$\le 0$ no consolidation will be performed.     
+     each parent and child. If \mono{[factorMassGrowthConsolidate]}$\le 0$ no consolidation will be performed.     
      !!}
      private
      class           (mergerTreeBranchingProbabilityClass), pointer :: mergerTreeBranchingProbability_ => null()

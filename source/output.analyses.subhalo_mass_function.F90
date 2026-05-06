@@ -26,7 +26,7 @@
 
   !![
   <outputAnalysis name="outputAnalysisSubhaloMassFunction">
-   <description>An output analysis class for subhalo mass functions.</description>
+   <description>Computes the subhalo mass function (number of subhalos per unit mass ratio relative to the host halo) at a given redshift, reading bin configuration and target data from file, with options for empty-bin handling and negative binomial scatter in likelihood calculations.</description>
    <deepCopy>
     <functionClass variables="volumeFunctionsSubHalos, volumeFunctionsHostHalos"/>
    </deepCopy>
@@ -488,7 +488,7 @@ contains
 
   subroutine subhaloMassFunctionAnalyze(self,node,iOutput)
     !!{
-    Implement a {\normalfont \ttfamily subhaloMassFunction} output analysis.
+    Implement a \mono{subhaloMassFunction} output analysis.
     !!}
     implicit none
     class  (outputAnalysisSubhaloMassFunction), intent(inout) :: self
@@ -503,7 +503,7 @@ contains
 
   subroutine subhaloMassFunctionReduce(self,reduced)
     !!{
-    Implement a {\normalfont \ttfamily subhaloMassFunction} output analysis reduction.
+    Implement a \mono{subhaloMassFunction} output analysis reduction.
     !!}
     use :: Error, only : Error_Report
     implicit none
@@ -522,7 +522,7 @@ contains
 
   subroutine subhaloMassFunctionFinalizeAnalysis(self)
     !!{
-    Finalize analysis of a {\normalfont \ttfamily subhaloMassFunction} output analysis.
+    Finalize analysis of a \mono{subhaloMassFunction} output analysis.
     !!}
     implicit none
     class           (outputAnalysisSubhaloMassFunction), intent(inout)               :: self
@@ -549,7 +549,7 @@ contains
 
   subroutine subhaloMassFunctionFinalize(self,groupName)
     !!{
-    Implement a {\normalfont \ttfamily subhaloMassFunction} output analysis finalization.
+    Implement a \mono{subhaloMassFunction} output analysis finalization.
     !!}
     use :: Output_HDF5                     , only : outputFile
     use :: HDF5_Access                     , only : hdf5Access
@@ -605,7 +605,7 @@ contains
 
   double precision function subhaloMassFunctionLogLikelihood(self)
     !!{
-    Return the log-likelihood of a {\normalfont \ttfamily subhaloMassFunction} output analysis. The likelihood function
+    Return the log-likelihood of a \mono{subhaloMassFunction} output analysis. The likelihood function
     assumes that the model prediction for the number of subhalos in any given mass bin follows a negative binomial
     distribution as was found for dark matter subhalos \citep[][see also
     \protect\citealt{lu_connection_2016}]{boylan-kolchin_theres_2010}. This has been confirmed by examining the results of many

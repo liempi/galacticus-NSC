@@ -180,8 +180,7 @@ contains
 
   double precision function variancePeakBackgroundSplitRootVariance(self,mass,time)
     !!{
-    Return the root-variance of the cosmological density field in a spherical region containing the given {\normalfont
-    \ttfamily mass} on average.
+    Return the root-variance of the cosmological density field in a spherical region containing the given \mono{mass} on average.
     !!}
     implicit none
     class           (cosmologicalMassVariancePeakBackgroundSplit), intent(inout) :: self
@@ -204,7 +203,7 @@ contains
   double precision function variancePeakBackgroundSplitRootVarianceLogarithmicGradient(self,mass,time)
     !!{
     Return the logarithmic gradient with respect to mass of the root-variance of the cosmological density field in a spherical
-    region containing the given {\normalfont \ttfamily mass} on average.
+    region containing the given \mono{mass} on average.
     !!}
     implicit none
     class           (cosmologicalMassVariancePeakBackgroundSplit), intent(inout) :: self
@@ -226,7 +225,7 @@ contains
   subroutine variancePeakBackgroundSplitRootVarianceAndLogarithmicGradient(self,mass,time,rootVariance,rootVarianceLogarithmicGradient)
     !!{
     Return the value and logarithmic gradient with respect to mass of the root-variance of the cosmological density field in a
-    spherical region containing the given {\normalfont \ttfamily mass} on average.
+    spherical region containing the given \mono{mass} on average.
     !!}
     implicit none
     class           (cosmologicalMassVariancePeakBackgroundSplit), intent(inout) :: self
@@ -253,7 +252,7 @@ contains
 
   double precision function variancePeakBackgroundSplitMass(self,rootVariance,time)
     !!{
-    Return the mass corresponding to the given {\normalfont \ttfamily } root-variance of the cosmological density field.
+    Return the mass corresponding to the given \mono{} root-variance of the cosmological density field.
     !!}
     implicit none
     class           (cosmologicalMassVariancePeakBackgroundSplit), intent(inout) :: self

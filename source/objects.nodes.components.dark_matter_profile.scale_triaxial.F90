@@ -54,13 +54,11 @@ module Node_Component_Dark_Matter_Profile_Scale_Triaxial
 contains
 
   !![
-  <scaleSetTask>
-   <unitName>Node_Component_Dark_Matter_Profile_Scale_Triaxial_Scale_Set</unitName>
-  </scaleSetTask>
+  <scaleSetTask function="Node_Component_Dark_Matter_Profile_Scale_Triaxial_Scale_Set"/>
   !!]
   subroutine Node_Component_Dark_Matter_Profile_Scale_Triaxial_Scale_Set(node)
     !!{
-    Set scales for properties of {\normalfont \ttfamily node}.
+    Set scales for properties of \mono{node}.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentDarkMatterProfile, nodeComponentDarkMatterProfileScaleTriaxial, treeNode
     implicit none

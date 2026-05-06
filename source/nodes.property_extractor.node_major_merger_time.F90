@@ -19,9 +19,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorNodeMajorMergerTime">
-   <description>
-     A node property extractor which extracts the time of the last major merger for each node.
-   </description>
+   <description>Extracts the cosmic time of the most recent major halo merger event for each node, where major mergers are defined by a configurable mass ratio threshold applied to the merging halo pair.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorScalar) :: nodePropertyExtractorNodeMajorMergerTime
@@ -95,7 +93,7 @@ contains
   
   function nodeMajorMergerTimeName(self)
     !!{
-    Return the names of the {\normalfont \ttfamily nodeMajorMergerTime} properties.
+    Return the names of the \mono{nodeMajorMergerTime} properties.
     !!}
     implicit none
     type (varying_string                          )                :: nodeMajorMergerTimeName
@@ -108,7 +106,7 @@ contains
 
   function nodeMajorMergerTimeDescription(self)
     !!{
-    Return the descriptions of the {\normalfont \ttfamily nodeMajorMergerTime} properties.
+    Return the descriptions of the \mono{nodeMajorMergerTime} properties.
     !!}
     implicit none
     type (varying_string                          )                :: nodeMajorMergerTimeDescription
@@ -121,7 +119,7 @@ contains
 
   double precision function nodeMajorMergerTimeUnitsInSI(self)
     !!{
-    Return the units of the {\normalfont \ttfamily nodeMajorMergerTime} properties in the SI system.
+    Return the units of the \mono{nodeMajorMergerTime} properties in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : gigaYear
     implicit none

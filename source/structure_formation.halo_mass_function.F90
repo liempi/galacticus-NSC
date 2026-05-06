@@ -31,18 +31,13 @@ module Halo_Mass_Functions
   <functionClass>
    <name>haloMassFunction</name>
    <descriptiveName>Halo Mass Function</descriptiveName>
-   <description>Class providing halo mass functions.</description>
+   <description>Class providing halo mass functions, $\mathrm{d}n/\mathrm{d}M$, which give the comoving number density of dark
+    matter halos per unit mass interval as a function of halo mass and cosmic time. The halo mass function is a fundamental
+    quantity in models of large-scale structure and galaxy formation, encoding the statistics of gravitational collapse from a
+    given primordial density field.</description>
    <default>tinker2008</default>
-   <data>double precision                                    :: time_                         </data>
-   <data>class           (cosmologyParametersClass), pointer :: cosmologyParameters_ => null()</data>
-   <data>type            (treeNode                ), pointer :: node                 => null()</data>
-   <data>
-    <scope>module</scope>
-    <threadprivate>yes</threadprivate>
-    <content>class(haloMassFunctionClass), pointer :: globalSelf</content>
-   </data>
    <method name="differential" >
-    <description>Return the differential halo mass function for {\normalfont \ttfamily mass} [$M_\odot$] at {\normalfont \ttfamily time} [Gyr].</description>
+    <description>Return the differential halo mass function for \mono{mass} [$\mathrm{M}_\odot$] at \mono{time} [Gyr].</description>
     <type>double precision</type>
     <pass>yes</pass>
     <selfTarget>yes</selfTarget>
@@ -50,13 +45,13 @@ module Halo_Mass_Functions
     <argument>type            (treeNode), intent(inout), optional :: node      </argument>
    </method>
    <method name="integrated" >
-    <description>Return the halo mass function at {\normalfont \ttfamily time} [Gyr] integrated between {\normalfont \ttfamily massLow} and {\normalfont \ttfamily massHigh} [$M_\odot$].</description>
+    <description>Return the halo mass function at \mono{time} [Gyr] integrated between \mono{massLow} and \mono{massHigh} [$\mathrm{M}_\odot$].</description>
     <type>double precision</type>
     <pass>yes</pass>
     <selfTarget>yes</selfTarget>
+    <modules>Numerical_Integration</modules>
     <argument>double precision          , intent(in   )                   :: time, massLow, massHigh</argument>
     <argument>type            (treeNode), intent(inout), target, optional :: node                   </argument>
-    <modules>Numerical_Integration</modules>
     <code>
      double precision             :: logMassHigh, logMassLow
      type            (integrator) :: integrator_
@@ -75,13 +70,13 @@ module Halo_Mass_Functions
     </code>
    </method>
    <method name="massFraction" >
-    <description>Return the halo mass fraction at {\normalfont \ttfamily time} [Gyr] integrated between {\normalfont \ttfamily massLow} and {\normalfont \ttfamily massHigh} [$M_\odot$].</description>
+    <description>Return the halo mass fraction at \mono{time} [Gyr] integrated between \mono{massLow} and \mono{massHigh} [$\mathrm{M}_\odot$].</description>
     <type>double precision</type>
     <pass>yes</pass>
     <selfTarget>yes</selfTarget>
+    <modules>Numerical_Integration</modules>
     <argument>double precision          , intent(in   )                   :: time, massLow, massHigh</argument>
     <argument>type            (treeNode), intent(inout), target, optional :: node                   </argument>
-    <modules>Numerical_Integration</modules>
     <code>
      double precision             :: logMassHigh, logMassLow
      type            (integrator) :: integrator_
@@ -103,6 +98,14 @@ module Halo_Mass_Functions
      return
     </code>
    </method>
+   <data>double precision                                    :: time_                         </data>
+   <data>class           (cosmologyParametersClass), pointer :: cosmologyParameters_ => null()</data>
+   <data>type            (treeNode                ), pointer :: node                 => null()</data>
+   <data>
+    <scope>module</scope>
+    <threadprivate>yes</threadprivate>
+    <content>class(haloMassFunctionClass), pointer :: globalSelf</content>
+   </data>
   </functionClass>
   !!]
 

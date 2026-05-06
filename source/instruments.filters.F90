@@ -59,9 +59,7 @@ module Instruments_Filters
 contains
 
   !![
-  <nodeComponentInitializationTask>
-   <unitName>Filters_Initialize</unitName>
-  </nodeComponentInitializationTask>
+  <nodeComponentInitializationTask function="Filters_Initialize"/>
   !!]
   subroutine Filters_Initialize(parameters)
     !!{
@@ -430,7 +428,7 @@ contains
 
   double precision function Filter_Response(filterIndex,wavelength)
     !!{
-    Return the filter response function at the given {\normalfont \ttfamily wavelength} (specified in Angstroms).
+    Return the filter response function at the given \mono{wavelength} (specified in Angstroms).
     !!}
     use :: Numerical_Interpolation, only : interpolator
     implicit none

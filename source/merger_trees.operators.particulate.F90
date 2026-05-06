@@ -63,7 +63,7 @@
 
   !![
   <mergerTreeOperator name="mergerTreeOperatorParticulate">
-   <description>Provides a merger tree operator which create particle representations of \glc\ halos.</description>
+   <description>Provides a merger tree operator which creates particle representations of \glc\ dark matter halos by sampling N-body particles from the halo density profile at a specified snapshot time. Particle mass is set by \mono{[massParticle]}, the snapshot time by \mono{[time]}, the truncation radius by \mono{[radiusTruncateOverRadiusVirial]}, and output by \mono{[outputFileName]}.</description>
   </mergerTreeOperator>
   !!]
   type, extends(mergerTreeOperatorClass) :: mergerTreeOperatorParticulate
@@ -163,7 +163,7 @@ contains
       <name>idMultiplier</name>
       <source>parameters</source>
       <defaultValue>0_kind_int8</defaultValue>
-      <description>If this parameter is greater than zero, particle IDs begin at {\normalfont \ttfamily nodeIndex\*[idMultiplier]} for each node. The multiplier should be chosen to be large enough that duplicate IDs can not occur.</description>
+      <description>If this parameter is greater than zero, particle IDs begin at \mono{nodeIndex\*[idMultiplier]} for each node. The multiplier should be chosen to be large enough that duplicate IDs can not occur.</description>
     </inputParameter>
     <inputParameter>
       <name>massParticle</name>
@@ -226,7 +226,7 @@ contains
       <name>selection</name>
       <source>parameters</source>
       <defaultValue>var_str('all')</defaultValue>
-      <description>Selects the type of halo to output. Allowed options are ``{\normalfont \ttfamily all}'', ``{\normalfont \ttfamily hosts}'', and ``{\normalfont \ttfamily satellites}''.</description>
+      <description>Selects the type of halo to output. Allowed options are ``\mono{all}'', ``\mono{hosts}'', and ``\mono{satellites}''.</description>
     </inputParameter>
     !!]
     selection_=enumerationSelectionEncode(char(selection),includesPrefix=.false.)
@@ -235,7 +235,7 @@ contains
       <name>kernelSoftening</name>
       <source>parameters</source>
       <defaultValue>var_str('plummer')</defaultValue>
-      <description>Selects the softening kernel to use. Allowed options are ``{\normalfont \ttfamily plummer}'', and ``{\normalfont \ttfamily gadget}''.</description>
+      <description>Selects the softening kernel to use. Allowed options are ``\mono{plummer}'', and ``\mono{gadget}''.</description>
     </inputParameter>
     !!]
     kernelSoftening_=enumerationParticulateKernelEncode(char(kernelSoftening),includesPrefix=.false.)
@@ -273,7 +273,7 @@ contains
       <name>chunkSize</name>
       <source>parameters</source>
       <defaultValue>-1</defaultValue>
-      <description>HDF5 dataset chunk size.</description>
+      <description>The HDF5 dataset chunk size (in number of particles) used when writing particle data to the output file; set to $-1$ to disable chunking and write all particles in a single contiguous dataset.</description>
     </inputParameter>
     <objectBuilder class="cosmologyParameters"  name="cosmologyParameters_"  source="parameters"/>
     <objectBuilder class="cosmologyFunctions"   name="cosmologyFunctions_"   source="parameters"/>

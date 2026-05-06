@@ -26,7 +26,12 @@ Implements a node property extractor class for absolute magnitudes.
   !![
   <nodePropertyExtractor name="nodePropertyExtractorMagnitudesAbsolute">
    <description>
-    A node property extractor which extracts stellar absolute magnitudes in all available bands.
+    A property extractor that returns stellar absolute magnitudes (AB system) in all broadband
+    filters currently activated in the stellar luminosities structure, for a specified galaxy
+    \mono{component} (disk or spheroid). Output datasets are named
+    \mono{componentMagnitudeAbsoluteStellar:filterName:filterType} for each
+    active filter and output time. Non-positive luminosities (unresolved or dark galaxies) are
+    returned as the maximum representable double-precision value.
    </description>
   </nodePropertyExtractor>
   !!]
@@ -96,7 +101,7 @@ contains
   
   integer function magnitudesAbsoluteElementCount(self,time)
     !!{
-    Return the number of elements in the {\normalfont \ttfamily magnitudesAbsolute} property extractor class.
+    Return the number of elements in the \mono{magnitudesAbsolute} property extractor class.
     !!}
     use :: Stellar_Luminosities_Structure, only : unitStellarLuminosities
     implicit none
@@ -110,7 +115,7 @@ contains
 
   function magnitudesAbsoluteExtract(self,node,time,instance) result(magnitudes)
     !!{
-    Implement a {\normalfont \ttfamily magnitudesAbsolute} property extractor.
+    Implement a \mono{magnitudesAbsolute} property extractor.
     !!}
     use :: Galacticus_Nodes              , only : nodeComponentDisk  , nodeComponentSpheroid
     use :: Galactic_Structure_Options    , only : componentTypeDisk  , componentTypeSpheroid
@@ -161,7 +166,7 @@ contains
 
   subroutine magnitudesAbsoluteNames(self,time,names)
     !!{
-    Return the names of the {\normalfont \ttfamily magnitudesAbsolute} properties.
+    Return the names of the \mono{magnitudesAbsolute} properties.
     !!}
     use :: Stellar_Luminosities_Structure, only : unitStellarLuminosities
     use :: Galactic_Structure_Options    , only : enumerationComponentTypeDecode
@@ -185,7 +190,7 @@ contains
 
   subroutine magnitudesAbsoluteDescriptions(self,time,descriptions)
     !!{
-    Return descriptions of the {\normalfont \ttfamily magnitudesAbsolute} property extractor class.
+    Return descriptions of the \mono{magnitudesAbsolute} property extractor class.
     !!}
     use :: Stellar_Luminosities_Structure, only : unitStellarLuminosities
     implicit none

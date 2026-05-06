@@ -23,7 +23,7 @@ Implements a dark matter profile scale radius output analysis property extractor
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorDarkMatterProfileShapeParameter">
-   <description>A  dark matter profile scale radius output analysis property extractor class.</description>
+   <description>Extracts the shape parameter of the dark matter halo density profile (e.g., the Einasto index or inner logarithmic slope), which characterizes the curvature of the profile and distinguishes between different dark matter density models such as NFW, Einasto, or cored profiles.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorScalar) :: nodePropertyExtractorDarkMatterProfileShapeParameter
@@ -65,7 +65,7 @@ contains
 
   double precision function darkMatterProfileShapeParameterExtract(self,node,instance)
     !!{
-    Implement a {\normalfont \ttfamily darkMatterProfileShapeParameter} output analysis.
+    Implement a \mono{darkMatterProfileShapeParameter} output analysis.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentDarkMatterProfile, treeNode
     implicit none
@@ -83,7 +83,7 @@ contains
 
   function darkMatterProfileShapeParameterName(self)
     !!{
-    Return the name of the {\normalfont \ttfamily darkMatterProfileShapeParameter} property.
+    Return the name of the \mono{darkMatterProfileShapeParameter} property.
     !!}
     implicit none
     type (varying_string                                      )                :: darkMatterProfileShapeParameterName
@@ -96,7 +96,7 @@ contains
 
   function darkMatterProfileShapeParameterDescription(self)
     !!{
-    Return a description of the {\normalfont \ttfamily darkMatterProfileShapeParameter} property.
+    Return a description of the \mono{darkMatterProfileShapeParameter} property.
     !!}
     implicit none
     type (varying_string                                      )                :: darkMatterProfileShapeParameterDescription

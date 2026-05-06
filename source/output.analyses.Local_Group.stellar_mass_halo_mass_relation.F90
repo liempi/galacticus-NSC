@@ -24,7 +24,7 @@
 
   !![
   <outputAnalysis name="outputAnalysisLocalGroupStellarMassHaloMassRelation">
-   <description>An output analysis class for the Local Group stellar mass-halo mass relation.</description>
+   <description>Computes the stellar mass--halo mass relation for Local Group satellite galaxies, comparing model predictions against observed data with stellar mass random/systematic error polynomial coefficients, binomial covariance matrix parameters, and position-type selection.</description>
   </outputAnalysis>
   !!]
   type, extends(outputAnalysisClass) :: outputAnalysisLocalGroupStellarMassHaloMassRelation
@@ -446,7 +446,7 @@ contains
 
   subroutine localGroupStellarMassHaloMassRelationAnalyze(self,node,iOutput)
     !!{
-    Implement a {\normalfont \ttfamily localGroupStellarMassHaloMassRelation} output analysis.
+    Implement a \mono{localGroupStellarMassHaloMassRelation} output analysis.
     !!}
     implicit none
     class  (outputAnalysisLocalGroupStellarMassHaloMassRelation), intent(inout) :: self
@@ -459,7 +459,7 @@ contains
 
   subroutine localGroupStellarMassHaloMassRelationReduce(self,reduced)
     !!{
-    Implement a {\normalfont \ttfamily localGroupStellarMassHaloMassRelation} output analysis reduction.
+    Implement a \mono{localGroupStellarMassHaloMassRelation} output analysis reduction.
     !!}
     use :: Error, only : Error_Report
     implicit none
@@ -477,7 +477,7 @@ contains
 
   subroutine localGroupStellarMassHaloMassRelationFinalize(self,groupName)
     !!{
-    Implement a {\normalfont \ttfamily localGroupStellarMassHaloMassRelation} output analysis finalization.
+    Implement a \mono{localGroupStellarMassHaloMassRelation} output analysis finalization.
     !!}
     implicit none
     class(outputAnalysisLocalGroupStellarMassHaloMassRelation), intent(inout)           :: self
@@ -489,7 +489,7 @@ contains
 
   double precision function localGroupStellarMassHaloMassRelationLogLikelihood(self)
     !!{
-    Return the log-likelihood of a {\normalfont \ttfamily localGroupStellarMassHaloMassRelation} output analysis.
+    Return the log-likelihood of a \mono{localGroupStellarMassHaloMassRelation} output analysis.
     !!}
     implicit none
     class(outputAnalysisLocalGroupStellarMassHaloMassRelation), intent(inout) :: self

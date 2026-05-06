@@ -25,7 +25,7 @@ Implements a node property extractor class for halo environment.
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorHaloEnvironment">
-   <description>A node property extractor class for halo environment.</description>
+   <description>Extracts environmental metrics for dark matter halos, specifically the linear and non-linear local overdensity, characterizing the large-scale structure environment that influences halo formation rates, assembly bias, and galaxy evolution within the cosmological density field.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorTuple) :: nodePropertyExtractorHaloEnvironment
@@ -103,7 +103,7 @@ contains
 
   integer function haloEnvironmentElementCount(self,time)
     !!{
-    Return the number of elements in the {\normalfont \ttfamily haloEnvironment} property extractor.
+    Return the number of elements in the \mono{haloEnvironment} property extractor.
     !!}
     implicit none
     class           (nodePropertyExtractorHaloEnvironment), intent(inout) :: self
@@ -136,7 +136,7 @@ contains
 
   subroutine haloEnvironmentNames(self,time,names)
     !!{
-    Return the name of the {\normalfont \ttfamily haloEnvironment} property.
+    Return the name of the \mono{haloEnvironment} property.
     !!}
     implicit none
     class           (nodePropertyExtractorHaloEnvironment), intent(inout)                             :: self
@@ -152,7 +152,7 @@ contains
 
   subroutine haloEnvironmentDescriptions(self,time,descriptions)
     !!{
-    Return a description of the {\normalfont \ttfamily haloEnvironment} property.
+    Return a description of the \mono{haloEnvironment} property.
     !!}
     implicit none
     class           (nodePropertyExtractorHaloEnvironment), intent(inout)                             :: self
@@ -168,7 +168,7 @@ contains
 
   function haloEnvironmentUnitsInSI(self,time)
     !!{
-    Return the units of the {\normalfont \ttfamily haloEnvironment} property in the SI system.
+    Return the units of the \mono{haloEnvironment} property in the SI system.
     !!}
     implicit none
     double precision                                      , allocatable  , dimension(:) :: haloEnvironmentUnitsInSI

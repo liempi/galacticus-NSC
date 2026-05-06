@@ -18,12 +18,15 @@
 !!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
 
 !!{
-Contains a module which provides IO in \gls{irate} format.
+Contains a module which provides IO in \gls{irate} format. The \gls{irate} (IRvine Astrophysical simulaTion structurE)
+format is an HDF5-based format for storing halo catalogs and simulation data, with standardized groups for snapshots,
+cosmological parameters, and simulation properties.
 !!}
 
 module IO_IRATE
   !!{
-  Provides IO in \gls{irate} format.
+  Provides IO in \gls{irate} format, an HDF5-based standard for halo catalogs that stores per-snapshot halo properties
+  (positions, velocities, masses, IDs) alongside cosmological and simulation metadata.
   !!}
   use :: Cosmology_Functions , only : cosmologyFunctionsClass
   use :: Cosmology_Parameters, only : cosmologyParametersClass
@@ -33,7 +36,8 @@ module IO_IRATE
 
   type :: irate
      !!{
-     A class for interacting with \gls{irate} format files.
+     A class for interacting with \gls{irate} format HDF5 files, providing methods to read and write halo catalogs (positions,
+     velocities, masses, IDs) and simulation properties (box size, cosmology), with automatic unit conversion to physical units.
      !!}
      type (varying_string          )          :: fileName
      class(cosmologyFunctionsClass ), pointer :: cosmologyFunctions_  => null()
@@ -45,8 +49,8 @@ module IO_IRATE
        <method method="writeHalos"      description="Write a snapshot to a \gls{irate} format file."                                                   />
        <method method="readSimulation"  description="Read the requested properties of the simulation from an \gls{irate} format file."                 />
        <method method="writeSimulation" description="Write the requested properties of the simulation from an \gls{irate} format file."                />
-       <method method="copySimulation"  description="Copy ``{\normalfont \ttfamily SimulationProperties}'' group from one \gls{irate} file to another."/>
-       <method method="copyCosmology"   description="Copy ``{\normalfont \ttfamily Cosmology}'' group from one \gls{irate} file to another."           />
+       <method method="copySimulation"  description="Copy ``\mono{SimulationProperties}'' group from one \gls{irate} file to another."/>
+       <method method="copyCosmology"   description="Copy ``\mono{Cosmology}'' group from one \gls{irate} file to another."           />
      </methods>
      !!]
      procedure :: readHalos       => irateReadHalos
@@ -187,7 +191,7 @@ contains
 
   subroutine irateCopySimulation(self,targetFile)
     !!{
-    Copy ``{\normalfont \ttfamily SimulationProperties}'' group from one \gls{irate} file to another.
+    Copy ``\mono{SimulationProperties}'' group from one \gls{irate} file to another.
     !!}
     use :: IO_HDF5           , only : hdf5Object
     use :: ISO_Varying_String, only : char
@@ -206,7 +210,7 @@ contains
 
   subroutine irateCopyCosmology(self,targetFile)
     !!{
-    Copy ``{\normalfont \ttfamily Cosmology}'' group from one \gls{irate} file to another.
+    Copy ``\mono{Cosmology}'' group from one \gls{irate} file to another.
     !!}
     use :: IO_HDF5           , only : hdf5Object
     use :: ISO_Varying_String, only : char

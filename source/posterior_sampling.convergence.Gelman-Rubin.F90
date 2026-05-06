@@ -31,13 +31,13 @@
     compares the variance in parameter values within chains to that between chains. Outlier detection is applied to the chains using a
     standard Grubb's outlier test. The behavior of this criterion is controlled by the following subparameters:
     \begin{description}
-    \item [{\normalfont \ttfamily Rhat}] The correlation coefficient, $\hat{R}$, value at which to declare convergence.
-    \item [{\normalfont \ttfamily burnCount}] Set number of steps to burn before applying the convergence test.
-    \item [{\normalfont \ttfamily testCount}] Set the number of steps between successive applications of the convergence test.
-    \item [{\normalfont \ttfamily outlierSignificance}] The significance level required in outlier detection.
-    \item [{\normalfont \ttfamily outlierLogLikelihoodOffset}] The offset in log-likelihood from the current maximum likelihood chain
+    \item [\mono{Rhat}] The correlation coefficient, $\hat{R}$, value at which to declare convergence.
+    \item [\mono{burnCount}] Set number of steps to burn before applying the convergence test.
+    \item [\mono{testCount}] Set the number of steps between successive applications of the convergence test.
+    \item [\mono{outlierSignificance}] The significance level required in outlier detection.
+    \item [\mono{outlierLogLikelihoodOffset}] The offset in log-likelihood from the current maximum likelihood chain
       required for a chain to be declared to be an outlier.
-    \item [{\normalfont \ttfamily outlierCountMaximum}] The maximum number of outlier chains allowed.
+    \item [\mono{outlierCountMaximum}] The maximum number of outlier chains allowed.
     \end{description}
    </description>
   </posteriorSampleConvergence>
@@ -104,13 +104,13 @@ contains
     <inputParameter>
       <name>thresholdHatR</name>
       <defaultValue>1.2d0</defaultValue>
-      <description>The $\hat{R}$ value at which convergence is declared.</description>
+      <description>The Gelman-Rubin potential scale reduction factor $\hat{R}$ threshold below which all parameters must fall for the chains to be declared converged; values close to 1.0 indicate convergence, with 1.2 being a common default.</description>
       <source>parameters</source>
     </inputParameter>
     <inputParameter>
       <name>burnCount</name>
       <defaultValue>0</defaultValue>
-      <description>The number of steps to burn before computing convergence.</description>
+      <description>The number of initial MCMC steps to discard as burn-in before beginning to accumulate chain history for the Gelman-Rubin $\hat{R}$ convergence test.</description>
       <source>parameters</source>
     </inputParameter>
     <inputParameter>
@@ -122,13 +122,13 @@ contains
     <inputParameter>
       <name>outlierCountMaximum</name>
       <defaultValue>0</defaultValue>
-      <description>The maximum number of outlier states allowed.</description>
+      <description>The maximum number of chains whose current state may be identified as statistical outliers when computing the convergence statistic.</description>
       <source>parameters</source>
     </inputParameter>
     <inputParameter>
       <name>outlierSignificance</name>
       <defaultValue>0.05d0</defaultValue>
-      <description>The significance at which to declare a state an outlier.</description>
+      <description>The statistical significance level used when testing whether a chain's current log-likelihood deviates sufficiently from the ensemble mean to be classified as an outlier chain.</description>
       <source>parameters</source>
     </inputParameter>
     <inputParameter>
@@ -512,7 +512,7 @@ contains
 
   subroutine gelmanRubinLogReport(self,fileUnit)
     !!{
-    Write a convergence report to the given {\normalfont \ttfamily fileUnit}.
+    Write a convergence report to the given \mono{fileUnit}.
     !!}
     implicit none
     class    (posteriorSampleConvergenceGelmanRubin), intent(inout) :: self

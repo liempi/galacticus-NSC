@@ -28,7 +28,7 @@ Implements a log-normal halo environment.
 
   !![
   <haloEnvironment name="haloEnvironmentLogNormal">
-   <description>Implements a log-normal halo environment.</description>
+   <description>Implements a halo environment in which the large-scale overdensity follows a log-normal probability distribution, modeling the statistical distribution of cosmic environments around dark matter halos. The variance of the density field is computed within a sphere of radius given by \mono{[radiusEnvironment]}, drawn from the linear power spectrum.</description>
   </haloEnvironment>
   !!]
   type, extends(haloEnvironmentClass) :: haloEnvironmentLogNormal
@@ -172,7 +172,7 @@ contains
 
   double precision function logNormalOverdensityLinear(self,node,presentDay)
     !!{
-    Return the environment of the given {\normalfont \ttfamily node}.
+    Return the environment of the given \mono{node}.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentBasic, treeNode
     use :: Kind_Numbers    , only : kind_int8
@@ -212,7 +212,7 @@ contains
 
   double precision function logNormalOverdensityLinearGradientTime(self,node)
     !!{
-    Return the time gradient of the environment of the given {\normalfont \ttfamily node}.
+    Return the time gradient of the environment of the given \mono{node}.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentBasic
     implicit none
@@ -231,7 +231,7 @@ contains
 
   double precision function logNormalOverdensityNonLinear(self,node)
     !!{
-    Return the environment of the given {\normalfont \ttfamily node}.
+    Return the environment of the given \mono{node}.
     !!}
     use :: Error, only : Error_Report
     implicit none

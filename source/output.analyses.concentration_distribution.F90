@@ -25,7 +25,7 @@
 
   !![
   <outputAnalysis name="outputAnalysisConcentrationDistribution">
-   <description>A concentration distribution function output analysis class.</description>
+   <description>Computes the distribution of dark matter halo concentration parameters within a specified mass range and redshift, reading bin configuration from a file and comparing model predictions against target data with a minimum fractional root variance floor.</description>
    <runTimeFileDependencies paths="fileName"/>
   </outputAnalysis>
   !!]
@@ -169,7 +169,7 @@ contains
        <inputParameter>
          <name>timeRecent</name>
          <source>parameters</source>
-         <description>Halos which experienced a major node merger within a time $\Delta t=${\normalfont \ttfamily [timeRecent]} of the analysis time will be excluded from the analysis.</description>
+         <description>Halos which experienced a major node merger within a time $\Delta t=$\mono{[timeRecent]} of the analysis time will be excluded from the analysis.</description>
        </inputParameter>
        <inputParameter>
          <name>massParticle</name>

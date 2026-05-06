@@ -30,9 +30,9 @@
   <enumeration>
    <name>sedFitDustType</name>
    <description>Used to specify the type of dust model to use in SED fitting likelihoods.</description>
-   <visibility>private</visibility>
-   <validator>yes</validator>
    <encodeFunction>yes</encodeFunction>
+   <validator>yes</validator>
+   <visibility>private</visibility>
    <entry label="null"           />
    <entry label="charlotFall2000"/>
    <entry label="cardelli1989"   />
@@ -46,9 +46,9 @@
   <enumeration>
    <name>sedFitStartTime</name>
    <description>Used to specify the type of start time to use in SED fitting likelihoods.</description>
-   <visibility>private</visibility>
-   <validator>yes</validator>
    <encodeFunction>yes</encodeFunction>
+   <validator>yes</validator>
+   <visibility>private</visibility>
    <entry label="time"/>
    <entry label="age" />
   </enumeration>
@@ -56,7 +56,7 @@
 
   !![
   <posteriorSampleLikelihood name="posteriorSampleLikelihoodSEDFit">
-   <description>A posterior sampling likelihood class which implements a likelihood for SED fitting.</description>
+   <description>A posterior sampling likelihood class which evaluates the likelihood of observed broadband spectral energy distributions (SEDs) given modeled stellar populations, including dust attenuation effects. Observed magnitudes and uncertainties are specified via \mono{[magnitudes]} and \mono{[errors]}, with dust model and star formation history burst count controlled by \mono{[dustType]} and \mono{[burstCount]}.</description>
   </posteriorSampleLikelihood>
   !!]
   type, extends(posteriorSampleLikelihoodClass) :: posteriorSampleLikelihoodSEDFit
@@ -147,7 +147,7 @@ contains
     </inputParameter>
     <inputParameter>
       <name>startTime</name>
-      <description>The definition of start time (absolute {\normalfont \ttfamily time} or {\normalfont \ttfamily age}).</description>
+      <description>The definition of start time (absolute \mono{time} or \mono{age}).</description>
       <source>parameters</source>
     </inputParameter>
     <objectBuilder class="cosmologyFunctions"                           name="cosmologyFunctions_"                           source="parameters"/>

@@ -19,9 +19,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorGalaxyMergerTreeMergerIndices">
-   <description>
-     A node property extractor which extracts the merger indices properties of galaxy merger trees.
-   </description>
+   <description>Extracts integer index properties specific to merger events within galaxy merger trees, such as the indices of progenitor nodes involved in each merger, enabling tracking of merger histories.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorIntegerList) :: nodePropertyExtractorGalaxyMergerTreeMergerIndices
@@ -115,7 +113,7 @@ contains
   
   subroutine galaxyMergerTreeMergerIndicesNames(self,names)
     !!{
-    Return the names of the {\normalfont \ttfamily galaxyMergerTreeMergerIndices} properties.
+    Return the names of the \mono{galaxyMergerTreeMergerIndices} properties.
     !!}
     implicit none
     class(nodePropertyExtractorGalaxyMergerTreeMergerIndices), intent(inout)                             :: self
@@ -130,7 +128,7 @@ contains
 
   subroutine galaxyMergerTreeMergerIndicesDescriptions(self,descriptions)
     !!{
-    Return the descriptions of the {\normalfont \ttfamily galaxyMergerTreeMergerIndices} properties.
+    Return the descriptions of the \mono{galaxyMergerTreeMergerIndices} properties.
     !!}
     implicit none
     class(nodePropertyExtractorGalaxyMergerTreeMergerIndices), intent(inout)                             :: self
@@ -145,7 +143,7 @@ contains
 
   function galaxyMergerTreeMergerIndicesUnitsInSI(self) result(unitsInSI)
     !!{
-    Return the units of the {\normalfont \ttfamily galaxyMergerTreeMergerIndices} properties in the SI system.
+    Return the units of the \mono{galaxyMergerTreeMergerIndices} properties in the SI system.
     !!}
     implicit none
     double precision                                                    , dimension(:) , allocatable :: unitsInSI

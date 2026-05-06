@@ -19,9 +19,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorNodeFormationTime">
-   <description>
-     A node property extractor which extracts the formation time of each node.
-   </description>
+   <description>Extracts the cosmic formation time of each node, defined as the time at which the node first exceeded a specified mass threshold, providing a proxy for the assembly epoch of each halo.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorScalar) :: nodePropertyExtractorNodeFormationTime
@@ -95,7 +93,7 @@ contains
   
   function nodeFormationTimeName(self)
     !!{
-    Return the names of the {\normalfont \ttfamily nodeFormationTime} properties.
+    Return the names of the \mono{nodeFormationTime} properties.
     !!}
     implicit none
     type (varying_string                        )                :: nodeFormationTimeName
@@ -108,7 +106,7 @@ contains
 
   function nodeFormationTimeDescription(self)
     !!{
-    Return the descriptions of the {\normalfont \ttfamily nodeFormationTime} properties.
+    Return the descriptions of the \mono{nodeFormationTime} properties.
     !!}
     implicit none
     type (varying_string                        )                :: nodeFormationTimeDescription
@@ -121,7 +119,7 @@ contains
 
   double precision function nodeFormationTimeUnitsInSI(self)
     !!{
-    Return the units of the {\normalfont \ttfamily nodeFormationTime} properties in the SI system.
+    Return the units of the \mono{nodeFormationTime} properties in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : gigaYear
     implicit none

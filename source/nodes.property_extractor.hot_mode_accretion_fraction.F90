@@ -25,7 +25,7 @@ Implements a hot mode accretion fraction rate property extractor class.
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorFractionAccretionHotMode">
-   <description>A hot mode accretion fraction property extractor class.</description>
+   <description>Extracts the fraction of total gas accretion onto a halo that arrives via the hot-mode channel, where infalling gas is shock-heated to the virial temperature rather than streaming in cold. Traces the transition between accretion regimes as a function of halo mass and redshift.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorScalar) :: nodePropertyExtractorFractionAccretionHotMode
@@ -102,7 +102,7 @@ contains
 
   double precision function fractionAccretionHotModeExtract(self,node,instance)
     !!{
-    Implement a {\normalfont \ttfamily fractionAccretionHotMode} property extractor.
+    Implement a \mono{fractionAccretionHotMode} property extractor.
     !!}
     use :: Accretion_Halos, only : accretionModeHot, accretionModeTotal
     implicit none
@@ -124,7 +124,7 @@ contains
 
   function fractionAccretionHotModeName(self)
     !!{
-    Return the name of the {\normalfont \ttfamily fractionAccretionHotMode} property.
+    Return the name of the \mono{fractionAccretionHotMode} property.
     !!}
     implicit none
     type (varying_string                               )                :: fractionAccretionHotModeName
@@ -137,20 +137,20 @@ contains
 
   function fractionAccretionHotModeDescription(self)
     !!{
-    Return a description of the {\normalfont \ttfamily fractionAccretionHotMode} property.
+    Return a description of the \mono{fractionAccretionHotMode} property.
     !!}
     implicit none
     type (varying_string                               )                :: fractionAccretionHotModeDescription
     class(nodePropertyExtractorFractionAccretionHotMode), intent(inout) :: self
     !$GLC attributes unused :: self
 
-    fractionAccretionHotModeDescription=var_str('Fraction of halo accretion rate occuring via the hot mode.')
+    fractionAccretionHotModeDescription=var_str('Fraction of halo accretion rate occurring via the hot mode.')
     return
   end function fractionAccretionHotModeDescription
 
   double precision function fractionAccretionHotModeUnitsInSI(self)
     !!{
-    Return the units of the {\normalfont \ttfamily fractionAccretionHotMode} property in the SI system.
+    Return the units of the \mono{fractionAccretionHotMode} property in the SI system.
     !!}
     implicit none
     class(nodePropertyExtractorFractionAccretionHotMode), intent(inout) :: self

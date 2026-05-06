@@ -75,7 +75,7 @@ contains
     !![
     <inputParameter>
       <name>radiusSphere</name>
-      <description>The radius of the Gaussian sphere.</description>
+      <description>The radius of the Gaussian sphere from which each chain's initial parameter vector is drawn; if \mono{radiusIsRelative} is true this is expressed as a fraction of the prior extent, otherwise it is an absolute radius in parameter space.</description>
       <source>parameters</source>
     </inputParameter>
     <inputParameter>
@@ -85,7 +85,7 @@ contains
     </inputParameter>
     <inputParameter>
       <name>position</name>
-      <description>The initial position for the sphere. If this is set to {\normalfont \ttfamily priorMedian}, then the sphere is placed at the median of the prior in each dimension. Otherwise, this must be a list of starting parameter values.</description>
+      <description>The initial position for the sphere. If this is set to \mono{priorMedian}, then the sphere is placed at the median of the prior in each dimension. Otherwise, this must be a list of starting parameter values.</description>
       <source>parameters</source>
       <defaultValue>var_str('priorMedian')</defaultValue>
     </inputParameter>

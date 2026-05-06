@@ -30,12 +30,12 @@
 
   !![
   <task name="taskHaloModelProjectedCorrelationFunction">
-   <description>A task which generates a mock catalog of galaxies based on a simple halo model approach.</description>
+   <description>A task which analytically computes the projected two-point correlation function $w_\mathrm{p}(r_\mathrm{p})$ using a halo occupation distribution (HOD) model, combining the one-halo term (galaxy pairs within the same halo, sourced from the dark matter profile) and the two-halo term (pairs in different halos, sourced from the linear power spectrum and halo bias), then convolves with the survey geometry and line-of-sight integral depth.</description>
   </task>
   !!]
   type, extends(taskClass) :: taskHaloModelProjectedCorrelationFunction
      !!{
-     Implementation of a task which generates a mock catalog of galaxies based on a simple halo model approach.
+     Implementation of a task which analytically computes the projected two-point correlation function using a halo model approach combining the one-halo and two-halo terms.
      !!}
      private
      class           (conditionalMassFunctionClass     ), pointer                   :: conditionalMassFunction_      => null()
@@ -139,7 +139,7 @@ contains
     <inputParameter>
       <name>halfIntegral</name>
       <defaultValue>.false.</defaultValue>
-      <description>Set to {\normalfont \ttfamily true} if the projected correlation function is computed as $w_\mathrm{p}(r_\mathrm{p})=\int_0^{+\pi_\mathrm{max}} \xi(r_\mathrm{p},\pi) \mathrm{d} \pi$, instead of the usual $w_\mathrm{p}(r_\mathrm{p})=\int_{-\pi_\mathrm{max}}^{+\pi_\mathrm{max}} \xi(r_\mathrm{p},\pi) \mathrm{d} \pi$.</description>
+      <description>Set to \mono{true} if the projected correlation function is computed as $w_\mathrm{p}(r_\mathrm{p})=\int_0^{+\pi_\mathrm{max}} \xi(r_\mathrm{p},\pi) \mathrm{d} \pi$, instead of the usual $w_\mathrm{p}(r_\mathrm{p})=\int_{-\pi_\mathrm{max}}^{+\pi_\mathrm{max}} \xi(r_\mathrm{p},\pi) \mathrm{d} \pi$.</description>
       <source>parameters</source>
     </inputParameter>
     <inputParameter>

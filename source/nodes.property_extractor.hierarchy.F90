@@ -19,9 +19,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorHierarchy">
-   <description>
-     A node property extractor which extracts meta-properties related to the position of a node within the (sub-)halo hierarchy.
-   </description>
+   <description>Extracts meta-properties describing the structural position of a node within the halo hierarchy, such as its depth level in the subhalo nesting, enabling analysis of multi-level substructure in merger trees.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorIntegerTuple) :: nodePropertyExtractorHierarchy
@@ -82,7 +80,7 @@ contains
 
   integer function hierarchyElementCount(self,time)
     !!{
-    Return the number of elements in the {\normalfont \ttfamily hierarchy} property extractors.
+    Return the number of elements in the \mono{hierarchy} property extractors.
     !!}
     implicit none
     class           (nodePropertyExtractorHierarchy), intent(inout) :: self
@@ -119,7 +117,7 @@ contains
 
   subroutine hierarchyNames(self,time,names)
     !!{
-    Return the names of the {\normalfont \ttfamily hierarchy} properties.
+    Return the names of the \mono{hierarchy} properties.
     !!}
     implicit none
     class           (nodePropertyExtractorHierarchy), intent(inout)                             :: self
@@ -136,7 +134,7 @@ contains
 
   subroutine hierarchyDescriptions(self,time,descriptions)
     !!{
-    Return the descriptions of the {\normalfont \ttfamily hierarchy} properties.
+    Return the descriptions of the \mono{hierarchy} properties.
     !!}
     implicit none
     class           (nodePropertyExtractorHierarchy), intent(inout)                             :: self
@@ -153,7 +151,7 @@ contains
 
   function hierarchyUnitsInSI(self,time)
     !!{
-    Return the units of the {\normalfont \ttfamily hierarchy} properties in the SI system.
+    Return the units of the \mono{hierarchy} properties in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : gigaYear
     implicit none

@@ -25,7 +25,7 @@ Implements a dark matter profile SIDM interaction radius property extractor clas
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorDarkMatterProfileRadiusInteractionSIDM">
-   <description>A dark matter profile SIDM interaction radius property extractor class.</description>
+   <description>Extracts the self-interaction radius $r_1$ from the dark matter halo density profile under self-interacting dark matter (SIDM) models. This scale marks the boundary within which dark matter particles experience significant scattering, driving core formation and suppressing central density cusps.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorScalar) :: nodePropertyExtractorDarkMatterProfileRadiusInteractionSIDM
@@ -101,7 +101,7 @@ contains
 
   double precision function darkMatterProfileRadiusInteractionSIDMExtract(self,node,instance)
     !!{
-    Implement a {\normalfont \ttfamily darkMatterProfileRadiusInteractionSIDM} output analysis.
+    Implement a \mono{darkMatterProfileRadiusInteractionSIDM} output analysis.
     !!}
     use :: Mass_Distributions, only : massDistributionSphericalSIDM, massDistributionClass
     implicit none
@@ -126,7 +126,7 @@ contains
 
   function darkMatterProfileRadiusInteractionSIDMName(self)
     !!{
-    Return the name of the {\normalfont \ttfamily darkMatterProfileRadiusInteractionSIDM} property.
+    Return the name of the \mono{darkMatterProfileRadiusInteractionSIDM} property.
     !!}
     implicit none
     type (varying_string                                             )                :: darkMatterProfileRadiusInteractionSIDMName
@@ -139,7 +139,7 @@ contains
 
   function darkMatterProfileRadiusInteractionSIDMDescription(self)
     !!{
-    Return a description of the {\normalfont \ttfamily darkMatterProfileRadiusInteractionSIDM} property.
+    Return a description of the \mono{darkMatterProfileRadiusInteractionSIDM} property.
     !!}
     implicit none
     type (varying_string                                             )                :: darkMatterProfileRadiusInteractionSIDMDescription
@@ -152,7 +152,7 @@ contains
 
   double precision function darkMatterProfileRadiusInteractionSIDMUnitsInSI(self)
     !!{
-    Return the units of the {\normalfont \ttfamily darkMatterProfileRadiusInteractionSIDM} property in the SI system.
+    Return the units of the \mono{darkMatterProfileRadiusInteractionSIDM} property in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : megaParsec
     implicit none

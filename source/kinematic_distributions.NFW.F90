@@ -23,7 +23,7 @@
 
   !![
   <kinematicsDistribution name="kinematicsDistributionNFW">
-   <description>A kinematic distribution class for NFW mass distributions.</description>
+   <description>A kinematic distribution class that computes the collisionless 1D velocity dispersion profile for Navarro-Frenk-White (NFW) dark matter mass distributions by solving the Jeans equation. A series approximation for the velocity dispersion integral can be selected via \mono{[useSeriesApproximation]} to improve numerical efficiency.</description>
   </kinematicsDistribution>
   !!]
   type, public, extends(kinematicsDistributionClass) :: kinematicsDistributionNFW
@@ -99,7 +99,7 @@ contains
 
   double precision function nfwVelocityDispersion1D(self,coordinates,massDistribution_,massDistributionEmbedding) result(velocityDispersion)
     !!{
-    Return the 1D velocity dispersion at the specified {\normalfont \ttfamily coordinates} in an NFW kinematic distribution.
+    Return the 1D velocity dispersion at the specified \mono{coordinates} in an NFW kinematic distribution.
     !!}
     use :: Dilogarithms                    , only : Dilogarithm
     use :: Numerical_Constants_Math        , only : Pi

@@ -23,7 +23,7 @@ Implements a node branch tip index property extractor.
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorIndexBranchTip">
-   <description>A node branch tip index property extractor.</description>
+   <description>Extracts the stored index of the tip node (earliest progenitor) on the same merger tree branch as a given node. Enables identification of the branch origin and facilitates comparisons of progenitor properties along a given merger tree branch across cosmic time.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorIntegerScalar) :: nodePropertyExtractorIndexBranchTip
@@ -79,7 +79,7 @@ contains
 
   function indexBranchTipExtract(self,node,time,instance)
     !!{
-    Implement a {\normalfont \ttfamily indexBranchTip} node property extractor.
+    Implement a \mono{indexBranchTip} node property extractor.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentBasic
     implicit none

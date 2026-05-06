@@ -19,9 +19,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorGalaxyMergersPhysical">
-   <description>
-     A node property extractor which extracts the physical properties of galaxy-galaxy mergers.
-   </description>
+   <description>Extracts physical (floating-point) properties of galaxy-galaxy merger events, such as stellar masses, mass ratios, and merger times, providing continuous-valued data for statistical analysis of galaxy merging.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorList) :: nodePropertyExtractorGalaxyMergersPhysical
@@ -128,7 +126,7 @@ contains
   
   subroutine galaxyMergersPhysicalNames(self,names)
     !!{
-    Return the names of the {\normalfont \ttfamily galaxyMergersPhysical} properties.
+    Return the names of the \mono{galaxyMergersPhysical} properties.
     !!}
     implicit none
     class(nodePropertyExtractorGalaxyMergersPhysical), intent(inout)                             :: self
@@ -146,7 +144,7 @@ contains
 
   subroutine galaxyMergersPhysicalDescriptions(self,descriptions)
     !!{
-    Return the descriptions of the {\normalfont \ttfamily galaxyMergersPhysical} properties.
+    Return the descriptions of the \mono{galaxyMergersPhysical} properties.
     !!}
     implicit none
     class(nodePropertyExtractorGalaxyMergersPhysical), intent(inout)                             :: self
@@ -164,7 +162,7 @@ contains
 
   function galaxyMergersPhysicalUnitsInSI(self) result(unitsInSI)
     !!{
-    Return the units of the {\normalfont \ttfamily galaxyMergersPhysical} properties in the SI system.
+    Return the units of the \mono{galaxyMergersPhysical} properties in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : gigaYear, massSolar
     implicit none

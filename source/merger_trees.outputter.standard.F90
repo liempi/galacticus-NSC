@@ -52,7 +52,7 @@
   
   !![
   <mergerTreeOutputter name="mergerTreeOutputterStandard">
-   <description>The standard merger tree outputter.</description>
+   <description>The standard merger tree outputter which writes galaxy and halo properties to HDF5 output files at each requested output time during galaxy evolution. Output is organized into groups named by \mono{[outputsGroupName]}, with optional dataset reference output controlled by the \mono{[outputReferences]} parameter.</description>
    <stateStorable>
     <restoreTo variables="outputsGroupOpened"                                                                                            state=".false."                    />
     <restoreTo variables="outputGroupsCount  , doublePropertiesWritten, integerPropertiesWritten, doubleBufferCount, integerBufferCount" state="0"                          />
@@ -86,7 +86,7 @@
    contains
      !![
      <methods>
-       <method description="Make an group in the \glc\ file in which to store {\normalfont \ttfamily tree}." method="makeGroup"             />
+       <method description="Make an group in the \glc\ file in which to store \mono{tree}." method="makeGroup"             />
        <method description="Dump the contents of the integer properties buffer to the \glc\ output file."    method="dumpIntegerBuffer"     />
        <method description="Dump the contents of the double properties buffer to the \glc\ output file."     method="dumpDoubleBuffer"      />
        <method description="Extend the size of the integer buffer."                                          method="extendIntegerBuffer"   />
@@ -221,7 +221,7 @@ contains
 
   subroutine standardOutputTree(self,tree,indexOutput,time)
     !!{
-    Write properties of nodes in {\normalfont \ttfamily tree} to the \glc\ output file.
+    Write properties of nodes in \mono{tree} to the \glc\ output file.
     !!}
     use            :: Error              , only : Error_Report
     use            :: Galacticus_Nodes   , only : mergerTree              , nodeComponentBasic, treeNode
@@ -699,7 +699,7 @@ contains
 
   subroutine standardMakeGroup(self,tree,indexOutput)
     !!{
-    Make an group in the \glc\ file in which to store {\normalfont \ttfamily tree}.
+    Make an group in the \glc\ file in which to store \mono{tree}.
     !!}
     use            :: Galacticus_Nodes                , only : mergerTree
     use, intrinsic :: ISO_C_Binding                   , only : c_size_t

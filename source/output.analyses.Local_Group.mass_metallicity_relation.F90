@@ -24,7 +24,7 @@
 
   !![
   <outputAnalysis name="outputAnalysisLocalGroupMassMetallicityRelation">
-   <description>An output analysis class for Local Group satellite galaxy mass-metallicity relations.</description>
+   <description>Computes the stellar mass--gas-phase metallicity relation for Local Group satellite galaxies, comparing model predictions against observed data with stellar mass and metallicity random/systematic error polynomial coefficients, binomial covariance parameters, and position-type selection.</description>
   </outputAnalysis>
   !!]
   type, extends(outputAnalysisClass) :: outputAnalysisLocalGroupMassMetallicityRelation
@@ -509,7 +509,7 @@ contains
 
   subroutine localGroupMassMetallicityRelationAnalyze(self,node,iOutput)
     !!{
-    Implement a {\normalfont \ttfamily localGroupMassMetallicityRelation} output analysis.
+    Implement a \mono{localGroupMassMetallicityRelation} output analysis.
     !!}
     implicit none
     class  (outputAnalysisLocalGroupMassMetallicityRelation), intent(inout) :: self
@@ -522,7 +522,7 @@ contains
 
   subroutine localGroupMassMetallicityRelationReduce(self,reduced)
     !!{
-    Implement a {\normalfont \ttfamily localGroupMassMetallicityRelation} output analysis reduction.
+    Implement a \mono{localGroupMassMetallicityRelation} output analysis reduction.
     !!}
     use :: Error, only : Error_Report
     implicit none
@@ -540,7 +540,7 @@ contains
 
   subroutine localGroupMassMetallicityRelationFinalize(self,groupName)
     !!{
-    Implement a {\normalfont \ttfamily localGroupMassMetallicityRelation} output analysis finalization.
+    Implement a \mono{localGroupMassMetallicityRelation} output analysis finalization.
     !!}
     implicit none
     class(outputAnalysisLocalGroupMassMetallicityRelation), intent(inout)           :: self
@@ -552,7 +552,7 @@ contains
 
   double precision function localGroupMassMetallicityRelationLogLikelihood(self)
     !!{
-    Return the log-likelihood of a {\normalfont \ttfamily localGroupMassMetallicityRelation} output analysis.
+    Return the log-likelihood of a \mono{localGroupMassMetallicityRelation} output analysis.
     !!}
     implicit none
     class(outputAnalysisLocalGroupMassMetallicityRelation), intent(inout) :: self

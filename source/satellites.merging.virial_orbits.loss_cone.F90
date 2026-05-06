@@ -40,7 +40,7 @@
   !![
   <virialOrbit name="virialOrbitLossCone">
    <description>
-    A virial orbits class using a loss cone model.
+    A virial orbit class that draws satellite infall orbital parameters using a loss cone model, accounting for the depletion of nearly radial orbits due to merging. The velocity range and resolution of the orbital distribution grid are controlled by the \mono{[velocityMinimum]}, \mono{[velocityMaximum]}, \mono{[velocitiesPerUnit]}, and \mono{[massesPerDecade]} parameters.
    </description>
   </virialOrbit>
   !!]
@@ -1331,9 +1331,9 @@ contains
 
   double precision function timeAlongOrbit(radius,radiusApocenter,radiusPericenter,velocityTangentialVirial)
     !!{
-    Compute the time taken along the orbit specified by the pericenter radius, {\normalfont \ttfamily radiusPericenter}, and the
-    tangential velocity at the virial radius, {\normalfont \ttfamily velocityTangentialVirial}, to travel from the pericenter to
-    the given radius, {\normalfont \ttfamily radius}. All quantities are in virial units. Writing
+    Compute the time taken along the orbit specified by the pericenter radius, \mono{radiusPericenter}, and the
+    tangential velocity at the virial radius, \mono{velocityTangentialVirial}, to travel from the pericenter to
+    the given radius, \mono{radius}. All quantities are in virial units. Writing
     \begin{equation}
      v^\prime_\mathrm{r}(r) = \left( -{2 \over r_\mathrm{p}} + {2 \over r} + {v_\theta^2 \over r_\mathrm{p}^2} - {v_\theta^2 \over r^2} \right)^{1/2}
     \end{equation}

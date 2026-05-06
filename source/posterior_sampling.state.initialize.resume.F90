@@ -27,7 +27,7 @@
   <posteriorSampleStateInitialize name="posteriorSampleStateInitializeResume">
    <description>
     This class resumes from a previous simulation by setting the chain states to the states at the end of that simulation. The
-    {\normalfont \ttfamily [logFileRoot]} parameter is used to specify the log-file root name used in the previous simulation.
+    \mono{[logFileRoot]} parameter is used to specify the log-file root name used in the previous simulation.
   </description>
   </posteriorSampleStateInitialize>
   !!]
@@ -66,12 +66,12 @@ contains
     !![
     <inputParameter>
       <name>logFileRoot</name>
-      <description>The root file name of the state files from which to resume.</description>
+      <description>The root file name (without chain-index suffix) of the binary state files written by a previous run, from which chain positions and optionally full simulation state are restored to resume sampling.</description>
       <source>parameters</source>
     </inputParameter>
     <inputParameter>
       <name>restoreState</name>
-      <description>If true, restore the state of the simulation.</description>
+      <description>If true, restore the full internal simulation state (step counter, acceptance counts, covariance estimates) from the state files in addition to restoring the chain parameter vectors.</description>
       <source>parameters</source>
     </inputParameter>
     !!]

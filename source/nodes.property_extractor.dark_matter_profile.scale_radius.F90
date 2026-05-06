@@ -23,7 +23,7 @@ Implements a dark matter profile scale radius output analysis property extractor
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorDarkMatterProfileScaleRadius">
-   <description>A  dark matter profile scale radius output analysis property extractor class.</description>
+   <description>Extracts the scale radius of the dark matter halo density profile (e.g., the NFW scale radius $r_\mathrm{s}$ where the logarithmic slope equals $-2$), a key structural parameter relating halo mass to its spatial extent and concentration.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorScalar) :: nodePropertyExtractorDarkMatterProfileScaleRadius
@@ -65,7 +65,7 @@ contains
 
   double precision function darkMatterProfileScaleRadiusExtract(self,node,instance)
     !!{
-    Implement a {\normalfont \ttfamily darkMatterProfileScaleRadius} output analysis.
+    Implement a \mono{darkMatterProfileScaleRadius} output analysis.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentDarkMatterProfile, treeNode
     implicit none
@@ -83,7 +83,7 @@ contains
 
   function darkMatterProfileScaleRadiusName(self)
     !!{
-    Return the name of the {\normalfont \ttfamily darkMatterProfileScaleRadius} property.
+    Return the name of the \mono{darkMatterProfileScaleRadius} property.
     !!}
     implicit none
     type (varying_string                                   )                :: darkMatterProfileScaleRadiusName
@@ -96,7 +96,7 @@ contains
 
   function darkMatterProfileScaleRadiusDescription(self)
     !!{
-    Return a description of the {\normalfont \ttfamily darkMatterProfileScaleRadius} property.
+    Return a description of the \mono{darkMatterProfileScaleRadius} property.
     !!}
     implicit none
     type (varying_string                                   )                :: darkMatterProfileScaleRadiusDescription
@@ -109,7 +109,7 @@ contains
 
   double precision function darkMatterProfileScaleRadiusUnitsInSI(self)
     !!{
-    Return the units of the {\normalfont \ttfamily darkMatterProfileScaleRadius} property in the SI system.
+    Return the units of the \mono{darkMatterProfileScaleRadius} property in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : megaParsec
     implicit none

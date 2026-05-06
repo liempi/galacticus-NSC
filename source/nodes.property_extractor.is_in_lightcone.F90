@@ -25,7 +25,7 @@ Implements a property extractor for ``in lightcone'' status.
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorIsInLightcone">
-   <description>An ``in lightcone'' status property extractor.</description>
+   <description>Extracts a boolean flag (1 or 0) indicating whether a node falls within the observer's past lightcone geometry, accounting for the node's 3D position and cosmic time via the \refClass{geometryLightconeClass} interface. Enables construction of mock observational catalogs from simulations.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorIntegerScalar) :: nodePropertyExtractorIsInLightcone
@@ -101,7 +101,7 @@ contains
 
   function isInLightconeExtract(self,node,time,instance)
     !!{
-    Implement a {\normalfont \ttfamily isInLightcone} node property extractor.
+    Implement a \mono{isInLightcone} node property extractor.
     !!}
     implicit none
     integer         (kind_int8                         )                          :: isInLightconeExtract

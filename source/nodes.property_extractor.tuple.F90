@@ -21,7 +21,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorTuple" abstract="yes">
-   <description>An abstract output analysis property extractor class which provides a tuple of floating point properties.</description>
+   <description>Abstract base class for extractors that return a fixed-length tuple of floating-point values per node (e.g., 3D position or velocity vectors), defining the interface for multi-component vector property extraction used in output analysis.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorClass), abstract :: nodePropertyExtractorTuple
@@ -33,7 +33,7 @@
      !![
      <methods>
        <method method="elementCount" description="Return the number of properties in the tuple."                      />
-       <method method="extract"      description="Extract the properties from the given {\normalfont \ttfamily node}."/>
+       <method method="extract"      description="Extract the properties from the given \mono{node}."/>
        <method method="names"        description="Return the names of the properties extracted."                      />
        <method method="descriptions" description="Return descriptions of the properties extracted."                   />
        <method method="unitsInSI"    description="Return the units of the properties extracted in the SI system."     />

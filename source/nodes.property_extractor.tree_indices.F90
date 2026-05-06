@@ -23,7 +23,7 @@ Implements merger tree index property extractor class.
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorIndicesTree">
-   <description>A merger tree index property extractor class.</description>
+   <description>Extracts index identifiers for the merger tree containing each node, including the tree index and node index within that tree, enabling unique identification of nodes across all merger trees in a simulation output for cross-matching and provenance tracking.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorIntegerScalar) :: nodePropertyExtractorIndicesTree
@@ -64,7 +64,7 @@ contains
 
   function indicesTreeExtract(self,node,time,instance)
     !!{
-    Implement a {\normalfont \ttfamily indicesTree} node property extractor.
+    Implement a \mono{indicesTree} node property extractor.
     !!}
     implicit none
     integer         (kind_int8                       )                          :: indicesTreeExtract

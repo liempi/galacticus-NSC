@@ -19,9 +19,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorGalaxyMergerTreePhysical">
-   <description>
-     A node property extractor which extracts the physical properties of galaxy merger trees.
-   </description>
+   <description>Extracts physical (floating-point) properties of nodes within galaxy merger trees, such as halo masses, virial radii, and cosmic times, providing the continuous-valued data needed for merger tree analysis.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorList) :: nodePropertyExtractorGalaxyMergerTreePhysical
@@ -122,7 +120,7 @@ contains
   
   subroutine galaxyMergerTreePhysicalNames(self,names)
     !!{
-    Return the names of the {\normalfont \ttfamily galaxyMergerTreePhysical} properties.
+    Return the names of the \mono{galaxyMergerTreePhysical} properties.
     !!}
     use :: Error                                      , only : Error_Report
     use :: Node_Property_Extractor_Galaxy_Merger_Trees, only : nodePropertyExtractorGalaxyMergerTreeCount, nodePropertyExtractorGalaxyMergerTree_
@@ -151,7 +149,7 @@ contains
 
   subroutine galaxyMergerTreePhysicalDescriptions(self,descriptions)
     !!{
-    Return the descriptions of the {\normalfont \ttfamily galaxyMergerTreePhysical} properties.
+    Return the descriptions of the \mono{galaxyMergerTreePhysical} properties.
     !!}
     use :: Error                                      , only : Error_Report
     use :: Node_Property_Extractor_Galaxy_Merger_Trees, only : nodePropertyExtractorGalaxyMergerTreeCount, nodePropertyExtractorGalaxyMergerTree_
@@ -179,7 +177,7 @@ contains
 
   function galaxyMergerTreePhysicalUnitsInSI(self) result(unitsInSI)
     !!{
-    Return the units of the {\normalfont \ttfamily galaxyMergerTreePhysical} properties in the SI system.
+    Return the units of the \mono{galaxyMergerTreePhysical} properties in the SI system.
     !!}
     use :: Error                                      , only : Error_Report
     use :: Numerical_Constants_Astronomical           , only : gigaYear

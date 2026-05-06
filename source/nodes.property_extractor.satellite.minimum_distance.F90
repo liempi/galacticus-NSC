@@ -19,10 +19,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorSatelliteMinimumDistance">
-   <description>
-     A node property extractor which extracts the minimum distance from the center that a satellite has ever reached in its
-     current host halo.
-   </description>
+   <description>Extracts the minimum pericentric distance ever reached by a satellite node within its current host halo, recording the closest approach to the halo center as an indicator of tidal stripping history.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorScalar) :: nodePropertyExtractorSatelliteMinimumDistance
@@ -101,7 +98,7 @@ contains
   
   function satelliteMinimumDistanceName(self)
     !!{
-    Return the names of the {\normalfont \ttfamily satelliteMinimumDistance} properties.
+    Return the names of the \mono{satelliteMinimumDistance} properties.
     !!}
     implicit none
     type (varying_string                               )                :: satelliteMinimumDistanceName
@@ -114,7 +111,7 @@ contains
 
   function satelliteMinimumDistanceDescription(self)
     !!{
-    Return the descriptions of the {\normalfont \ttfamily satelliteMinimumDistance} properties.
+    Return the descriptions of the \mono{satelliteMinimumDistance} properties.
     !!}
     implicit none
     type (varying_string                               )                :: satelliteMinimumDistanceDescription
@@ -127,7 +124,7 @@ contains
 
   double precision function satelliteMinimumDistanceUnitsInSI(self)
     !!{
-    Return the units of the {\normalfont \ttfamily satelliteMinimumDistance} properties in the SI system.
+    Return the units of the \mono{satelliteMinimumDistance} properties in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : megaParsec
     implicit none

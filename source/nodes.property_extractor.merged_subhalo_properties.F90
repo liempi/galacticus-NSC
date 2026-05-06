@@ -21,9 +21,7 @@
   
   !![
   <nodePropertyExtractor name="nodePropertyExtractorMergedSubhaloProperties">
-   <description>
-     A node property extractor which extracts properties of merged subhalo orbits.
-   </description>
+   <description>Extracts orbital properties (such as orbital energy, angular momentum, and pericentric distance) of subhalos at the time they merged, enabling analysis of merger dynamics and post-merger evolution.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorList) :: nodePropertyExtractorMergedSubhaloProperties
@@ -141,7 +139,7 @@ contains
   
   subroutine mergedSubhaloPropertiesNames(self,names)
     !!{
-    Return the names of the {\normalfont \ttfamily mergedSubhaloProperties} properties.
+    Return the names of the \mono{mergedSubhaloProperties} properties.
     !!}
     use :: Kepler_Orbits  , only : enumerationKeplerOrbitDecode, keplerOrbitTimeInitial, keplerOrbitMassSatellite, keplerOrbitMassHost, &
          &                         keplerOrbitRadiusPericenter ,  keplerOrbitRadius    , keplerOrbitTimeCurrent
@@ -175,7 +173,7 @@ contains
 
   subroutine mergedSubhaloPropertiesDescriptions(self,descriptions)
     !!{
-    Return the descriptions of the {\normalfont \ttfamily mergedSubhaloProperties} properties.
+    Return the descriptions of the \mono{mergedSubhaloProperties} properties.
     !!}
     use :: Kepler_Orbits, only : enumerationKeplerOrbitDescription, keplerOrbitTimeInitial, keplerOrbitMassSatellite, keplerOrbitMassHost, &
          &                       keplerOrbitRadiusPericenter      , keplerOrbitRadius     , keplerOrbitTimeCurrent
@@ -208,7 +206,7 @@ contains
 
   function mergedSubhaloPropertiesUnitsInSI(self) result(unitsInSI)
     !!{
-    Return the units of the {\normalfont \ttfamily mergedSubhaloProperties} properties in the SI system.
+    Return the units of the \mono{mergedSubhaloProperties} properties in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : gigaYear, massSolar, megaParsec
     implicit none

@@ -26,7 +26,11 @@
   !![
   <nodeOperator name="nodeOperatorCGMStarvation">
    <description>
-    A node operator class that implements starvation of subhalos by removal of their \gls{cgm}.
+    A node operator class that removes \gls{cgm} gas from subhalos at node merger events, simulating environmental gas
+    starvation. \mono{starveOutflowsOnly} limits removal to outflowing gas only, transferring it to the host halo's
+    \gls{cgm} instead of destroying it. \mono{fractionBaryonLimitInNodeMerger} optionally trims the merged halo's \gls{cgm}
+    hot gas (and associated angular momentum, abundances, and chemicals proportionally) to enforce the universal baryon
+    fraction at node mergers.
    </description>
   </nodeOperator>
   !!]
@@ -78,7 +82,7 @@ contains
       <defaultValue>.false.</defaultValue>
       <description>
 	Controls whether the \gls{cgm} gas content of nodes should be limited to not exceed the universal baryon fraction at node
-        merger events. If set to {\normalfont \ttfamily true}, \gls{cgm} hot gas (and angular momentum, abundances, and chemicals
+        merger events. If set to \mono{true}, \gls{cgm} hot gas (and angular momentum, abundances, and chemicals
         proportionally) will be removed from the merged halo to the unaccreted gas reservoir to limit the baryonic mass to the
         universal baryon fraction where possible.
       </description>

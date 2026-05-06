@@ -22,7 +22,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorIntegerScalar" abstract="yes">
-   <description>An abstract output analysis property extractor class which provides a scalar integer property.</description>
+   <description>Abstract base class for extractors that return a single integer value per node (e.g., node IDs, counts, or boolean flags encoded as integers), defining the interface for all scalar integer property extraction used in output analysis.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorClass), abstract :: nodePropertyExtractorIntegerScalar
@@ -33,7 +33,7 @@
    contains
      !![
      <methods>
-       <method method="extract"     description="Extract the property from the given {\normalfont \ttfamily node}."/>
+       <method method="extract"     description="Extract the property from the given \mono{node}."/>
        <method method="name"        description="Return the name of the property extracted."                       />
        <method method="description" description="Return a description of the property extracted."                  />
        <method method="unitsInSI"   description="Return the units of the property extracted in the SI system."     />

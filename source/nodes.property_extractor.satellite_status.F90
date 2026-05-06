@@ -25,8 +25,8 @@ Implements an ISM mass output analysis property extractor class.
   <enumeration>
    <name>satelliteStatusDiscriminator</name>
    <description>Enumeration of possible discriminators for satellite orphan status.</description>
-   <visibility>private</visibility>
    <encodeFunction>yes</encodeFunction>
+   <visibility>private</visibility>
    <entry label="boundMass"/>
    <entry label="position" />
   </enumeration>
@@ -34,7 +34,12 @@ Implements an ISM mass output analysis property extractor class.
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorSatelliteStatus">
-   <description>An ISM mass output analysis property extractor class.</description>
+   <description>A property extractor that returns an integer satellite status flag for each node:
+    0 for central (non-satellite) halos, 1 for satellites that still have a resolved dark matter
+    subhalo, and 2 for orphaned satellites that have lost their subhalo below the resolution limit.
+    The \mono{discriminator} parameter (default: \mono{boundMass}) controls whether orphan status is
+    determined from the bound mass history of the satellite component or the position history of the
+    position component, allowing flexibility in how subhalo disruption is identified.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorIntegerScalar) :: nodePropertyExtractorSatelliteStatus
@@ -134,7 +139,7 @@ contains
 
   function satelliteStatusExtract(self,node,time,instance)
     !!{
-    Implement a {\normalfont \ttfamily satelliteStatus} node property extractor.
+    Implement a \mono{satelliteStatus} node property extractor.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentBasic, nodeComponentPosition, nodeComponentSatellite, treeNode
     use :: Histories       , only : history

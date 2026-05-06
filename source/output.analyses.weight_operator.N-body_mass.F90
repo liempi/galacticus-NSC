@@ -26,7 +26,7 @@ halo mass distribution.
 
   !![
   <outputAnalysisWeightOperator name="outputAnalysisWeightOperatorNbodyMass">
-   <description>A weight operator class in which the weight is multiplied by an integral over the N-body halo mass distribution.</description>
+   <description>An output analysis weight operator that multiplies the galaxy weight by an integral over the N-body halo mass distribution between \mono{rangeLower} and \mono{rangeUpper}, accounting for the dispersion in N-body halo masses when comparing model predictions to simulation data.</description>
   </outputAnalysisWeightOperator>
   !!]
   type, extends(outputAnalysisWeightOperatorNormal) :: outputAnalysisWeightOperatorNbodyMass
@@ -130,7 +130,7 @@ contains
 
   double precision function nbodyMassRootVariance(self,node,propertyValue,propertyValueIntrinsic,propertyType,propertyQuantity,outputIndex)
     !!{
-    Return the root variance for use in the {\normalfont \ttfamily nbodyMass} output analysis weight operator class.
+    Return the root variance for use in the \mono{nbodyMass} output analysis weight operator class.
     !!}
     use :: Node_Property_Extractors, only : nodePropertyExtractorScalar
     implicit none

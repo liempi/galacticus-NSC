@@ -26,7 +26,7 @@
 
   !![
   <outputAnalysis name="outputAnalysisStellarVsHaloMassRelationLeauthaud2012">
-   <description>A stellar vs halo mass relation output analysis class.</description>
+   <description>Computes the stellar mass--halo mass relation (mean or scatter) for one of three COSMOS redshift intervals from \cite{leauthaud_new_2012}, with optional single-bin likelihood and likelihood normalization, and systematic error polynomial coefficients for both stellar and halo masses.</description>
   </outputAnalysis>
   !!]
   type, extends(outputAnalysisClass) :: outputAnalysisStellarVsHaloMassRelationLeauthaud2012
@@ -612,7 +612,7 @@ contains
 
   subroutine stellarVsHaloMassRelationLeauthaud2012Reduce(self,reduced)
     !!{
-    Implement reduction for the {\normalfont \ttfamily stellarVsHaloMassRelationLeauthaud2012} output analysis class.
+    Implement reduction for the \mono{stellarVsHaloMassRelationLeauthaud2012} output analysis class.
     !!}
     use :: Error, only : Error_Report
     implicit none
@@ -630,7 +630,7 @@ contains
 
   subroutine stellarVsHaloMassRelationLeauthaud2012Finalize(self,groupName)
     !!{
-    Implement a {\normalfont \ttfamily stellarVsHaloMassRelationLeauthaud2012} output analysis finalization.
+    Implement a \mono{stellarVsHaloMassRelationLeauthaud2012} output analysis finalization.
     !!}
     use :: Output_HDF5, only : outputFile
     use :: HDF5_Access, only : hdf5Access
@@ -663,7 +663,7 @@ contains
 
   double precision function stellarVsHaloMassRelationLeauthaud2012LogLikelihood(self) result(logLikelihood)
     !!{
-    Return the log-likelihood of a {\normalfont \ttfamily stellarVsHaloMassRelationLeauthaud2012} output analysis.
+    Return the log-likelihood of a \mono{stellarVsHaloMassRelationLeauthaud2012} output analysis.
     !!}
     use :: Error                       , only : Error_Report
     use :: Linear_Algebra              , only : assignment(=), matrix, operator(*), vector

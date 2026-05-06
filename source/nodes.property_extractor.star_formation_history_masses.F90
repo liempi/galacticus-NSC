@@ -27,7 +27,13 @@
   
   !![
   <nodePropertyExtractor name="nodePropertyExtractorStarFormationHistoryMass">
-    <description>A property extractor class for the star formation history of a component.</description>
+    <description>A property extractor that returns the stellar mass formed in each age and metallicity
+    bin of the star formation history for a specified galaxy component (disk, spheroid,
+    nuclearStarCluster, or all combined), as a 2D array (time $\times$ metallicity) in units of
+    $\mathrm{M}_\odot \, \mathrm{Gyr}^{-1}$. The \mono{component} parameter selects which
+    component's history to extract. Metallicity bin boundaries and, when the age grid is fixed
+    per output, the time array are written as metadata to allow reconstruction of the full
+    star formation history from the output dataset.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorList2D) :: nodePropertyExtractorStarFormationHistoryMass
@@ -132,7 +138,7 @@ contains
 
   integer function starFormationHistoryMassElementCount(self)
     !!{
-    Return the number of elements in the {\normalfont \ttfamily starFormationHistoryMass} property extractors.
+    Return the number of elements in the \mono{starFormationHistoryMass} property extractors.
     !!}
     implicit none
     class(nodePropertyExtractorStarFormationHistoryMass), intent(inout) :: self
@@ -143,7 +149,7 @@ contains
 
   function starFormationHistoryMassExtract(self,node,instance)
     !!{
-    Implement a {\normalfont \ttfamily starFormationHistoryMass} property extractor.
+    Implement a \mono{starFormationHistoryMass} property extractor.
     !!}
     use :: Galacticus_Nodes          , only : nodeComponentDisk, nodeComponentSpheroid, nodeComponentNSC
     use :: Galactic_Structure_Options, only : componentTypeDisk, componentTypeSpheroid, componentTypeNuclearStarCluster, componentTypeAll
@@ -217,7 +223,7 @@ contains
 
   subroutine starFormationHistoryMassNames(self,names)
     !!{
-    Return the names of the {\normalfont \ttfamily starFormationHistoryMass} properties.
+    Return the names of the \mono{starFormationHistoryMass} properties.
     !!}
     use :: Galactic_Structure_Options, only : enumerationComponentTypeDecode
     implicit none
@@ -231,7 +237,7 @@ contains
 
   subroutine starFormationHistoryMassDescriptions(self,descriptions)
     !!{
-    Return descriptions of the {\normalfont \ttfamily starFormationHistoryMass} property.
+    Return descriptions of the \mono{starFormationHistoryMass} property.
     !!}
     use :: Galactic_Structure_Options, only : enumerationComponentTypeDecode
     implicit none
@@ -245,7 +251,7 @@ contains
 
   function starFormationHistoryMassUnitsInSI(self)
     !!{
-    Return the units of the {\normalfont \ttfamily starFormationHistoryMass} properties in the SI system.
+    Return the units of the \mono{starFormationHistoryMass} properties in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : massSolar, gigaYear
     implicit none
@@ -259,7 +265,7 @@ contains
   
   subroutine starFormationHistoryMassMetaData(self,node,time,metaDataRank0,metaDataRank1)
     !!{
-    Return metadata associated with the {\normalfont \ttfamily starFormationHistoryMass} properties.
+    Return metadata associated with the \mono{starFormationHistoryMass} properties.
     !!}
     use :: Galacticus_Nodes        , only : nodeComponentBasic
     use :: Star_Formation_Histories, only : starFormationHistoryAgesFixedPerOutput

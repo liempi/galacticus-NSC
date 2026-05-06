@@ -27,7 +27,7 @@ Implements an intracluster medium X-ray luminosity property extractor class.
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorICMXRayLuminosity">
-   <description>An intracluster medium X-ray luminosity property extractor class.</description>
+   <description>Extracts the X-ray luminosity of the intracluster medium by integrating thermal bremsstrahlung and line emission from hot halo gas out to the virial radius, using a cooling function evaluated at each radial shell. Useful for comparison with X-ray cluster survey observations.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorScalar) :: nodePropertyExtractorICMXRayLuminosity
@@ -222,7 +222,7 @@ contains
 
   function icmXRayLuminosityName(self)
     !!{
-    Return the names of the {\normalfont \ttfamily icmXRayLuminosity} properties.
+    Return the names of the \mono{icmXRayLuminosity} properties.
     !!}
     implicit none
     type (varying_string                        )                :: icmXRayLuminosityName
@@ -235,7 +235,7 @@ contains
 
   function icmXRayLuminosityDescription(self)
     !!{
-    Return descriptions of the {\normalfont \ttfamily icmXRayLuminosity} properties.
+    Return descriptions of the \mono{icmXRayLuminosity} properties.
     !!}
     implicit none
     type (varying_string                        )                :: icmXRayLuminosityDescription
@@ -248,7 +248,7 @@ contains
 
   double precision function icmXRayLuminosityUnitsInSI(self)
     !!{
-    Return the units of the {\normalfont \ttfamily icmXRayLuminosity} properties in the SI system.
+    Return the units of the \mono{icmXRayLuminosity} properties in the SI system.
     !!}
     use :: Numerical_Constants_Units, only : ergs
     implicit none

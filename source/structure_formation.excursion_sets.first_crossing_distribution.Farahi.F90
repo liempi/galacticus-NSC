@@ -276,7 +276,7 @@ contains
       <name>fileName</name>
       <defaultValue>var_str('none')</defaultValue>
       <source>parameters</source>
-      <description>The name of the file to/from which tabulations of barrier first crossing probabilities should be written/read. If set to ``{\normalfont \ttfamily none}'' tables will not be stored.</description>
+      <description>The name of the file to/from which tabulations of barrier first crossing probabilities should be written/read. If set to ``\mono{none}'' tables will not be stored.</description>
     </inputParameter>
     <inputParameter>
       <name>fractionalTimeStep</name>
@@ -294,7 +294,7 @@ contains
       <name>varianceNumberPerUnit</name>
       <defaultValue>40</defaultValue>
       <source>parameters</source>
-      <description>The number of points to tabulate per unit variance for first crossing rates.</description>
+      <description>The number of tabulation points per unit of $\sigma^2$ used when building the rate look-up table for the Farahi excursion-set first-crossing distribution; higher values improve interpolation accuracy at the cost of memory and initialization time.</description>
     </inputParameter>
     <inputParameter>
       <name>varianceNumberPerDecade</name>
@@ -312,7 +312,7 @@ contains
       <name>timeNumberPerDecade</name>
       <defaultValue>10</defaultValue>
       <source>parameters</source>
-      <description>The number of points to tabulate per decade of time.</description>
+      <description>The number of tabulation points per decade of cosmic time used when building the first-crossing rate look-up table as a function of time; higher values improve temporal interpolation accuracy for rapidly evolving cosmologies.</description>
     </inputParameter>
     <inputParameter>
       <name>varianceIsUnlimited</name>
@@ -1098,8 +1098,8 @@ contains
                    else
                       varianceMaximumRateLimit=self%varianceMaximumRate
                    end if
-                   ! For computing non-crossing rates, the results are tabulated with respect to $S_{\rm max}-S$ so that interpolation
-                   ! is more accurate when $S$ approaches $S_{\rm max}$.
+                   ! For computing non-crossing rates, the results are tabulated with respect to S_max-S so that interpolation
+                   ! is more accurate when S approaches S_max.
                    do iVariance=0,countVarianceCurrentRate
                       varianceCurrentRateQuad(iVariance)=max(varianceMaximumRateLimit-self%varianceCurrentRateNonCrossing(iVariance),0.0d0)
                    end do
@@ -1540,11 +1540,10 @@ contains
 
   function farahiVarianceRange(self,rangeMinimum,rangeMaximum,rangeNumber,exponent) result (rangeValues)
     !!{
-    Builds a numerical range between {\normalfont \ttfamily rangeMinimum} and {\normalfont \ttfamily rangeMaximum} using
-    {\normalfont \ttfamily rangeNumber} points with spacing that varies from logarithmic to linear spacing with the transition
-    point controlled by {\normalfont \ttfamily exponent}. Specifically, suppose we have $N=${\normalfont \ttfamily rangeNumber}
-    points in the range, from $S_\mathrm{min}=${\normalfont \ttfamily rangeMinimum} to $S_\mathrm{max}=${\normalfont \ttfamily
-    rangeMaximum}. We define $f_i=(i-1)/(N-1)$ where $i$ runs from $1$ to $N$. We then define:
+    Builds a numerical range between \mono{rangeMinimum} and \mono{rangeMaximum} using
+    \mono{rangeNumber} points with spacing that varies from logarithmic to linear spacing with the transition
+    point controlled by \mono{exponent}. Specifically, suppose we have $N=$\mono{rangeNumber}
+    points in the range, from $S_\mathrm{min}=$\mono{rangeMinimum} to $S_\mathrm{max}=$\mono{rangeMaximum}. We define $f_i=(i-1)/(N-1)$ where $i$ runs from $1$ to $N$. We then define:
     \begin{equation}
      f_i = { \int_{S_\mathrm{min}}^{S_i} x^{n_i} \mathrm{d} x \over \int_{S_\mathrm{min}}^{S_\mathrm{max}} x^{n_i} \mathrm{d} x},
     \end{equation}
@@ -1552,7 +1551,7 @@ contains
     $S_\mathrm{min}$ and $S_\mathrm{max}$, while if $n_i=-1$ this will give $S_i$ logarithmically spaced between
     $S_\mathrm{min}$ and $S_\mathrm{max}$. Therefore, if we make $n_i$ vary from $-1$ to $0$ at $i$ ranges from $1$ to $N$ we
     will get a smooth transition from logarithmic to linear spacing. We choose to use $n_i=-1+f_i^\alpha$ where
-    $\alpha=${\normalfont \ttfamily exponent} is a supplied argument.
+    $\alpha=$\mono{exponent} is a supplied argument.
     !!}
     implicit none
     class           (excursionSetFirstCrossingFarahi), intent(inout)          :: self

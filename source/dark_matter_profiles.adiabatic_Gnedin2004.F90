@@ -29,8 +29,7 @@
   !![
   <darkMatterProfile name="darkMatterProfileAdiabaticGnedin2004">
    <description>
-    A dark matter profile class which builds \refClass{massDistributionSphericalAdiabaticGnedin2004} objects to apply adiabatic
-    contraction to other dark matter profiles.
+    A dark matter profile class which applies adiabatic contraction to dark matter profiles using the model of \cite{gnedin_response_2004}, building \refClass{massDistributionSphericalAdiabaticGnedin2004} objects. The shape of the contraction is governed by parameters \mono{[A]}, \mono{[omega]}, and the pivot radius \mono{[radiusFractionalPivot]}, with numerical accuracy controlled by \mono{[toleranceRelative]}.
    </description>
   </darkMatterProfile>
   !!]
@@ -63,7 +62,7 @@ contains
 
   function adiabaticGnedin2004ConstructorParameters(parameters) result(self)
     !!{
-    Default constructor for the {\normalfont \ttfamily adiabaticGnedin2004} dark matter halo profile class.
+    Default constructor for the \mono{adiabaticGnedin2004} dark matter halo profile class.
     !!}
     use :: Mass_Distributions, only : enumerationNonAnalyticSolversEncode
     use :: Input_Parameters  , only : inputParameters
@@ -109,7 +108,7 @@ contains
       <name>nonAnalyticSolver</name>
       <defaultValue>var_str('fallThrough')</defaultValue>
       <source>parameters</source>
-      <description>Selects how solutions are computed when no analytic solution is available. If set to ``{\normalfont \ttfamily fallThrough}'' then the solution ignoring adiabatic contraction by baryons is used, while if set to ``{\normalfont \ttfamily numerical}'' then numerical solvers are used to find solutions.</description>
+      <description>Selects how solutions are computed when no analytic solution is available. If set to ``\mono{fallThrough}'' then the solution ignoring adiabatic contraction by baryons is used, while if set to ``\mono{numerical}'' then numerical solvers are used to find solutions.</description>
     </inputParameter>
     <objectBuilder class="cosmologyParameters"  name="cosmologyParameters_"  source="parameters"/>
     <objectBuilder class="darkMatterHaloScale"  name="darkMatterHaloScale_"  source="parameters"/>
@@ -169,7 +168,7 @@ contains
 
   function adiabaticGnedin2004Get(self,node,weightBy,weightIndex) result(massDistribution_)
     !!{
-    Return the dark matter mass distribution for the given {\normalfont \ttfamily node}.
+    Return the dark matter mass distribution for the given \mono{node}.
     !!}
     use :: Galactic_Structure_Options, only : componentTypeDarkHalo                       , massTypeDark                       , massTypeBaryonic             , weightByMass
     use :: Mass_Distributions        , only : massDistributionSphericalAdiabaticGnedin2004, kinematicsDistributionCollisionless, massDistributionSpherical    , kinematicsDistributionClass, &
@@ -274,7 +273,7 @@ contains
 
   subroutine adiabaticGnedin2004Initialize(self,node,massDistributionBaryonic,darkMatterDistributedFraction,massFractionInitial)
     !!{
-    Initialize the dark matter mass distribution for the given {\normalfont \ttfamily node}.
+    Initialize the dark matter mass distribution for the given \mono{node}.
     !!}
     use :: Galacticus_Nodes          , only : nodeComponentBasic
     use :: Galactic_Structure_Options, only : massTypeBaryonic

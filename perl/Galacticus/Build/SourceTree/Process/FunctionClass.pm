@@ -38,8 +38,6 @@ sub Process_FunctionClass {
     our $stateStorables;
     # Initialize deep copy actions database.
     our $deepCopyActions;
-    # Determine if debugging output is required.
-    our $debugging = exists($ENV{'GALACTICUS_OBJECTS_DEBUG'}) && $ENV{'GALACTICUS_OBJECTS_DEBUG'} eq "yes";
     # Get state storables database if we do not have it.
     $stateStorables = $xml->XMLin($ENV{'BUILDPATH'}."/stateStorables.xml")
 	unless ( $stateStorables );
@@ -71,24 +69,6 @@ sub Process_FunctionClass {
 		    $methods{$directive->{'method'}->{'name'}} = $directive->{'method'};
 		} else {
 		    %methods = %{$directive->{'method'}};
-		}
-	    }
-	    # Load any functionClassType that the base class extends.
-	    my $functionClassType;
-	    if ( exists($directive->{'extends'}) ) {
-		(my $functionClassTypeFileName) = map {$_->{'name'} eq $directive->{'extends'} ? $_->{'file'} : ()} &List::ExtraUtils::as_array($stateStorables->{'functionClassTypes'});
-		die('failed to find file containing functionClassType "'.$directive->{'extends'}.'"')
-		    unless ( defined($functionClassTypeFileName) );
-		$functionClassType->{'tree'} = &Galacticus::Build::SourceTree::ParseFile($functionClassTypeFileName);
-		my $classNode  = $functionClassType->{'tree'};
-		my $classDepth = 0;
-		while ( $classNode ) {
-		    if ( $classNode->{'type'} eq "type" ) {
-			if ( $classNode->{'name'} eq $directive->{'extends'} ) {
-			    $functionClassType->{'node'} = $classNode;
-			}
-		    }
-		    $classNode = &Galacticus::Build::SourceTree::Walk_Tree($classNode,\$classDepth);
 		}
 	    }
 	    # Find class locations.
@@ -285,16 +265,6 @@ sub Process_FunctionClass {
 		    die("Galacticus::Build::SourceTree::Process::FunctionClass::Process_FunctionClass(): unable to parse variable declaration")
 			unless ( defined($declaration) );
 		    &potentialDescriptorParameters($declaration,$nonAbstractClass,$potentialNames);
-		}
-		# Add any names declared in the functionClassType.
-		if ( defined($functionClassType) ) {
-		    # Search the node for declarations.
-		    my $node = $functionClassType->{'node'}->{'firstChild'};
-		    while ( $node ) {
-			&potentialDescriptorParameters($node->{'declarations'},$nonAbstractClass,$potentialNames)
-			    if ( $node->{'type'} eq "declaration" );
-			$node = $node->{'type'} eq "contains" ? $node->{'firstChild'} : $node->{'sibling'};
-		    }
 		}
 		# Search the tree for this class to find the interface to the parameters constructor.
 		my $node = $nonAbstractClass->{'tree'}->{'firstChild'};
@@ -1170,12 +1140,6 @@ CODE
 	    };
 	    # Add "deepCopy" method.
 	    my $deepCopy;
-            if ( $debugging ) {
-		$deepCopy->{'modules'}->{'MPI_Utilities'     } = 1;
-		$deepCopy->{'modules'}->{'ISO_Varying_String'} = 1;
-		$deepCopy->{'modules'}->{'String_Handling'   } = 1;
-		$deepCopy->{'modules'}->{'Display'           } = 1;
-            }
 	    $deepCopy->{'rankMaximum'} = 0;
             my $linkedListVariables;
             my $linkedListResetVariables;
@@ -1205,7 +1169,7 @@ CODE
 		    last
 			unless ( $node );
 		    # Handle linked lists.
-		    (my $linkedListCode, my $linkedListResetCode, my $linkedListFinalizeCode, my $linkedListModule) = &deepCopyLinkedList($class,$nonAbstractClass,$linkedListVariables,$linkedListResetVariables,$linkedListFinalizeVariables,$debugging);
+		    (my $linkedListCode, my $linkedListResetCode, my $linkedListFinalizeCode, my $linkedListModule) = &deepCopyLinkedList($class,$nonAbstractClass,$linkedListVariables,$linkedListResetVariables,$linkedListFinalizeVariables);
 		    $deepCopy->{'assignments' } .= $linkedListCode;
 		    $deepCopy->{'resetCode'   } .= $linkedListResetCode;
 		    $deepCopy->{'finalizeCode'} .= $linkedListFinalizeCode;
@@ -1239,17 +1203,6 @@ CODE
 		    my $declaration = &Fortran::Utils::Unformat_Variables($declarationSource);
 		    my @ignore      = ();
 		    &deepCopyDeclarations($class,$nonAbstractClass,$node,$declaration,\@ignore,$lineNumber,$deepCopy,$foundDeepCopyNames);
-		}
-		# Add any objects declared in the functionClassType class.
-		if ( defined($functionClassType) ) {
-		    # Search the node for declarations.
-		    my @ignore = ();
-		    my $node   = $functionClassType->{'node'}->{'firstChild'};
-		    while ( $node ) {
-			&deepCopyDeclarations($class,$nonAbstractClass,$node,$node->{'declarations'},\@ignore,$lineNumber,$deepCopy,$foundDeepCopyNames)
-			    if ( $node->{'type'} eq "declaration" );
-			$node = $node->{'sibling'};
-		    }
 		}
 		# Check that the type of the destination matches, and perform the copy. Reset the reference count to the copy.
 		$deepCopy->{'code'} .= "type is (".$nonAbstractClass->{'name'}.")\n";
@@ -1453,15 +1406,6 @@ CODE
 			unless ( defined($declaration) );
 		    &stateStoreVariables($stateStores,$stateStore,undef(),$declaration,$explicitNamesFound);
 		}
-		# Add any variables declared in the functionClassType class.
-		if ( defined($functionClassType) ) {
-		    my $node = $functionClassType->{'node'}->{'firstChild'};
-		    while ( $node ) {
-			&stateStoreVariables($stateStores,$stateStore,undef(),$node->{'declarations'},$explicitNamesFound)
-			    if ( $node->{'type'} eq "declaration" );
-			$node = $node->{'type'} eq "contains" ? $node->{'firstChild'} : $node->{'sibling'};
-		    }
-		}
 		# Check that all explicit variables were found.
 		{
 		    my $class = $nonAbstractClass;
@@ -1638,8 +1582,6 @@ CODE
 		source     => "Galacticus::Build::SourceTree::Process::FunctionClass::Process_FunctionClass()",
 		line       => 1
 	    };
-            $usesNode->{'moduleUse'}->{'ISO_C_Binding'} = {intrinsic => 1, all => 1}
-                if ( $debugging );
             $modulePreContains->{'content'} .= "    integer(c_size_t) :: stateOperationID=0\n";
             $modulePreContains->{'content'} .= "    class(".$directive->{'name'}."Class), public, pointer :: copiedSelf => null()\n";
             $usesNode->{'moduleUse'}->{'ISO_C_Binding'} =
@@ -1850,7 +1792,7 @@ CODE
 	    # Create XML constructor.
 	    $modulePostContains->{'content'} .= "   ".($allowRecursion ? "recursive " : "")."function ".$directive->{'name'}."CnstrctrPrmtrs(parameters,copyInstance,parameterName) result(self)\n";
 	    $modulePostContains->{'content'} .= "      !!{\n";
-	    $modulePostContains->{'content'} .= "      Return a pointer to a newly created {\\normalfont \\ttfamily ".$directive->{'name'}."} object as specified by the provided parameters.\n";
+	    $modulePostContains->{'content'} .= "      Return a pointer to a newly created \\mono{".$directive->{'name'}."} object as specified by the provided parameters.\n";
 	    $modulePostContains->{'content'} .= "      !!}\n";
 	    $modulePostContains->{'content'} .= "      use :: Input_Parameters  , only : inputParameter         , inputParameters\n";
 	    $modulePostContains->{'content'} .= "      use :: Locks  , only : ompLock\n";
@@ -1886,8 +1828,8 @@ CODE
 		    $modulePostContains->{'content'} .= "      if (.not.addLockInitialized) then\n";
 		    $modulePostContains->{'content'} .= "      !\$omp critical (addLockInitialize".ucfirst($directive->{'default'}).")\n";
 		    $modulePostContains->{'content'} .= "          if (.not.addLockInitialized) then\n";
-		    $modulePostContains->{'content'} .= "          addLockInitialized=.true.\n";
 		    $modulePostContains->{'content'} .= "          addLock=ompLock()\n";
+		    $modulePostContains->{'content'} .= "          addLockInitialized=.true.\n";
 		    $modulePostContains->{'content'} .= "      end if\n";
 		    $modulePostContains->{'content'} .= "      !\$omp end critical (addLockInitialize".ucfirst($directive->{'default'}).")\n";
 		    $modulePostContains->{'content'} .= "      end if\n";
@@ -1905,11 +1847,7 @@ CODE
 		}
 		$modulePostContains->{'content'} .= "        select type (self)\n";
 		$modulePostContains->{'content'} .= "          type is (".$directive->{'name'}.ucfirst($directive->{'default'}).")\n";
-		$modulePostContains->{'content'} .= "            call debugStackPush(loc(self))\n"
-		    if ( $debugging );
 		$modulePostContains->{'content'} .= "            self=".$directive->{'name'}.ucfirst($directive->{'default'})."(subParameters)\n";
-		$modulePostContains->{'content'} .= "            call debugStackPop()\n"
-		    if ( $debugging );
 		$modulePostContains->{'content'} .= "         end select\n";
 		if ( exists($class->{'recursive'}) && $class->{'recursive'} eq "yes" ) {
 		    $modulePostContains->{'content'} .= "        ".$directive->{'name'}."RecursiveBuildNode   => null()\n";
@@ -1955,11 +1893,7 @@ CODE
 		}
 		$modulePostContains->{'content'} .= "        select type (self)\n";
 		$modulePostContains->{'content'} .= "          type is (".$class->{'name'}.")\n";
-		$modulePostContains->{'content'} .= "            call debugStackPush(loc(self))\n"
-		    if ( $debugging );
 		$modulePostContains->{'content'} .= "            self=".$class->{'name'}."(subParameters)\n";
-		$modulePostContains->{'content'} .= "            call debugStackPop()\n"
-		    if ( $debugging );
 		$modulePostContains->{'content'} .= "         end select\n";
 		if ( exists($class->{'recursive'}) && $class->{'recursive'} eq "yes" ) {
 		    $modulePostContains->{'content'} .= "        ".$directive->{'name'}."RecursiveBuildNode   => null()\n";
@@ -2473,7 +2407,7 @@ CODE
 		    unless ( $argumentList eq "" );
 		$modulePostContains->{'content'} .= ")\n";
                 $modulePostContains->{'content'} .= "      !!{\n";
-                $modulePostContains->{'content'} .= "      Default implementation of the {\\normalfont \\ttfamily ".$methodName."} method for the {\\normalfont \\ttfamily ".$directive->{'name'}."} class.\n";
+                $modulePostContains->{'content'} .= "      Default implementation of the \\mono{".$methodName."} method for the \\mono{".$directive->{'name'}."} class.\n";
                 $modulePostContains->{'content'} .= "      !!}\n";
 		if ( exists($method->{'code'}) ) {
 		    if ( exists($method->{'modules'}) ) {
@@ -2537,6 +2471,8 @@ CODE
 
 	    # Generate documentation. We construct two sets of documentation, one describing the physics models, and one describing the code implementation.
             my $documentationPhysics = "\\section{"      .$directive->{'descriptiveName'}."}\\label{phys:".$directive->{'name'}."}\\hyperdef{physics}{".$directive->{'name'}."}{}\n\n";
+	    $documentationPhysics .= $directive->{'description'}."\n\n"
+	        if ( exists($directive->{'description'}) );
 	    if ( exists($directive->{'default'}) ) {
 		$documentationPhysics .= "Default implementation: \\refPhysics{".$directive->{'name'}.ucfirst($directive->{'default'})."}\n\n";
 	    } else {
@@ -2547,7 +2483,7 @@ CODE
                 (my $suffix = $class->{'name'}) =~ s/^$directive->{'name'}//;
                 $suffix = lcfirst($suffix)
                     unless ( $suffix =~ m/^[A-Z]{2}/ );
-                $documentationPhysics .= "\\subsection{\\normalfont \\ttfamily ".$suffix."}\\label{phys:".$class->{'name'}."}\\hyperdef{physics}{".$class->{'name'}."}{}\n\n";
+                $documentationPhysics .= "\\subsection{\\mono{".$suffix."}}\\label{phys:".$class->{'name'}."}\\hyperdef{physics}{".$class->{'name'}."}{}\n\n";
                 $documentationPhysics .= $class->{'description'}."\n\n";
 		$documentationPhysics .= "\\noindent \\textbf{(Default)}\n\n"
 		    if ( exists($directive->{'default'}) && $directive->{'name'}.ucfirst($directive->{'default'}) eq $class->{'name'} );
@@ -2700,7 +2636,7 @@ CODE
 					}
 				    }
 				}
-				my $description =  "\\item[{\\normalfont \\ttfamily [".latex_encode($constructorNode->{'directive'}->{'name'})."]}] ";
+				my $description =  "\\item[\\mono{[".latex_encode($constructorNode->{'directive'}->{'name'})."]}] ";
 				$description .= "(".$type."; ".$cardinality.") ";
 				if ( exists($constructorNode->{'directive'}->{'defaultValue'}) ) {
 				    my $value = latex_encode($constructorNode->{'directive'}->{'defaultValue'});
@@ -2717,7 +2653,7 @@ CODE
 				    if ( $type eq "string" ) {
 					$value =~ s/^var\\_str\(['"](.*)['"]\)/$1/;
 				    }
-				    $description .= " \\{{\\normalfont \\ttfamily ".$value."}".(exists($constructorNode->{'directive'}->{'defaultSource'}) ? "; ".$constructorNode->{'directive'}->{'defaultSource'} : "")."\\} ";
+				    $description .= " \\{\\mono{".$value."}".(exists($constructorNode->{'directive'}->{'defaultSource'}) ? "; ".$constructorNode->{'directive'}->{'defaultSource'} : "")."\\} ";
 				}
 				$description .= $constructorNode->{'directive'}->{'description'};
 				push(
@@ -2841,7 +2777,6 @@ sub deepCopyLinkedList {
     my $linkedListVariables         = shift();
     my $linkedListResetVariables    = shift();
     my $linkedListFinalizeVariables = shift();
-    my $debugging                   = shift();
     return ("","","",undef())
 	unless ( exists($class->{'linkedList'}) );
     my $linkedList = $class->{'linkedList'};
@@ -2890,7 +2825,6 @@ sub deepCopyLinkedList {
 	$code::object          =                                            $objects    [$i]         ;
 	$code::objectType      =                                            $objectTypes[$i]         ;
 	$code::location        = &Galacticus::Build::SourceTree::Process::SourceIntrospection::Location($class->{'node'},$class->{'node'}->{'line'});
-	$code::debugCode       = $debugging ? "if (debugReporting.and.mpiSelf\%isMaster()) call displayMessage(var_str('functionClass[own] (class : ownerName : ownerLoc : objectLoc : sourceLoc): [".$code::objectType."] : ".$code::object." : ')//loc(".$code::type."itemNew)//' : '//loc(".$code::type."itemNew%".$code::object.")//' : '//".&Galacticus::Build::SourceTree::Process::SourceIntrospection::Location($class->{'node'},$class->{'node'}->{'line'},compact => 1).",verbosityLevelSilent)\n" : "";
 	if ( $i == 0 ) {
 	    $deepCopyCode .= fill_in_string(<<'CODE', PACKAGE => 'code');
 destination%{$variable} => null            ()
@@ -2940,7 +2874,6 @@ CODE
         {$type}item%{$object}%copiedSelf => {$type}itemNew%{$object}
         call {$type}itemNew%{$object}%autoHook()
        end if
-       {$debugCode}
       end if
    {$type}item => {$type}item%{$next}
 end do
@@ -3191,7 +3124,6 @@ sub deepCopyDeclarations {
     my $deepCopy           =   shift() ;
     my $foundDeepCopyNames =   shift() ;
     our $stateStorables;
-    our $debugging;
     our $deepCopyActions;
     foreach my $declaration ( &List::ExtraUtils::as_array($declarations) ) {
 	# Deep copy of functionClass objects.
@@ -3228,8 +3160,6 @@ sub deepCopyDeclarations {
 		$deepCopy->{'assignments' } .= "  self%".$name."%copiedSelf => destination%".$name."\n";
 		$deepCopy->{'assignments' } .= "  call destination%".$name."%autoHook()\n";
 		$deepCopy->{'assignments' } .= " end if\n";
-		$deepCopy->{'assignments' } .= " if (debugReporting.and.mpiSelf\%isMaster()) call displayMessage(var_str('functionClass[own] (class : ownerName : ownerLoc : objectLoc : sourceLoc): ".$name." : [destination] : ')//loc(destination)//' : '//loc(destination%".$name.")//' : '//".&Galacticus::Build::SourceTree::Process::SourceIntrospection::Location($node,$lineNumber,compact => 1).",verbosityLevelSilent)\n"
-		    if ( $debugging );
 		$deepCopy->{'assignments' } .= "end if\n";
 	    }
 	};
@@ -3312,8 +3242,6 @@ sub deepCopyDeclarations {
 		    $deepCopy->{'assignments' } .= "call destination%".$name."%autoHook()\n";
 		    $deepCopy->{'assignments' } .= "end if\n"
 			if ( grep {$_ eq "pointer"}  @{$declaration->{'attributes'}} );
-		    $deepCopy->{'assignments' } .= "if (debugReporting.and.mpiSelf\%isMaster()) call displayMessage(var_str('functionClass[own] (class : ownerName : ownerLoc : objectLoc : sourceLoc): ".$name." : [destination] : ')//loc(destination)//' : '//loc(destination%".$name.")//' : '//".&Galacticus::Build::SourceTree::Process::SourceIntrospection::Location($node,$lineNumber,compact => 1).",verbosityLevelSilent)\n"
-			if ( $debugging );
 		    if ( grep {$_ eq "pointer"}  @{$declaration->{'attributes'}} ) {
 			$deepCopy->{'assignments' } .= "end if\n";
 			$deepCopy->{'resetCode'   } .= "end if\n";

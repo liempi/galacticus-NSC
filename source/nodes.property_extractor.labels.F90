@@ -19,7 +19,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorLabels">
-   <description>A node property extractor which extracts labels associated with nodes.</description>
+   <description>Extracts integer-encoded labels (categorical tags) attached to nodes via the \mono{Nodes\_Labels} module, such as merger tree branch identifiers or classification flags. Converts each registered label to an integer output for storage and analysis of labeled merger tree populations.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorIntegerTuple) :: nodePropertyExtractorLabels
@@ -62,7 +62,7 @@ contains
 
   integer function labelsElementCount(self,time)
     !!{
-    Return the number of elements in the {\normalfont \ttfamily labels} property extractors.
+    Return the number of elements in the \mono{labels} property extractors.
     !!}
     use :: Nodes_Labels, only : nodeLabelCount
     implicit none
@@ -93,7 +93,7 @@ contains
 
   subroutine labelsNames(self,time,names)
     !!{
-    Return the names of the {\normalfont \ttfamily labels} properties.
+    Return the names of the \mono{labels} properties.
     !!}
     use :: Nodes_Labels   , only : nodeLabelNames
     use :: String_Handling, only : String_Upper_Case_First
@@ -113,7 +113,7 @@ contains
 
   subroutine labelsDescriptions(self,time,descriptions)
     !!{
-    Return the descriptions of the {\normalfont \ttfamily labels} properties.
+    Return the descriptions of the \mono{labels} properties.
     !!}
     use :: Nodes_Labels, only : nodeLabelDescriptions
     implicit none
@@ -128,7 +128,7 @@ contains
 
   function labelsUnitsInSI(self,time)
     !!{
-    Return the units of the {\normalfont \ttfamily labels} properties in the SI system.
+    Return the units of the \mono{labels} properties in the SI system.
     !!}
     implicit none
     double precision                             , dimension(:) , allocatable :: labelsUnitsInSI

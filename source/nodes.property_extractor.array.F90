@@ -21,7 +21,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorArray" abstract="yes">
-   <description>An abstract output analysis property extractor class which provides a array of floating point properties.</description>
+   <description>Abstract base class for extractors that return a fixed-length 2D array of floating-point values per node, defining the interface (including column descriptions, element counts, names, and units) for multi-valued scalar array outputs used in output analysis.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorClass), abstract :: nodePropertyExtractorArray
@@ -35,7 +35,7 @@
        <method method="columnDescriptions" description="Return a description of the columns."                               />
        <method method="size"               description="Return the number of elements in the array."                        />
        <method method="elementCount"       description="Return the number of properties in the array."                      />
-       <method method="extract"            description="Extract the properties from the given {\normalfont \ttfamily node}."/>
+       <method method="extract"            description="Extract the properties from the given \mono{node}."/>
        <method method="names"              description="Return the name of the properties extracted."                       />
        <method method="descriptions"       description="Return a description of the properties extracted."                  />
        <method method="unitsInSI"          description="Return the units of the properties extracted in the SI system."     />

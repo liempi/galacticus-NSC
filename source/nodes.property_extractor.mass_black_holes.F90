@@ -19,9 +19,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorMassBlackHoles">
-   <description>
-     A node property extractor which extracts a list of all super-massive black hole masses.
-   </description>
+   <description>Extracts a list of masses for all supermassive black holes in each node, providing per-black-hole mass data for analysis of black hole demographics and the black hole mass function.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorList) :: nodePropertyExtractorMassBlackHoles
@@ -98,7 +96,7 @@ contains
 
   subroutine massBlackHolesNames(self,names)
     !!{
-    Return the names of the {\normalfont \ttfamily massBlackHoles} properties.
+    Return the names of the \mono{massBlackHoles} properties.
     !!}
     implicit none
     class(nodePropertyExtractorMassBlackHoles), intent(inout)                             :: self
@@ -112,7 +110,7 @@ contains
 
   subroutine massBlackHolesDescriptions(self,descriptions)
     !!{
-    Return the descriptions of the {\normalfont \ttfamily massBlackHoles} properties.
+    Return the descriptions of the \mono{massBlackHoles} properties.
     !!}
     implicit none
     class(nodePropertyExtractorMassBlackHoles), intent(inout)                             :: self
@@ -126,7 +124,7 @@ contains
 
   function massBlackHolesUnitsInSI(self) result(unitsInSI)
     !!{
-    Return the units of the {\normalfont \ttfamily massBlackHoles} properties in the SI system.
+    Return the units of the \mono{massBlackHoles} properties in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : massSolar
     implicit none

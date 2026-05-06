@@ -19,9 +19,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorExcursion">
-   <description>
-     A node property extractor which extracts the (infimum of the) excursion corresponding to the mass accretion history for each node.
-   </description>
+   <description>Extracts the infimum of the excursion (the minimum value of the random walk trajectory above threshold) corresponding to the mass accretion history for each node in the excursion set formalism.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorList) :: nodePropertyExtractorExcursion
@@ -115,7 +113,7 @@ contains
   
   subroutine excursionNames(self,names)
     !!{
-    Return the names of the {\normalfont \ttfamily excursion} properties.
+    Return the names of the \mono{excursion} properties.
     !!}
     implicit none
     class(nodePropertyExtractorExcursion), intent(inout)                             :: self
@@ -130,7 +128,7 @@ contains
 
   subroutine excursionDescriptions(self,descriptions)
     !!{
-    Return the descriptions of the {\normalfont \ttfamily excursion} properties.
+    Return the descriptions of the \mono{excursion} properties.
     !!}
     implicit none
     class(nodePropertyExtractorExcursion), intent(inout)                             :: self
@@ -145,7 +143,7 @@ contains
 
   function excursionUnitsInSI(self) result(unitsInSI)
     !!{
-    Return the units of the {\normalfont \ttfamily excursion} properties in the SI system.
+    Return the units of the \mono{excursion} properties in the SI system.
     !!}
     implicit none
     double precision                                , dimension(:) , allocatable :: unitsInSI

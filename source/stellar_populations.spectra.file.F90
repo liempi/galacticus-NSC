@@ -69,7 +69,7 @@
     \AA) and spectra (in $L_\odot$ Hz$^{-1}$).
   
     Scripts to convert the data provided by \cite{maraston_evolutionary_2005} and \cite{bruzual_stellar_2003} into \glc's
-    format are provided in the {\normalfont \ttfamily scripts/ssps} folder.
+    format are provided in the \mono{scripts/ssps} folder.
    </description>
    <stateStorable>
     <exclude variables="spectra, forceZeroMetallicity, fileName, fileRead"/>
@@ -131,7 +131,7 @@ contains
     <inputParameter>
       <name>fileName</name>
       <source>parameters</source>
-      <description>The name of the file from which to read spectra.</description>
+      <description>The path to the HDF5 file containing the tabulated stellar population spectra, with datasets for ages (Gyr), metallicities (log Solar), wavelengths (\AA), and spectra ($L_\odot\,\mathrm{Hz}^{-1}$); see the \mono{scripts/ssps} folder for conversion scripts.</description>
     </inputParameter>
     !!]
     self=stellarPopulationSpectraFile(forceZeroMetallicity,char(fileName))
@@ -160,8 +160,8 @@ contains
 
   double precision function fileLuminosity(self,abundancesStellar,age,wavelength,status)
     !!{
-    Return the luminosity (in units of $L_\odot$ Hz$^{-1}$) for a stellar population with composition {\normalfont \ttfamily abundances}, of the
-    given {\normalfont \ttfamily age} (in Gyr) and the specified {\normalfont \ttfamily wavelength} (in Angstroms). This is found by interpolating in tabulated
+    Return the luminosity (in units of $L_\odot$ Hz$^{-1}$) for a stellar population with composition \mono{abundances}, of the
+    given \mono{age} (in Gyr) and the specified \mono{wavelength} (in Angstroms). This is found by interpolating in tabulated
     spectra.
     !!}
     use            :: Abundances_Structure, only : Abundances_Get_Metallicity           , abundances            , logMetallicityZero, max, &

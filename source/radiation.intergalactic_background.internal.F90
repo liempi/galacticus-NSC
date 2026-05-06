@@ -34,13 +34,13 @@
 
   !![
   <radiationField name="radiationFieldIntergalacticBackgroundInternal">
-   <description>A radiation field class for intergalactic background light with properties computed internally.</description>
-   <stateStore>
-     <stateStore variables="accretionDiskSpectra_" store="accretionDiskSpectraStateStore_" restore="accretionDiskSpectraStateRestore_" module="Functions_Global"/>
-   </stateStore>
+   <description>A radiation field class that computes the intergalactic background radiation field internally, tracking the buildup of ultraviolet and infrared photons from stellar and other sources across cosmic time. The wavelength grid is controlled by \mono{[wavelengthsPerDecade]}, \mono{[wavelengthMinimum]}, and \mono{[wavelengthMaximum]}, while the time resolution is set by \mono{[timesPerDecade]}.</description>
    <deepCopy>
      <ignore variables="accretionDiskSpectra_"/>
    </deepCopy>
+   <stateStore>
+     <stateStore variables="accretionDiskSpectra_" store="accretionDiskSpectraStateStore_" restore="accretionDiskSpectraStateRestore_" module="Functions_Global"/>
+   </stateStore>
   </radiationField>
   !!]
   type, extends(radiationFieldIntergalacticBackground) :: radiationFieldIntergalacticBackgroundInternal
@@ -879,9 +879,6 @@ contains
        if (associated(self%accretionDiskSpectra_)) then
           allocate(destination%accretionDiskSpectra_,mold=self%accretionDiskSpectra_)
           call accretionDiskSpectraDeepCopy_(self%accretionDiskSpectra_,destination%accretionDiskSpectra_)
-#ifdef OBJECTDEBUG
-          if (debugReporting.and.mpiSelf%isMaster()) call displayMessage(var_str('functionClass[own] (class : ownerName : ownerLoc : objectLoc : sourceLoc): galacticstructure : [destination] : ')//loc(destination)//' : '//loc(destination%accretionDiskSpectra_)//' : '//{introspection:location:compact},verbosityLevelSilent)
-#endif
        end if
     class default
        call Error_Report('destination and source types do not match'//{introspection:location})

@@ -52,23 +52,22 @@
     \end{eqnarray}
     where $a=\tan(\psi/2)$ and $x=\tan^{-1}[\sqrt{2}\tan (\psi/2)]$.
   
-    Various sub-parameters specify the details of the lightcone geometry. The {\normalfont \ttfamily lengthReplication} parameter
+    Various sub-parameters specify the details of the lightcone geometry. The \mono{lengthReplication} parameter
     should give the length of the simulation box (the box will be replicated to span the volume covered by the lightcone),
-    with the {\normalfont \ttfamily lengthUnitsInSI} parameter giving the length unit in SI units and {\normalfont \ttfamily
-    lengthHubbleExponent} giving the exponent of $h$ that appears in the length unit. The {\normalfont \ttfamily angularSize}
-    parameter of {\normalfont \ttfamily fieldOfView} should gives the length of the side of the square field of view in
-    degrees. The {\normalfont \ttfamily origin} element must contain the $x$, $y$, $z$ coordinates of the origin of the
-    lightcone within the simulation box, while the {\normalfont \ttfamily unitVectorX} parameters must give unit vectors which
-    point along the lightcone (for {\normalfont \ttfamily X}$=1$), and in the two directions perpendicular to the lightcone
-    (for {\normalfont \ttfamily X}$=2$ and 3). The {\normalfont \ttfamily redshift} parameters must list the redshifts of
+    with the \mono{lengthUnitsInSI} parameter giving the length unit in SI units and \mono{lengthHubbleExponent} giving the exponent of $h$ that appears in the length unit. The \mono{angularSize}
+    parameter of \mono{fieldOfView} should gives the length of the side of the square field of view in
+    degrees. The \mono{origin} element must contain the $x$, $y$, $z$ coordinates of the origin of the
+    lightcone within the simulation box, while the \mono{unitVectorX} parameters must give unit vectors which
+    point along the lightcone (for \mono{X}$=1$), and in the two directions perpendicular to the lightcone
+    (for \mono{X}$=2$ and 3). The \mono{redshift} parameters must list the redshifts of
     available outputs.
    </description>
-   <stateStore>
-     <stateStore variables="nodeOperator_" store="nodeOperatorStateStore_" restore="nodeOperatorStateRestore_" module="Functions_Global"/>
-   </stateStore>
    <deepCopy>
      <ignore variables="nodeOperator_"/>
    </deepCopy>
+   <stateStore>
+     <stateStore variables="nodeOperator_" store="nodeOperatorStateStore_" restore="nodeOperatorStateRestore_" module="Functions_Global"/>
+   </stateStore>
   </geometryLightcone>
   !!]
   type, extends(geometryLightconeClass) :: geometryLightconeSquare
@@ -98,15 +97,15 @@
      !![
      <methods>
       <method method="positionAtOutput">
-       <description>Returns the position of a point, {\normalfont \ttfamily nodePosition} (given in physical coordinates within the primary replicant volume), in comoving coordinates in the replicant volume in which it appears in the lightcone. If the point is \emph{not} in the lightcone the returned position is set to the largest possible negative number in each coordinate. If the optional {\normalfont \ttfamily positionFound} argument is given it will be set to true or false to indicate whether or not the point was found in the lightcone volume.</description>
+       <description>Returns the position of a point, \mono{nodePosition} (given in physical coordinates within the primary replicant volume), in comoving coordinates in the replicant volume in which it appears in the lightcone. If the point is \emph{not} in the lightcone the returned position is set to the largest possible negative number in each coordinate. If the optional \mono{positionFound} argument is given it will be set to true or false to indicate whether or not the point was found in the lightcone volume.</description>
       </method>
       <method method="replicants">
        <description>
-        Performs various actions related to replicants of nodes appearing in lightcone output, depending on the value of the {\normalfont \ttfamily action} argument:
+        Performs various actions related to replicants of nodes appearing in lightcone output, depending on the value of the \mono{action} argument:
         \begin{description}
-        \item[{\normalfont \ttfamily replicantActionCount}] returns in {\normalfont \ttfamily count} the number of replicants in which the node appears in the lightcone;
-        \item[{\normalfont \ttfamily replicantActionAny}] returns true in {\normalfont \ttfamily isInLightcone} if the given position appears in \emph{any} replicant in the lightcone;
-        \item[{\normalfont \ttfamily replicantActionInstance}] returns in {\normalfont \ttfamily position} the position in the {\normalfont \ttfamily instance}$^\mathrm{th}$ replicant in which this position appears in the lightcone.
+        \item[\mono{replicantActionCount}] returns in \mono{count} the number of replicants in which the node appears in the lightcone;
+        \item[\mono{replicantActionAny}] returns true in \mono{isInLightcone} if the given position appears in \emph{any} replicant in the lightcone;
+        \item[\mono{replicantActionInstance}] returns in \mono{position} the position in the \mono{instance}$^\mathrm{th}$ replicant in which this position appears in the lightcone.
         \end{description}
        </description>
       </method>
@@ -213,7 +212,7 @@ contains
       <name>origin</name>
       <source>parameters</source>
       <variable>origin</variable>
-      <description>The origin for the lightcone.</description>
+      <description>The 3D Cartesian position vector (in Mpc) of the observer's location from which the square lightcone extends along the direction defined by the unit vectors.</description>
     </inputParameter>
     <inputParameter>
       <name>unitVector1</name>
@@ -268,7 +267,7 @@ contains
       <source>parameters</source>
       <defaultValue>.true.</defaultValue>
       <variable>timeEvolvesAlongLightcone</variable>
-      <description>If {\normalfont \ttfamily true}, cosmic time evolves along the lightcone as expected. Otherwise, time is fixed at the present epoch throughout the lightcone. This allows construction of lightcones with no evolution.</description>
+      <description>If \mono{true}, cosmic time evolves along the lightcone as expected. Otherwise, time is fixed at the present epoch throughout the lightcone. This allows construction of lightcones with no evolution.</description>
     </inputParameter>
     <objectBuilder class="cosmologyFunctions"  name="cosmologyFunctions_"  source="parameters"/>
     <objectBuilder class="cosmologyParameters" name="cosmologyParameters_" source="parameters"/>
@@ -487,7 +486,7 @@ contains
 
   function squareReplicationCount(self,node)
     !!{
-    Determine the number of times {\normalfont \ttfamily node} appears in the lightcone.
+    Determine the number of times \mono{node} appears in the lightcone.
     !!}
     use            :: Arrays_Search   , only : searchArrayClosest
     use            :: Galacticus_Nodes, only : nodeComponentBasic, nodeComponentPosition, treeNode
@@ -531,8 +530,7 @@ contains
 
   logical function squareIsInLightcone(self,node,atPresentEpoch,radiusBuffer)
     !!{
-    Determine if the given {\normalfont \ttfamily node} lies within the lightcone. Note that, when called with {\normalfont
-    \ttfamily atPresentEpoch=false} this function returns true if the node is in the lightcone at any point during its
+    Determine if the given \mono{node} lies within the lightcone. Note that, when called with \mono{atPresentEpoch=false} this function returns true if the node is in the lightcone at any point during its
     existence. However, this check is made assuming that each node remains at fixed comoving coordinates between each output
     time---there is no consideration of movement between output times. It is therefore recommended that some buffer is added to
     catch any nodes which may briefly enter the lightcone between output times.
@@ -881,7 +879,7 @@ contains
     use :: Numerical_Constants_Physical    , only : speedLight
     use :: Vectors                         , only : Vector_Magnitude
     use :: Root_Finder                     , only : rootFinder
-    use :: Sorting                         , only : sort
+    use :: Sorting                         , only : sortIndex                               , sort
     use :: Functions_Global                , only : nodeOperatorPredeterminedSolveAnalytics_
     implicit none
     class           (geometryLightconeSquare), intent(inout)                                        :: self
@@ -889,7 +887,9 @@ contains
     double precision                         , intent(in   )                                        :: timeStart                   , timeEnd
     double precision                         , intent(inout), dimension(:  ), allocatable, optional :: timesCrossing
     double precision                                        , dimension(:  ), allocatable           :: timesCrossingTmp            , timeSeek          , &
-         &                                                                                             distanceSeek
+         &                                                                                             distanceRootSeek            , distanceConeSeek  , &
+         &                                                                                             distanceNodeSeek
+    integer         (c_size_t               )               , dimension(:  ), allocatable           :: order
     integer                                                 , dimension(3,2)                        :: periodicRange
     class           (nodeComponentBasic     ), pointer                                              :: basic
     class           (nodeComponentPosition  ), pointer                                              :: position
@@ -974,16 +974,18 @@ contains
                 timeCrossing=finder%find(rootRange=[timeStart_,timeEnd])
                 if (reporting) then
                    call displayIndent("Lightcone crossing seek:")
-                   call displayMessage("time         distance root")
-                   call displayMessage("__________________________")
-                   call sort(timeSeek(1:countSeek),distanceSeek(1:countSeek))
+                   call displayMessage("time         distance root distance node distance cone")
+                   call displayMessage("______________________________________________________")
+                   order=sortIndex(timeSeek(1:countSeek))
                    do iSeek=1,countSeek
-                      write (label,'(e12.6,1x,e12.6)') timeSeek(iSeek),distanceSeek(iSeek)
+                      write (label,'(e12.6,1x,e12.6,1x,e12.6,1x,e12.6)') timeSeek(order(iSeek)),distanceRootSeek(order(iSeek)),distanceNodeSeek(order(iSeek)),distanceConeSeek(order(iSeek))
                       call displayMessage(trim(adjustl(label)))
                    end do
                    call displayUnindent("")
-                   deallocate(timeSeek    )
-                   deallocate(distanceSeek)
+                   deallocate(timeSeek        )
+                   deallocate(distanceRootSeek)
+                   deallocate(distanceNodeSeek)
+                   deallocate(distanceConeSeek)
                 end if
                 ! Check that the node is in the field of view at this time, that this is the earliest crossing, and that the
                 ! crossing occurs at least some small time after the current time of the node. (This last condition is to ensure
@@ -1008,12 +1010,14 @@ contains
                       call displayMessage("time         distance root")
                       call displayMessage("__________________________")
                      do iSeek=1,countSteps
-                         write (label,'(e12.6,1x,e12.6)') timeSeek(iSeek),distanceSeek(iSeek)
+                         write (label,'(e12.6,1x,e12.6)') timeSeek(iSeek),distanceRootSeek(iSeek)
                          call displayMessage(trim(adjustl(label)))
                       end do
                       call displayUnindent("")
-                      deallocate(timeSeek    )
-                      deallocate(distanceSeek)
+                      deallocate(timeSeek        )
+                      deallocate(distanceRootSeek)
+                      deallocate(distanceNodeSeek)
+                      deallocate(distanceConeSeek)
                    end if
                    ! Only set this crossing as the result if it is the earliest crossing time found so far.
                    if (timeCrossing < squareTimeLightconeCrossing) then
@@ -1062,7 +1066,8 @@ contains
       implicit none
       double precision, intent(in   )             :: time
       double precision, dimension(3)              :: positionNode
-      double precision, dimension(:), allocatable :: timeSeek_   , distanceSeek_
+      double precision, dimension(:), allocatable :: timeSeek_    , distanceRoot_, &
+           &                                         distanceNode_, distanceCone_
       double precision                            :: distanceNode
 
       positionNode    =self%nodePositionReplicant(node,time,self%origin,[i,j,k],setTime=.true.)
@@ -1071,21 +1076,33 @@ contains
            &           -self%cosmologyFunctions_%distanceComoving(time)
       if (reporting) then
          if (countSeek == 0) then
-            allocate(timeSeek    (32))
-            allocate(distanceSeek(32))
+            allocate(timeSeek        (32))
+            allocate(distanceRootSeek(32))
+            allocate(distanceNodeSeek(32))
+            allocate(distanceConeSeek(32))
          else if (countSeek == size(timeSeek)) then
-            call move_alloc(timeSeek    ,timeSeek_    )
-            call move_alloc(distanceSeek,distanceSeek_)
-            allocate(timeSeek    (countSeek*2))
-            allocate(distanceSeek(countSeek*2))
-            timeSeek    (1:countSeek)=timeSeek_
-            distanceSeek(1:countSeek)=distanceSeek_
+            call move_alloc(timeSeek        ,timeSeek_    )
+            call move_alloc(distanceRootSeek,distanceRoot_)
+            call move_alloc(distanceNodeSeek,distanceNode_)
+            call move_alloc(distanceConeSeek,distanceCone_)
+            allocate(timeSeek        (countSeek*2))
+            allocate(distanceRootSeek(countSeek*2))
+            allocate(distanceNodeSeek(countSeek*2))
+            allocate(distanceConeSeek(countSeek*2))
+            timeSeek        (1:countSeek)=timeSeek_
+            distanceRootSeek(1:countSeek)=distanceRoot_
+            distanceNodeSeek(1:countSeek)=distanceNode_
+            distanceConeSeek(1:countSeek)=distanceCone_
             deallocate(timeSeek_    )
-            deallocate(distanceSeek_)
+            deallocate(distanceRoot_)
+            deallocate(distanceNode_)
+            deallocate(distanceCone_)
          end if
          countSeek=countSeek+1
-         timeSeek    (countSeek)=time
-         distanceSeek(countSeek)=timeCrossingRoot
+         timeSeek        (countSeek)=time
+         distanceRootSeek(countSeek)=timeCrossingRoot
+         distanceNodeSeek(countSeek)=distanceNode
+         distanceConeSeek(countSeek)=self%cosmologyFunctions_%distanceComoving(time)
       end if
       return
     end function timeCrossingRoot
@@ -1109,7 +1126,7 @@ contains
 
   function squareReplicantLightConeCrossing(self,node) result(replicant)
     !!{
-    Return the indices of the replicant for which the given {\normalfont \ttfamily node} is crossing the lightcone.
+    Return the indices of the replicant for which the given \mono{node} is crossing the lightcone.
     !!}
     use :: Error               , only : Error_Report
     use :: Galacticus_Nodes    , only : nodeComponentBasic
@@ -1404,9 +1421,6 @@ contains
        if (associated(self%nodeOperator_)) then
           allocate(destination%nodeOperator_,mold=self%nodeOperator_)
           call nodeOperatorDeepCopy_(self%nodeOperator_,destination%nodeOperator_)
-#ifdef OBJECTDEBUG
-          if (debugReporting.and.mpiSelf%isMaster()) call displayMessage(var_str('functionClass[own] (class : ownerName : ownerLoc : objectLoc : sourceLoc): galacticstructure : [destination] : ')//loc(destination)//' : '//loc(destination%nodeOperator_)//' : '//{introspection:location:compact},verbosityLevelSilent)
-#endif
        end if
     class default
        call Error_Report('destination and source types do not match'//{introspection:location})

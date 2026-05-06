@@ -21,7 +21,7 @@
 
   !![
   <nodePropertyExtractor name="nodePropertyExtractorList2D" abstract="yes">
-   <description>An abstract output analysis property extractor class which provides a 2D list of floating point properties.</description>
+   <description>An abstract base class for node property extractors that provide a 2D list (array of arrays) of floating-point properties, enabling extraction of variable-length per-node data such as merger histories or multi-epoch quantities.</description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorClass), abstract :: nodePropertyExtractorList2D
@@ -33,7 +33,7 @@
      !![
      <methods>
        <method method="elementCount" description="Return a count of the number of properties extracted."              />
-       <method method="extract"      description="Extract the properties from the given {\normalfont \ttfamily node}."/>
+       <method method="extract"      description="Extract the properties from the given \mono{node}."/>
        <method method="names"        description="Return the name of the properties extracted."                       />
        <method method="descriptions" description="Return a description of the properties extracted."                  />
        <method method="unitsInSI"    description="Return the units of the properties extracted in the SI system."     />
