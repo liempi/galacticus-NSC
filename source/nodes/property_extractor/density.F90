@@ -1,0 +1,385 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+  !!{RST
+  Implements a property extractor class for the density at a set of radii.
+  !!}
+  use :: Dark_Matter_Halo_Scales             , only : darkMatterHaloScale, darkMatterHaloScaleClass
+  use :: Galactic_Structure_Radii_Definitions, only : radiusSpecifier
+
+  !![
+  <nodePropertyExtractor name="nodePropertyExtractorDensityProfile" docformat="rst">
+   <description>
+   A property extractor that returns the mass density profile (in :math:`\mathrm{M}_\odot \, \mathrm{Mpc}^{-3}`) of a galaxy or halo component at a user-specified set of radii. The ``radiusSpecifiers`` parameter provides a list of radius definitions (e.g.\ multiples of the virial radius, disk radius, or half-mass radius), supporting both galactic structural radii and fixed physical radii. If ``includeRadii`` is ``true``, the corresponding radii (in Mpc) are also written to the output file as a second column alongside the density values.
+   </description>
+  </nodePropertyExtractor>
+  !!]
+  type, extends(nodePropertyExtractorArray) :: nodePropertyExtractorDensityProfile
+     !!{RST
+     A property extractor class for the density at a set of radii.
+     !!}
+     private
+     class  (darkMatterHaloScaleClass), pointer                   :: darkMatterHaloScale_          => null()
+     integer                                                      :: radiiCount                             , elementCount_
+     logical                                                      :: includeRadii
+     type   (varying_string          ), allocatable, dimension(:) :: radiusSpecifiers
+     type   (radiusSpecifier         ), allocatable, dimension(:) :: radii
+     logical                                                      :: darkMatterScaleRadiusIsNeeded          , diskIsNeeded        , &
+          &                                                          spheroidIsNeeded                       , virialRadiusIsNeeded, &
+          &                                                          nuclearStarClusterIsNeeded             , satelliteIsNeeded   , &
+          &                                                          hotHaloIsNeeded
+   contains
+     final     ::                       densityProfileDestructor
+     procedure :: columnDescriptions => densityProfileColumnDescriptions
+     procedure :: size               => densityProfileSize
+     procedure :: elementCount       => densityProfileElementCount
+     procedure :: extract            => densityProfileExtract
+     procedure :: names              => densityProfileNames
+     procedure :: descriptions       => densityProfileDescriptions
+     procedure :: unitsInSI          => densityProfileUnitsInSI
+     procedure :: units              => densityProfileUnits
+  end type nodePropertyExtractorDensityProfile
+
+  interface nodePropertyExtractorDensityProfile
+     !!{RST
+     Constructors for the :galacticus-class:`nodePropertyExtractorDensityProfile` property extractor class.
+     !!}
+     module procedure densityProfileConstructorParameters
+     module procedure densityProfileConstructorInternal
+  end interface nodePropertyExtractorDensityProfile
+
+contains
+
+  function densityProfileConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`nodePropertyExtractorDensityProfile` property extractor class which takes a parameter set as input.
+    !!}
+    use :: Input_Parameters, only : inputParameter, inputParameters
+    implicit none
+    type   (nodePropertyExtractorDensityProfile)                              :: self
+    type   (inputParameters                    ), intent(inout)               :: parameters
+    type   (varying_string                     ), allocatable  , dimension(:) :: radiusSpecifiers
+    class  (darkMatterHaloScaleClass           ), pointer                     :: darkMatterHaloScale_
+    logical                                                                   :: includeRadii
+
+    allocate(radiusSpecifiers(parameters%count('radiusSpecifiers')))
+    !![
+    <inputParameter docformat="rst">
+      <name>radiusSpecifiers</name>
+      <description>
+      A list of radius specifiers at which to output the density profile.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>includeRadii</name>
+      <defaultValue>.false.</defaultValue>
+      <description>
+      Specifies whether or not the radii at which density data are output should also be included in the output file.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <objectBuilder class="darkMatterHaloScale" name="darkMatterHaloScale_" source="parameters"/>
+    !!]
+    self=nodePropertyExtractorDensityProfile(radiusSpecifiers,includeRadii,darkMatterHaloScale_)
+    !![
+    <inputParametersValidate source="parameters"/>
+    <objectDestructor name="darkMatterHaloScale_"/>
+    !!]
+    return
+  end function densityProfileConstructorParameters
+
+  function densityProfileConstructorInternal(radiusSpecifiers,includeRadii,darkMatterHaloScale_) result(self)
+    !!{RST
+    Internal constructor for the :galacticus-class:`nodePropertyExtractorDensityProfile` property extractor class.
+    !!}
+    use :: Galactic_Structure_Radii_Definitions, only : Galactic_Structure_Radii_Definition_Decode
+    implicit none
+    type   (nodePropertyExtractorDensityProfile)                              :: self
+    type   (varying_string                     ), intent(in   ), dimension(:) :: radiusSpecifiers
+    class  (darkMatterHaloScaleClass           ), intent(in   ), target       :: darkMatterHaloScale_
+    logical                                     , intent(in   )               :: includeRadii
+    !![
+    <constructorAssign variables="radiusSpecifiers, includeRadii, *darkMatterHaloScale_"/>
+    !!]
+
+    if (includeRadii) then
+       self%elementCount_=2
+    else
+       self%elementCount_=1
+    end if
+    self%radiiCount      =size(radiusSpecifiers)
+    call Galactic_Structure_Radii_Definition_Decode(                                    &
+         &                                          radiusSpecifiers                  , &
+         &                                          self%radii                        , &
+         &                                          self%hotHaloIsNeeded              , &
+         &                                          self%diskIsNeeded                 , &
+         &                                          self%spheroidIsNeeded             , &
+         &                                          self%nuclearStarClusterIsNeeded   , &
+         &                                          self%satelliteIsNeeded            , &
+         &                                          self%virialRadiusIsNeeded         , &
+         &                                          self%darkMatterScaleRadiusIsNeeded  &
+         &                                         )
+    return
+  end function densityProfileConstructorInternal
+
+  subroutine densityProfileDestructor(self)
+    !!{RST
+    Destructor for the :galacticus-class:`nodePropertyExtractorDensityProfile` property extractor class.
+    !!}
+    implicit none
+    type(nodePropertyExtractorDensityProfile), intent(inout) :: self
+
+    !![
+    <objectDestructor name="self%darkMatterHaloScale_"/>
+    !!]
+    return
+  end subroutine densityProfileDestructor
+
+  integer function densityProfileElementCount(self,time)
+    !!{RST
+    Return the number of elements in the ``densityProfile`` property extractors.
+    !!}
+    implicit none
+    class           (nodePropertyExtractorDensityProfile), intent(inout) :: self
+    double precision                                     , intent(in   ) :: time
+    !$GLC attributes unused :: time
+
+    densityProfileElementCount=self%elementCount_
+    return
+  end function densityProfileElementCount
+
+  function densityProfileSize(self,time)
+    !!{RST
+    Return the number of array elements in the ``densityProfile`` property extractors.
+    !!}
+    implicit none
+    integer         (c_size_t                           )                :: densityProfileSize
+    class           (nodePropertyExtractorDensityProfile), intent(inout) :: self
+    double precision                                     , intent(in   ) :: time
+    !$GLC attributes unused :: time
+
+    densityProfileSize=self%radiiCount
+    return
+  end function densityProfileSize
+
+  function densityProfileExtract(self,node,time,instance)
+    !!{RST
+    Implement a ``densityProfile`` property extractor.
+    !!}
+    use :: Galactic_Structure_Options          , only : componentTypeAll               , massTypeGalactic            , massTypeStellar
+    use :: Galactic_Structure_Radii_Definitions, only : radiusTypeDarkMatterScaleRadius, radiusTypeDiskHalfMassRadius, radiusTypeDiskRadius                      , radiusTypeGalacticLightFraction   , &
+          &                                             radiusTypeGalacticMassFraction , radiusTypeRadius            , radiusTypeSpheroidHalfMassRadius          , radiusTypeSpheroidRadius          , &
+          &                                             radiusTypeStellarMassFraction  , radiusTypeVirialRadius      , radiusTypeNuclearStarClusterHalfMassRadius, radiusTypeNuclearStarClusterRadius, &
+          &                                             radiusTypeHotHaloOuterRadius
+    use :: Galacticus_Nodes                    , only : nodeComponentDarkMatterProfile , nodeComponentDisk           , nodeComponentSpheroid                     , nodeComponentNSC                  , &
+         &                                              nodeComponentHotHalo           , treeNode 
+    use :: Mass_Distributions                  , only : massDistributionClass
+    use :: Coordinates                         , only : coordinateSpherical            , assignment(=)
+    use :: Numerical_Constants_Math            , only : Pi
+    use :: Error                               , only : Error_Report
+    implicit none
+    double precision                                     , dimension(:,:), allocatable :: densityProfileExtract
+    class           (nodePropertyExtractorDensityProfile), intent(inout) , target      :: self
+    type            (treeNode                           ), intent(inout) , target      :: node
+    double precision                                     , intent(in   )               :: time
+    type            (multiCounter                       ), intent(inout) , optional    :: instance
+    class           (nodeComponentHotHalo               ), pointer                     :: hotHalo
+    class           (nodeComponentDisk                  ), pointer                     :: disk
+    class           (nodeComponentSpheroid              ), pointer                     :: spheroid
+    class           (nodeComponentNSC                   ), pointer                     :: nuclearStarCluster
+    class           (nodeComponentDarkMatterProfile     ), pointer                     :: darkMatterProfile
+    class           (massDistributionClass              ), pointer                     :: massDistribution_
+    type            (coordinateSpherical                )                              :: coordinates
+    integer                                                                            :: i
+    double precision                                                                   :: radius                , radiusVirial
+    !$GLC attributes unused :: time, instance
+
+    allocate(densityProfileExtract(self%radiiCount,self%elementCount_))
+    radiusVirial                                               =  0.0d0
+    if (self%         virialRadiusIsNeeded) radiusVirial       =  self%darkMatterHaloScale_%radiusVirial(node                    )
+    if (self%              hotHaloIsNeeded) hotHalo            =>                                        node%hotHalo          ()
+    if (self%                 diskIsNeeded) disk               =>                                        node%disk             ()
+    if (self%             spheroidIsNeeded) spheroid           =>                                        node%spheroid         ()
+    if (self%   nuclearStarClusterIsNeeded) nuclearStarCluster =>                                        node%NSC              ()
+    if (self%darkMatterScaleRadiusIsNeeded) darkMatterProfile  =>                                        node%darkMatterProfile()
+
+    do i=1,self%radiiCount
+       radius=self%radii(i)%value
+       select case (self%radii(i)%type%ID)
+       case   (radiusTypeRadius                          %ID)
+          ! Nothing to do.
+       case   (radiusTypeVirialRadius                    %ID)
+          radius=+radius*radiusVirial
+       case   (radiusTypeDarkMatterScaleRadius           %ID)
+          radius=+radius*darkMatterProfile %         scale()
+       case   (radiusTypeHotHaloOuterRadius              %ID)
+          radius=+radius*hotHalo           %   outerRadius()
+       case   (radiusTypeDiskRadius                      %ID)
+          radius=+radius*disk              %        radius()
+       case   (radiusTypeSpheroidRadius                  %ID)
+          radius=+radius*spheroid          %        radius()
+       case   (radiusTypeNuclearStarClusterRadius        %ID)
+          radius=+radius*nuclearStarCluster%        radius()
+       case   (radiusTypeDiskHalfMassRadius              %ID)
+          radius=+radius*disk             %halfMassRadius()
+       case   (radiusTypeSpheroidHalfMassRadius          %ID)
+          radius=+radius*spheroid         %halfMassRadius()
+       case   (radiusTypeNuclearStarClusterHalfMassRadius%ID)
+          radius=+radius*nuclearStarCluster%halfMassRadius()
+       case   (radiusTypeGalacticMassFraction            %ID,  &
+            &  radiusTypeGalacticLightFraction           %ID)
+          massDistribution_ =>  node             %massDistribution   (                                                &
+               &                                                      massType      =              massTypeStellar ,  &
+               &                                                      componentType =              componentTypeAll,  &
+               &                                                      weightBy      =self%radii(i)%weightBy        ,  &
+               &                                                      weightIndex   =self%radii(i)%weightByIndex      &
+               &                                                     )
+          radius            =  +radius                                                                                &
+               &               *massDistribution_%radiusEnclosingMass(                                                &
+               &                                                      massFractional=self%radii(i)%fraction           &
+               &                                                     )
+          !![
+	  <objectDestructor name="massDistribution_"/>
+	  !!]
+       case   (radiusTypeStellarMassFraction  %ID)
+           massDistribution_ =>  node             %massDistribution  (                                                &
+               &                                                      massType      =              massTypeStellar ,  &
+               &                                                      componentType =              componentTypeAll,  &
+               &                                                      weightBy      =self%radii(i)%weightBy        ,  &
+               &                                                      weightIndex   =self%radii(i)%weightByIndex      &
+               &                                                     )
+          radius            =  +radius                                                                                &
+               &               *massDistribution_%radiusEnclosingMass(                                                &
+               &                                                      massFractional=self%radii(i)%fraction           &
+               &                                                     )
+          !![
+	  <objectDestructor name="massDistribution_"/>
+	  !!]
+       case default
+          call Error_Report('unrecognized radius type'//{introspection:location})
+       end select
+       coordinates                       =  [radius,Pi/2.0d0,0.0d0]
+       massDistribution_                 => node             %massDistribution(                                         &
+            &                                                                  componentType=self%radii(i)%component  , &
+            &                                                                  massType     =self%radii(i)%mass         &
+            &                                                                 )
+       densityProfileExtract       (i,1) =  massDistribution_%density         (                                         &
+            &                                                                  coordinates=                coordinates  &
+            &                                                                 )
+       if (self%includeRadii)                                                                                           &
+            & densityProfileExtract(i,2) =                                                                 radius
+       !![
+       <objectDestructor name="massDistribution_"/>
+       !!]
+    end do
+    return
+  end function densityProfileExtract
+
+  subroutine densityProfileNames(self,names,time)
+    !!{RST
+    Return the names of the ``densityProfile`` properties.
+    !!}
+    implicit none
+    class           (nodePropertyExtractorDensityProfile), intent(inout)                             :: self
+    double precision                                     , intent(in   ), optional                   :: time
+    type            (varying_string                     ), intent(inout), dimension(:) , allocatable :: names
+    !$GLC attributes unused :: time
+
+    allocate(names(self%elementCount_))
+    names(1)="densityProfile"
+    if (self%includeRadii) names(2)="densityProfileRadius"
+    return
+  end subroutine densityProfileNames
+
+  subroutine densityProfileDescriptions(self,descriptions,time)
+    !!{RST
+    Return descriptions of the ``densityProfile`` property.
+    !!}
+    implicit none
+    class           (nodePropertyExtractorDensityProfile), intent(inout)                             :: self
+    double precision                                     , intent(in   ), optional                   :: time
+    type            (varying_string                     ), intent(inout), dimension(:) , allocatable :: descriptions
+    !$GLC attributes unused :: time
+
+    allocate(descriptions(self%elementCount_))
+    descriptions       (1)="Density at a given radius [M☉/Mpc⁻³]."
+    if (self%includeRadii)                                            &
+         & descriptions(2)="Radius at which density is output [Mpc]."
+    return
+  end subroutine densityProfileDescriptions
+
+  subroutine densityProfileColumnDescriptions(self,descriptions,values,valuesDescription,valuesUnits,time)
+    !!{RST
+    Return column descriptions of the ``densityProfile`` property.
+    !!}
+    use            :: Units_MetaData, only : unitType
+    use, intrinsic :: ISO_C_Binding , only : c_int
+    implicit none
+    class           (nodePropertyExtractorDensityProfile), intent(inout)                            :: self
+    double precision                                     , intent(in   ), optional                  :: time
+    type            (varying_string                     ), intent(inout), dimension(:), allocatable :: descriptions
+    double precision                                     , intent(inout), dimension(:), allocatable :: values
+    type            (varying_string                     ), intent(  out)                            :: valuesDescription
+    type            (unitType                           ), intent(  out)                            :: valuesUnits
+    !$GLC attributes unused :: time
+
+    allocate(descriptions(self%radiiCount))
+    allocate(values      (              0))
+    valuesDescription=var_str('')
+    valuesUnits      =unitType(1.0d0)
+    descriptions     =self%radii%name
+    return
+  end subroutine densityProfileColumnDescriptions
+
+  function densityProfileUnitsInSI(self,time)
+    !!{RST
+    Return the units of the ``densityProfile`` properties in the SI system.
+    !!}
+    use :: Numerical_Constants_Astronomical, only : massSolar, megaParsec
+    implicit none
+    double precision                                     , allocatable  , dimension(:) :: densityProfileUnitsInSI
+    class           (nodePropertyExtractorDensityProfile), intent(inout)               :: self
+    double precision                                     , intent(in   ), optional     :: time
+    !$GLC attributes unused :: time
+
+    allocate(densityProfileUnitsInSI(self%elementCount_))
+    densityProfileUnitsInSI       (1)=massSolar/megaParsec**3
+    if (self%includeRadii)                                    &
+         & densityProfileUnitsInSI(2)=          megaParsec
+    return
+  end function densityProfileUnitsInSI
+
+  function densityProfileUnits(self,time) result(units)
+    !!{RST
+    Return the units of the densityProfile properties.
+    !!}
+    use :: Numerical_Constants_Astronomical, only : massSolar, megaParsec
+    use :: Units_MetaData                  , only : unitType
+    implicit none
+    type            (unitType                           ), dimension(:), allocatable :: units
+    class           (nodePropertyExtractorDensityProfile), intent(inout)             :: self
+    double precision                                     , intent(in   ), optional   :: time
+
+    allocate(units(self%elementCount_))
+    units       (1)=unitType(massSolar/megaParsec**3,description='M☉/Mpc³',quantity='solMass/Mpc^3')
+    if (self%includeRadii)                                                                           &
+         & units(2)=unitType(          megaParsec   ,description='Mpc'    ,quantity='Mpc'          )
+    return
+  end function densityProfileUnits

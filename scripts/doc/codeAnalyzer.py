@@ -14,13 +14,8 @@ import os
 import re
 import sys
 
-_exec_path = os.environ.get(
-    'GALACTICUS_EXEC_PATH',
-    os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')),
-)
-sys.path.insert(0, os.path.join(_exec_path, 'python'))
-from latex_utils import latex_encode                                   # noqa: E402
-from build.fortran_utils import (get_fortran_line, extract_bracketed,  # noqa: E402
+from latex_utils import latex_encode
+from Galacticus.Build.FortranUtils import (get_fortran_line, extract_bracketed,
                                   extract_variables)
 
 # ---------------------------------------------------------------------------
@@ -354,6 +349,10 @@ def process_file(file_path):
                 # begins with another '!' followed by '{'.
                 if not line_processed and not frame['in_xml']:
                     if re.match(r'^!\{', comments):
+                        # ``!!{RST`` blocks hold reStructuredText documented on
+                        # ReadTheDocs (see scripts/doc/extractDocsRST.py); consume
+                        # them but do not emit them into the LaTeX source manual.
+                        is_rst = bool(re.match(r'^!\{RST', comments))
                         uid = unit_id_list[-1]
                         units.setdefault(uid, {})
                         while True:
@@ -362,6 +361,8 @@ def process_file(file_path):
                                 break
                             if re.match(r'^\s*!!\}', comment_line):
                                 break
+                            if is_rst:
+                                continue
                             comment_line = re.sub(r'^\s*!', '', comment_line)
                             units[uid]['comments'] = (
                                 units[uid].get('comments', '') + comment_line

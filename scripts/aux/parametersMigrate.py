@@ -10,9 +10,7 @@ import tempfile
 from datetime import datetime, timezone
 from lxml import etree
 
-_exec_path = os.environ.get('GALACTICUS_EXEC_PATH', os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-sys.path.insert(0, os.path.join(_exec_path, 'python'))
-from list_utils import as_array  # noqa: E402
+from List.ExtraUtils import as_array
 
 
 def parse_arguments():
@@ -614,6 +612,51 @@ def model_parameter_xpath(input_doc, parameters, is_grid):
             name_node.set("value", value)
 
 
+def evaluated_parameter_xpath(input_doc, parameters, is_grid):
+    """Switch the path separator used in run-time-evaluated parameter references.
+
+    References to other parameters appear inside square brackets, both in run-time-evaluated
+    parameter values (those whose value begins with `=`, e.g. `=[mergerTreeMassResolution::massResolution]`)
+    and in conditional `active` attributes (e.g. `active="[cosmologicalMassVariance:sigma_8] == 0.912"`).
+    The path separator used to be a colon (one or more colons were treated as a single separator), but was
+    changed to the XPath standard `/`. Here we replace any run of colons inside each `[...]` reference with a
+    single `/`, leaving format specifiers (`[%s|name]`), default values (`[name|123]`), and relative-path
+    markers (`.`, `..`) intact.
+    """
+
+    def replace_separators(text):
+        # Within each `[...]` reference, replace runs of colons with the XPath separator `/`.
+        return re.sub(
+            r"\[([^\]]*)\]",
+            lambda m: "[" + re.sub(r":+", "/", m.group(1)) + "]",
+            text,
+        )
+
+    for element in parameters.xpath(".//*"):
+        # Conditional `active` attributes.
+        active = element.get("active")
+        if active is not None and "[" in active:
+            new_active = replace_separators(active)
+            if new_active != active:
+                print(f"   translate special evaluated-parameter path in 'active' attribute of '{element.tag}'")
+                element.set("active", new_active)
+        # Run-time-evaluated `value` attributes (those beginning with `=`).
+        value = element.get("value")
+        if value is not None and value.lstrip().startswith("=") and "[" in value:
+            new_value = replace_separators(value)
+            if new_value != value:
+                print(f"   translate special evaluated-parameter path in 'value' of '{element.tag}'")
+                element.set("value", new_value)
+        # Run-time-evaluated `<value>` child elements (those beginning with `=`).
+        for value_elem in element.findall("value"):
+            text = value_elem.text
+            if text is not None and text.lstrip().startswith("=") and "[" in text:
+                new_text = replace_separators(text)
+                if new_text != text:
+                    print(f"   translate special evaluated-parameter path in <value> of '{element.tag}'")
+                    value_elem.text = new_text
+
+
 def method_suffix_remove(input_doc, parameters, is_grid):
     """Special handling to remove the 'Method' suffix from parameter names."""
     print("   translate special - remove Method suffixes")
@@ -1122,6 +1165,150 @@ def satellite_bound_mass_initializor(input_doc, parameters, is_grid):
         parent.remove(init_type)
 
 
+def satellite_orbit_initializor(input_doc, parameters, is_grid):
+    """Move acceptUnboundOrbits from component to nodeOperator."""
+    accept_type_nodes = parameters.xpath(".//componentSatellite/acceptUnboundOrbits[@value]")
+    if len(accept_type_nodes) == 0:
+        return
+    for accept_type in accept_type_nodes:
+        parent = accept_type.getparent()
+        value = accept_type.get("value")
+        print(f"   translate special './/componentSatellite/acceptUnboundOrbits[@value=\"{value}\"]'")
+        # Remove the old node.
+        parent.remove(accept_type)
+        # Find the nodeOperator.
+        operator_nodes = parameters.xpath('//nodeOperator[@value="satelliteOrbit"]')
+        if len(operator_nodes) == 0:
+            raise RuntimeError('no nodeOperator[@value="satelliteOrbit"] exists')
+        for operator_node in operator_nodes:
+            # Create new acceptUnboundOrbits element.
+            new_elem = etree.Element("acceptUnboundOrbits")
+            new_elem.set("value", value)
+            # Insert new element.
+            operator_node.append(new_elem)
+
+
+def disk_very_simple_analytic_solver(input_doc, parameters, is_grid):
+    """Migrate the legacy 'verySimple' disk analytic solver from the disk component to a nodeOperator."""
+    disks = parameters.xpath(
+        ".//componentDisk[@value='verySimple' or @value='verySimpleSize']"
+    )
+    has_operator_already = (
+        len(parameters.xpath(".//nodeOperator[@value='diskVerySimpleAnalyticSolver']")) > 0
+    )
+    if len(disks) == 0 and not has_operator_already:
+        return
+    print("   translate special './/componentDisk[@value='verySimple' or @value='verySimpleSize']'")
+    use_analytic_solver = False
+    prune_mass_gas = None
+    prune_mass_stars = None
+    track_abundances = None
+    for disk in disks:
+        # Capture and remove the four moving parameters and drop the obsolete trackLuminosities.
+        for child_name, capture in (
+            ("useAnalyticSolver", "useAnalyticSolver"),
+            ("pruneMassGas",      "pruneMassGas"     ),
+            ("pruneMassStars",    "pruneMassStars"   ),
+            ("trackAbundances",   "trackAbundances"  ),
+            ("trackLuminosities", None               ),
+        ):
+            for child in disk.findall(child_name):
+                value = child.get("value")
+                if capture == "useAnalyticSolver" and value is not None and value.lower() == "true":
+                    use_analytic_solver = True
+                elif capture == "pruneMassGas":
+                    prune_mass_gas = value
+                elif capture == "pruneMassStars":
+                    prune_mass_stars = value
+                elif capture == "trackAbundances":
+                    track_abundances = value
+                disk.remove(child)
+    if not use_analytic_solver and not has_operator_already:
+        return
+    if use_analytic_solver and not has_operator_already:
+        # Insert a new nodeOperator carrying the captured parameters.
+        node_operators = parameters.xpath(".//nodeOperator[@value='multi']")
+        if len(node_operators) == 0:
+            sys.exit(
+                "can not find any `nodeOperator[@value='multi']` into which to insert"
+                " a `diskVerySimpleAnalyticSolver` operator"
+            )
+        if len(node_operators) > 1:
+            sys.exit(
+                "found multiple `nodeOperator[@value='multi']` nodes - unknown into which to"
+                " insert a `diskVerySimpleAnalyticSolver` operator"
+            )
+        _insert_disk_very_simple_analytic_solver_operator(
+            node_operators[0], is_grid, prune_mass_gas, prune_mass_stars, track_abundances
+        )
+    _ensure_satellite_destruction_timestep(parameters, is_grid)
+
+
+def _insert_disk_very_simple_analytic_solver_operator(
+    multi_node, is_grid, prune_mass_gas, prune_mass_stars, track_abundances
+):
+    operator_node = etree.Element("nodeOperator")
+    operator_node.set("value", "diskVerySimpleAnalyticSolver")
+    if is_grid:
+        operator_node.set("iterable", "no")
+    for tag, value in (
+        ("pruneMassGas",    prune_mass_gas    ),
+        ("pruneMassStars",  prune_mass_stars  ),
+        ("trackAbundances", track_abundances  ),
+    ):
+        if value is None:
+            continue
+        child = etree.Element(tag)
+        child.set("value", value)
+        operator_node.append(child)
+    multi_node.append(operator_node)
+
+
+def _ensure_satellite_destruction_timestep(parameters, is_grid):
+    """Ensure a `satelliteDestruction` mergerTreeEvolveTimestep is present so pruned satellites
+    (those flagged via `destructionTime`) are cleaned up by the standard mechanism."""
+    if len(parameters.xpath(".//mergerTreeEvolveTimestep[@value='satelliteDestruction']")) > 0:
+        return
+    timestep_top_level = parameters.findall("mergerTreeEvolveTimestep")
+    if len(timestep_top_level) == 0:
+        # No top-level entry: insert a `multi` containing the default `standard` entry plus our
+        # new `satelliteDestruction` entry.
+        multi_node = etree.Element("mergerTreeEvolveTimestep")
+        multi_node.set("value", "multi")
+        standard_node = etree.Element("mergerTreeEvolveTimestep")
+        standard_node.set("value", "standard")
+        if is_grid:
+            standard_node.set("iterable", "no")
+        destruction_node = etree.Element("mergerTreeEvolveTimestep")
+        destruction_node.set("value", "satelliteDestruction")
+        if is_grid:
+            destruction_node.set("iterable", "no")
+        multi_node.append(standard_node)
+        multi_node.append(destruction_node)
+        parameters.append(multi_node)
+    else:
+        timestep = timestep_top_level[0]
+        destruction_node = etree.Element("mergerTreeEvolveTimestep")
+        destruction_node.set("value", "satelliteDestruction")
+        if is_grid:
+            destruction_node.set("iterable", "no")
+        if timestep.get("value") == "multi":
+            # Append into the existing `multi` entry.
+            timestep.append(destruction_node)
+        else:
+            # Wrap the existing entry in a new `multi` and append our new destruction entry.
+            multi_node = etree.Element("mergerTreeEvolveTimestep")
+            multi_node.set("value", "multi")
+            idx = list(parameters).index(timestep)
+            parameters.remove(timestep)
+            # The wrapped entry must look like an inner `iterable="no"` child for grids.
+            if is_grid and timestep.get("iterable") is None:
+                timestep.set("iterable", "no")
+            multi_node.append(timestep)
+            multi_node.append(destruction_node)
+            parameters.insert(idx, multi_node)
+
+
 # ---------------------------------------------------------------------------
 # Dispatch table for special migration functions
 # ---------------------------------------------------------------------------
@@ -1131,6 +1318,7 @@ SPECIAL_FUNCTIONS = {
     "black_hole_seed_mass": black_hole_seed_mass,
     "black_hole_physics": black_hole_physics,
     "model_parameter_xpath": model_parameter_xpath,
+    "evaluated_parameter_xpath": evaluated_parameter_xpath,
     "method_suffix_remove": method_suffix_remove,
     "satellite_orphanize": satellite_orphanize,
     "black_hole_non_central": black_hole_non_central,
@@ -1140,6 +1328,8 @@ SPECIAL_FUNCTIONS = {
     "hot_halo_standard_inflow_outflow": hot_halo_standard_inflow_outflow,
     "hot_halo_standard_ram_pressure_stripping": hot_halo_standard_ram_pressure_stripping,
     "satellite_bound_mass_initializor": satellite_bound_mass_initializor,
+    "disk_very_simple_analytic_solver": disk_very_simple_analytic_solver,
+    "satellite_orbit_initializor": satellite_orbit_initializor,
 }
 
 

@@ -45,9 +45,9 @@ jobs:
       - run: echo "This job is now running on a ${{ runner.os }} server."
       - run: echo "The name of the branch is ${{ github.ref }} and the repository is ${{ github.repository }}."
       - name: Check out repository code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Check out repository datasets
-        uses: actions/checkout@v6      
+        uses: actions/checkout@v7      
         with:
           repository: galacticusorg/datasets
           path: datasets
@@ -78,9 +78,9 @@ jobs:
           set -o pipefail
           if [ ${{ inputs.mpi }} == 1 ]; then
            if [ ${{ inputs.expectCrash }} == 1 ]; then
-            ! mpirun -np 2 --allow-run-as-root ./${{ inputs.executable }} 2>&1 | tee test.log
+            ! mpirun --oversubscribe -np 2 --allow-run-as-root ./${{ inputs.executable }} 2>&1 | tee test.log
            else
-            mpirun -np 2 --allow-run-as-root ./${{ inputs.executable }} 2>&1 | tee test.log
+            mpirun --oversubscribe -np 2 --allow-run-as-root ./${{ inputs.executable }} 2>&1 | tee test.log
            fi
           else
            if [ ${{ inputs.expectCrash }} == 1 ]; then

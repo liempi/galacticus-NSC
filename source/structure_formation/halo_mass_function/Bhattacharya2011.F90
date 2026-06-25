@@ -1,0 +1,334 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+  !!{RST
+  Implements a :cite:t:`bhattacharya_mass_2011` dark matter halo mass function class.
+  !!}
+
+  use :: Cosmological_Density_Field, only : cosmologicalMassVarianceClass, criticalOverdensityClass
+
+  !![
+  <haloMassFunction name="haloMassFunctionBhattacharya2011" docformat="rst">
+   <description>
+   The dark matter halo mass function is computed using the redshift-dependent fitting function of :cite:t:`bhattacharya_mass_2011`, calibrated against N-body simulations. The shape parameters :math:`\bar{a}`, :math:`\bar{p}`, :math:`\bar{q}`, and normalization :math:`\bar{A}` of the fit can each be specified via input parameters.
+   </description>
+  </haloMassFunction>
+  !!]
+  type, extends(haloMassFunctionClass) :: haloMassFunctionBhattacharya2011
+     !!{RST
+     A halo mass function class using the fitting function of :cite:t:`bhattacharya_mass_2011`.
+     !!}
+     private
+     class           (cosmologicalMassVarianceClass), pointer :: cosmologicalMassVariance_ => null()
+     class           (criticalOverdensityClass     ), pointer :: criticalOverdensity_      => null()
+     double precision                                         :: a_                                 , p_, &
+          &                                                      normalization_                     , q_, &
+          &                                                      b_                                 , c_
+   contains
+     !![
+     <methods docformat="rst">
+       <method description="Return the parameter :math:`\bar{a}` in the :cite:t:`bhattacharya_mass_2011` halo mass function fit." method="a" />
+       <method description="Return the parameter :math:`\bar{b}` in the :cite:t:`bhattacharya_mass_2011` halo mass function fit." method="c" />
+       <method description="Return the parameter :math:`\bar{c}` in the :cite:t:`bhattacharya_mass_2011` halo mass function fit." method="b" />
+       <method description="Return the parameter :math:`\bar{p}` in the :cite:t:`bhattacharya_mass_2011` halo mass function fit." method="p" />
+       <method description="Return the parameter :math:`\bar{q}` in the :cite:t:`bhattacharya_mass_2011` halo mass function fit." method="q" />
+       <method description="Return the parameter :math:`\bar{A}` in the :cite:t:`bhattacharya_mass_2011` halo mass function fit." method="normalization" />
+     </methods>
+     !!]
+     final     ::                  bhattacharya2011Destructor
+     procedure :: differential  => bhattacharya2011Differential
+     procedure :: a             => bhattacharya2011A
+     procedure :: b             => bhattacharya2011B
+     procedure :: c             => bhattacharya2011C
+     procedure :: p             => bhattacharya2011P
+     procedure :: q             => bhattacharya2011Q
+     procedure :: normalization => bhattacharya2011Normalization
+  end type haloMassFunctionBhattacharya2011
+
+  interface haloMassFunctionBhattacharya2011
+     !!{RST
+     Constructors for the :galacticus-class:`haloMassFunctionBhattacharya2011` halo mass function class.
+     !!}
+     module procedure bhattacharya2011ConstructorParameters
+     module procedure bhattacharya2011ConstructorInternal
+  end interface haloMassFunctionBhattacharya2011
+
+contains
+
+  function bhattacharya2011ConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`haloMassFunctionBhattacharya2011` halo mass function class which takes a parameter set as input.
+    !!}
+    use :: Input_Parameters, only : inputParameter, inputParameters
+    implicit none
+    type            (haloMassFunctionBhattacharya2011)                :: self
+    type            (inputParameters                 ), intent(inout) :: parameters
+    class           (cosmologyParametersClass        ), pointer       :: cosmologyParameters_
+    class           (cosmologicalMassVarianceClass   ), pointer       :: cosmologicalMassVariance_
+    class           (criticalOverdensityClass        ), pointer       :: criticalOverdensity_
+    double precision                                                  :: a                        , p, &
+         &                                                               normalization            , q, &
+         &                                                               b                        , c
+
+    ! Check and read parameters.
+    !![
+    <objectBuilder class="cosmologyParameters"      name="cosmologyParameters_"      source="parameters"/>
+    <objectBuilder class="cosmologicalMassVariance" name="cosmologicalMassVariance_" source="parameters"/>
+    <objectBuilder class="criticalOverdensity"      name="criticalOverdensity_"      source="parameters"/>
+    <inputParameter docformat="rst">
+      <name>a</name>
+      <source>parameters</source>
+      <defaultValue>0.788d0</defaultValue>
+      <defaultSource>
+      :cite:p:`comparat_accurate_2017`
+      </defaultSource>
+      <description>
+      The parameter :math:`\bar{a}` in the :cite:t:`bhattacharya_mass_2011` halo mass function fit.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>b</name>
+      <source>parameters</source>
+      <defaultValue>1.000d0</defaultValue>
+      <description>
+      The parameter :math:`\bar{b}` in the :cite:t:`bhattacharya_mass_2011` halo mass function fit.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>c</name>
+      <source>parameters</source>
+      <defaultValue>1.000d0</defaultValue>
+      <description>
+      The parameter :math:`\bar{c}` in the :cite:t:`bhattacharya_mass_2011` halo mass function fit.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>p</name>
+      <source>parameters</source>
+      <defaultValue>0.807d0</defaultValue>
+      <defaultSource>
+      :cite:p:`comparat_accurate_2017`
+      </defaultSource>
+      <description>
+      The parameter :math:`\bar{p}` in the :cite:t:`bhattacharya_mass_2011` halo mass function fit.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>q</name>
+      <source>parameters</source>
+      <defaultValue>1.795d0</defaultValue>
+      <defaultSource>
+      :cite:p:`comparat_accurate_2017`
+      </defaultSource>
+      <description>
+      The parameter :math:`\bar{q}` in the :cite:t:`bhattacharya_mass_2011` halo mass function fit.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>normalization</name>
+      <source>parameters</source>
+      <defaultValue>0.333d0</defaultValue>
+      <defaultSource>
+      :cite:p:`comparat_accurate_2017`
+      </defaultSource>
+      <description>
+      The normalization parameter :math:`\bar{A}` in the :cite:t:`bhattacharya_mass_2011` halo mass function fit.
+      </description>
+    </inputParameter>
+    !!]
+    self=haloMassFunctionBhattacharya2011(cosmologyParameters_,cosmologicalMassVariance_,criticalOverdensity_,a,b,c,p,q,normalization)
+    !![
+    <inputParametersValidate source="parameters"/>
+    <objectDestructor name="cosmologyParameters_"     />
+    <objectDestructor name="cosmologicalMassVariance_"/>
+    <objectDestructor name="criticalOverdensity_"     />
+    !!]
+    return
+  end function bhattacharya2011ConstructorParameters
+
+  function bhattacharya2011ConstructorInternal(cosmologyParameters_,cosmologicalMassVariance_,criticalOverdensity_,a,b,c,p,q,normalization) result(self)
+    !!{RST
+    Internal constructor for the :galacticus-class:`haloMassFunctionBhattacharya2011` halo mass function class.
+    !!}
+    implicit none
+    type            (haloMassFunctionBhattacharya2011)                        :: self
+    class           (cosmologyParametersClass        ), target, intent(in   ) :: cosmologyParameters_
+    class           (cosmologicalMassVarianceClass   ), target, intent(in   ) :: cosmologicalMassVariance_
+    class           (criticalOverdensityClass        ), target, intent(in   ) :: criticalOverdensity_
+    double precision                                          , intent(in   ) :: a                        , p, &
+         &                                                                       normalization            , q, &
+         &                                                                       b                        , c
+    !![
+    <constructorAssign variables="*cosmologyParameters_, *cosmologicalMassVariance_, *criticalOverdensity_"/>
+    !!]
+
+    self%            a_=a
+    self%            b_=b
+    self%            c_=c
+    self%            p_=p
+    self%            q_=q
+    self%normalization_=normalization
+    return
+  end function bhattacharya2011ConstructorInternal
+
+  subroutine bhattacharya2011Destructor(self)
+    !!{RST
+    Destructor for the :galacticus-class:`haloMassFunctionBhattacharya2011` halo mass function class.
+    !!}
+    implicit none
+    type(haloMassFunctionBhattacharya2011), intent(inout) :: self
+
+    !![
+    <objectDestructor name="self%cosmologyParameters_"      />
+    <objectDestructor name="self%cosmologicalMassVariance_" />
+    <objectDestructor name="self%criticalOverdensity_"      />
+    !!]
+    return
+  end subroutine bhattacharya2011Destructor
+
+  double precision function bhattacharya2011Differential(self,time,mass,node)
+    !!{RST
+    Return the differential halo mass function at the given time and mass.
+    !!}
+    use :: Numerical_Constants_Math, only : Pi
+    implicit none
+    class           (haloMassFunctionBhattacharya2011), intent(inout), target   :: self
+    double precision                                  , intent(in   )           :: time                                    , mass
+    type            (treeNode                        ), intent(inout), optional :: node
+    double precision                                  , parameter               :: rootVarianceTiny               =1.0d-100
+    double precision                                                            :: alpha                                   , nu          , &
+         &                                                                         nuPrime                                 , rootVariance, &
+         &                                                                         rootVarianceLogarithmicGradient
+
+    ! Set a default value.
+    bhattacharya2011Differential=0.0d0
+    ! Determine the mass variance. If zero, return zero mass function.
+    call self%cosmologicalMassVariance_%rootVarianceAndLogarithmicGradient(mass,time,rootVariance,rootVarianceLogarithmicGradient)
+    if (rootVariance <= rootVarianceTiny) return
+    ! Compute the mass function.
+    nu                     =+(                                                                &
+         &                    +self%criticalOverdensity_%value(time=time,mass=mass,node=node) &
+         &                    /rootVariance                                                   &
+         &                   )**2
+    if (nu           <=    0.0d0) return
+    nuPrime                =+self%a(time,mass)                                                &
+         &                  *nu
+    if (nuPrime      >  1500.0d0) return ! Exponential term will be zero beyond this point.
+    alpha                  =+abs(rootVarianceLogarithmicGradient)
+    bhattacharya2011Differential=+self%cosmologyParameters_%OmegaMatter    () &
+         &                       *self%cosmologyParameters_%densityCritical() &
+         &                       /mass**2                                     &
+         &                       *alpha                                       &
+         &                       *sqrt(                                       &
+         &                             +2.0d0                                 &
+         &                             *nuPrime**self%q(time,mass)            &
+         &                             /Pi                                    &
+         &                            )                                       &
+         &                       *self%normalization(time,mass)               &
+         &                       *(                                           &
+         &                         +1.0d0                                     &
+         &                         +1.0d0                                     &
+         &                         /nuPrime**self%p(time,mass)                &
+         &                       )                                            &
+         &                       *exp(                                        &
+         &                            -0.5d0                                  &
+         &                            *self%c(time,mass)                      &
+         &                            *nuPrime**self%b(time,mass)             &
+         &                       )
+    return
+  end function bhattacharya2011Differential
+
+  double precision function bhattacharya2011A(self,time,mass)
+    !!{RST
+    Return the parameter :math:`\bar{a}` in the ``bhattacharya2011`` halo mass function at the given time and mass.
+    !!}
+    implicit none
+    class           (haloMassFunctionBhattacharya2011), intent(inout) :: self
+    double precision                                  , intent(in   ) :: time , mass
+    !$GLC attributes unused :: time, mass
+
+    bhattacharya2011A=self%a_
+    return
+  end function bhattacharya2011A
+
+  double precision function bhattacharya2011B(self,time,mass)
+    !!{RST
+    Return the parameter :math:`\bar{b}` in the ``bhattacharya2011`` halo mass function at the given time and mass.
+    !!}
+    implicit none
+    class           (haloMassFunctionBhattacharya2011), intent(inout) :: self
+    double precision                                  , intent(in   ) :: time , mass
+    !$GLC attributes unused :: time, mass
+
+    bhattacharya2011B=self%b_
+    return
+  end function bhattacharya2011B
+
+  double precision function bhattacharya2011C(self,time,mass)
+    !!{RST
+    Return the parameter :math:`\bar{c}` in the ``bhattacharya2011`` halo mass function at the given time and mass.
+    !!}
+    implicit none
+    class           (haloMassFunctionBhattacharya2011), intent(inout) :: self
+    double precision                                  , intent(in   ) :: time , mass
+    !$GLC attributes unused :: time, mass
+
+    bhattacharya2011C=self%c_
+    return
+  end function bhattacharya2011C
+
+  double precision function bhattacharya2011P(self,time,mass)
+    !!{RST
+    Return the parameter :math:`\bar{p}` in the ``bhattacharya2011`` halo mass function at the given time and mass.
+    !!}
+    implicit none
+    class           (haloMassFunctionBhattacharya2011), intent(inout) :: self
+    double precision                                  , intent(in   ) :: time , mass
+    !$GLC attributes unused :: time, mass
+
+    bhattacharya2011P=self%p_
+    return
+  end function bhattacharya2011P
+
+  double precision function bhattacharya2011Q(self,time,mass)
+    !!{RST
+    Return the parameter :math:`\bar{q}` in the ``bhattacharya2011`` halo mass function at the given time and mass.
+    !!}
+    implicit none
+    class           (haloMassFunctionBhattacharya2011), intent(inout) :: self
+    double precision                                  , intent(in   ) :: time , mass
+    !$GLC attributes unused :: time, mass
+
+    bhattacharya2011Q=self%q_
+    return
+  end function bhattacharya2011Q
+
+  double precision function bhattacharya2011Normalization(self,time,mass)
+    !!{RST
+    Return the normalization, :math:`\bar{A}`, in the ``bhattacharya2011`` halo mass function at the given time and mass.
+    !!}
+    implicit none
+    class           (haloMassFunctionBhattacharya2011), intent(inout) :: self
+    double precision                                  , intent(in   ) :: time , mass
+    !$GLC attributes unused :: time, mass
+
+    bhattacharya2011Normalization=self%normalization_
+    return
+  end function bhattacharya2011Normalization
+

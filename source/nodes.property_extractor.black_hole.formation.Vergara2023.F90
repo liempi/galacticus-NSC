@@ -20,36 +20,45 @@
 
   !+    Contributions to this file made by: Matías Liempi
 
-  !!{
-  Implements a property extractor class the properties of nuclear star cluster when a black hole seed is formed using the model of \cite{vergara_global_2023}.
+  !!{RST
+  Implements a property extractor class the properties of nuclear star cluster when a black hole seed is formed using the model of :cite:t:`vergara_global_2023`.
   !!}
   
   !![
-  <nodePropertyExtractor name="nodePropertyExtractorBlackHoleSeedingVergara2023">
+  <nodePropertyExtractor name="nodePropertyExtractorBlackHoleSeedingVergara2023" docformat="rst">
    <description>
-    A property extractor class for the properties of the nuclear star cluster at the moment of the black hole formation.
+   A property extractor class for the properties of the nuclear star cluster at the moment of the black hole formation.
    </description>
   </nodePropertyExtractor>
   !!]
   type, extends(nodePropertyExtractorTuple) :: nodePropertyExtractorBlackHoleSeedingVergara2023
-     !!{
+     !!{RST
      A property extractor class for the velocity dispersion at a set of radii.
      !!}
      private
+<<<<<<<< HEAD:source/nodes.property_extractor.black_hole.formation.Vergara2023.F90
      integer  :: radiusNuclearStarClustersID     , stellarMassNuclearStarClustersID , &
          &       velocityNuclearStarClustersID   , ageNuclearStarClustersID         , &
          &       gasMassNuclearStarClustersID    , criticalMassNuclearStarClustersID
+========
+     integer  :: radiusNuclearStarClustersID          , blackHoleSeedMassID              , &
+         &       velocityNuclearStarClustersID        , ageNuclearStarClustersID         , &
+         &       gasMassNuclearStarClustersID         , criticalMassNuclearStarClustersID, &
+         &       redshiftBlackHoleSeedFormationID     , stellarMassNuclearStarClustersID , &
+         &       mergerTreeWeightNuclearStarClustersID   
+>>>>>>>> upstream/master:source/nodes/property_extractor/Vergara_2023.F90
    contains
      procedure :: elementCount       => blackHoleSeedingVergara2023ElementCount
      procedure :: extract            => blackHoleSeedingVergara2023Extract
      procedure :: names              => blackHoleSeedingVergara2023Names
      procedure :: descriptions       => blackHoleSeedingVergara2023Descriptions
      procedure :: unitsInSI          => blackHoleSeedingVergara2023UnitsInSI
+     procedure :: units       => blackHoleSeedingVergara2023Units
   end type nodePropertyExtractorBlackHoleSeedingVergara2023
 
   interface nodePropertyExtractorBlackHoleSeedingVergara2023
-     !!{
-     Constructors for the \refClass{nodePropertyExtractorBlackHoleSeedingVergara2023} output analysis class.
+     !!{RST
+     Constructors for the :galacticus-class:`nodePropertyExtractorBlackHoleSeedingVergara2023` property extractor class.
      !!}
      module procedure blackHoleSeedingVergara2023ConstructorParameters
      module procedure blackHoleSeedingVergara2023ConstructorInternal
@@ -58,8 +67,8 @@
 contains
 
   function blackHoleSeedingVergara2023ConstructorParameters(parameters) result(self)
-    !!{
-    Constructor for the \refClass{nodePropertyExtractorBlackHoleSeedingVergara2023} property extractor class.
+    !!{RST
+    Constructor for the :galacticus-class:`nodePropertyExtractorBlackHoleSeedingVergara2023` property extractor class.
     !!}
     use :: Input_Parameters, only : inputParameters
     implicit none
@@ -74,8 +83,8 @@ contains
   end function blackHoleSeedingVergara2023ConstructorParameters
 
   function blackHoleSeedingVergara2023ConstructorInternal() result(self)
-    !!{
-    Internal constructor for the \refClass{nodePropertyExtractorBlackHoleSeedingVergara2023} property extractor class.
+    !!{RST
+    Internal constructor for the :galacticus-class:`nodePropertyExtractorBlackHoleSeedingVergara2023` property extractor class.
     !!}
     implicit none
     type          (nodePropertyExtractorBlackHoleSeedingVergara2023) :: self
@@ -91,8 +100,8 @@ contains
   end function blackHoleSeedingVergara2023ConstructorInternal
 
   integer function blackHoleSeedingVergara2023ElementCount(self,time)
-    !!{
-    Return the number of elements in the \mono{blackHoleSeedingVergara2023} property extractors.
+    !!{RST
+    Return the number of elements in the ``blackHoleSeedingVergara2023`` property extractors.
     !!}
     implicit none
     class           (nodePropertyExtractorBlackHoleSeedingVergara2023), intent(inout) :: self
@@ -104,8 +113,8 @@ contains
   end function blackHoleSeedingVergara2023ElementCount
 
   function blackHoleSeedingVergara2023Extract(self,node,time,instance)
-    !!{
-    Implement a \mono{blackHoleSeedingVergara2023} property extractor.
+    !!{RST
+    Implement a ``blackHoleSeedingVergara2023`` property extractor.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentNSC
     implicit none
@@ -144,8 +153,8 @@ contains
   end function blackHoleSeedingVergara2023Extract
 
   subroutine blackHoleSeedingVergara2023Names(self,time,names)
-    !!{
-    Return the names of the \mono{blackHoleSeedingVergara2023} properties.
+    !!{RST
+    Return the names of the ``blackHoleSeedingVergara2023`` properties.
     !!}
     implicit none
     class           (nodePropertyExtractorBlackHoleSeedingVergara2023), intent(inout)                             :: self
@@ -164,8 +173,8 @@ contains
   end subroutine blackHoleSeedingVergara2023Names
 
   subroutine blackHoleSeedingVergara2023Descriptions(self,time,descriptions)
-    !!{
-    Return descriptions of the \mono{blackHoleSeedingVergara2023} property.
+    !!{RST
+    Return descriptions of the ``blackHoleSeedingVergara2023`` property.
     !!}
     implicit none
     class           (nodePropertyExtractorBlackHoleSeedingVergara2023), intent(inout)                             :: self
@@ -184,8 +193,8 @@ contains
   end subroutine blackHoleSeedingVergara2023Descriptions
 
   function blackHoleSeedingVergara2023UnitsInSI(self,time)
-    !!{
-    Return the units of the \mono{BlackHoleSeedingVergara2023} properties in the SI system.
+    !!{RST
+    Return the units of the ``BlackHoleSeedingVergara2023`` properties in the SI system.
     !!}
     use :: Numerical_Constants_Astronomical, only : massSolar, megaParsec, gigayear
     use :: Numerical_Constants_Prefixes    , only : kilo
@@ -206,3 +215,29 @@ contains
      &                                     ]
     return
   end function blackHoleSeedingVergara2023UnitsInSI
+
+  function blackHoleSeedingVergara2023Units(self,time) result(units)
+    !!{RST
+    Return the units of the blackHoleSeedingVergara2023 properties.
+    !!}
+    use :: Numerical_Constants_Astronomical, only : massSolar, megaParsec, gigayear
+    use :: Numerical_Constants_Prefixes    , only : kilo
+    use :: Units_MetaData                  , only : unitType
+    implicit none
+    type            (unitType                                        ), dimension(:) , allocatable :: units
+    class           (nodePropertyExtractorBlackHoleSeedingVergara2023), intent(inout)              :: self
+    double precision                                                  , intent(in   )              :: time
+    double precision                                                  , dimension(:) , allocatable :: siValues
+
+    siValues=self%unitsInSI(time)
+    allocate(units(8))
+    units(1)=unitType(1.0d0                                                   )
+    units(2)=unitType(massSolar ,description='Solar masses',quantity='solMass')
+    units(3)=unitType(gigayear  ,description='Gyr'         ,quantity='Gyr'    )
+    units(4)=unitType(megaParsec,description='Mpc'         ,quantity='Mpc'    )
+    units(5)=unitType(kilo      ,description='km/s'        ,quantity='km/s'   )
+    units(6)=unitType(massSolar ,description='Solar masses',quantity='solMass')
+    units(7)=unitType(massSolar ,description='Solar masses',quantity='solMass')
+    units(8)=unitType(massSolar ,description='Solar masses',quantity='solMass')
+    return
+  end function blackHoleSeedingVergara2023Units

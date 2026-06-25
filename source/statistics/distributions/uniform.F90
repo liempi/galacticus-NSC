@@ -1,0 +1,192 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+  !!{RST
+  Implementation of a uniform 1D distribution function.
+  !!}
+
+  !![
+  <distributionFunction1D name="distributionFunction1DUniform" docformat="rst">
+   <description>
+   A uniform distribution over a finite range
+
+   .. math::
+
+      P(x) \propto \left\{ \begin{array}{ll} 1 &amp; \hbox{ if } x_\mathrm{l} \leq x \leq x_\mathrm{u} \\ 0 &amp; \hbox{ otherwise.}  \end{array} \right.
+
+   Specified using:
+
+   ``[minimum]``
+      The lower limit of the range, :math:`x_\mathrm{l}`;
+
+   ``[maximum]``
+      The upper limit of the range, :math:`x_\mathrm{u}`.
+   </description>
+  </distributionFunction1D>
+  !!]
+  type, extends(distributionFunction1DClass) :: distributionFunction1DUniform
+     !!{RST
+     Implementation of a uniform 1D distribution function.
+     !!}
+     private
+     double precision :: limitLower, limitUpper
+   contains
+     procedure :: density    => uniformDensity
+     procedure :: cumulative => uniformCumulative
+     procedure :: inverse    => uniformInverse
+     procedure :: minimum    => uniformMinimum
+     procedure :: maximum    => uniformMaximum
+  end type distributionFunction1DUniform
+
+  interface distributionFunction1DUniform
+     !!{RST
+     Constructors for the :galacticus-class:`distributionFunction1DUniform` 1D distribution function class.
+     !!}
+     module procedure uniformConstructorParameters
+     module procedure uniformConstructorInternal
+  end interface distributionFunction1DUniform
+
+contains
+
+  function uniformConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`distributionFunction1DUniform` 1D distribution function class which builds the object from a parameter set.
+    !!}
+    use :: Input_Parameters, only : inputParameter, inputParameters
+    implicit none
+    type            (distributionFunction1DUniform)                :: self
+    type            (inputParameters              ), intent(inout) :: parameters
+    class           (randomNumberGeneratorClass   ), pointer       :: randomNumberGenerator_
+    double precision                                               :: limitLower            , limitUpper
+
+    !![
+    <inputParameter docformat="rst">
+      <name>limitLower</name>
+      <description>
+      The lower bound :math:`x_\mathrm{l}` of the uniform distribution, below which the probability density is zero; the distribution has constant density :math:`1/(x_\mathrm{u} - x_\mathrm{l})` over :math:`[x_\mathrm{l}, x_\mathrm{u}]`.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>limitUpper</name>
+      <description>
+      The upper bound :math:`x_\mathrm{u}` of the uniform distribution, above which the probability density is zero; the distribution has constant density :math:`1/(x_\mathrm{u} - x_\mathrm{l})` over :math:`[x_\mathrm{l}, x_\mathrm{u}]`.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <objectBuilder class="randomNumberGenerator" name="randomNumberGenerator_" source="parameters"/>
+    !!]
+    self=distributionFunction1DUniform(limitLower,limitUpper,randomNumberGenerator_)
+    !![
+    <objectDestructor name="randomNumberGenerator_"/>
+    <inputParametersValidate source="parameters"/>
+    !!]
+    return
+  end function uniformConstructorParameters
+
+  function uniformConstructorInternal(limitLower,limitUpper,randomNumberGenerator_) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`distributionFunction1DUniform` 1D distribution function class.
+    !!}
+    use :: Error, only : Error_Report
+    type            (distributionFunction1DUniform)                                  :: self
+    double precision                               , intent(in   )                   :: limitLower            , limitUpper
+    class           (randomNumberGeneratorClass   ), intent(in   ), target, optional :: randomNumberGenerator_
+    !![
+    <constructorAssign variables="limitLower, limitUpper, *randomNumberGenerator_"/>
+    !!]
+
+    ! Validate.
+    if (limitLower >= limitUpper) call Error_Report('`limitLower` < `limitUpper` is required'//{introspection:location})
+    return
+  end function uniformConstructorInternal
+
+  double precision function uniformMinimum(self)
+    !!{RST
+    Return the minimum possible value of a uniform distribution.
+    !!}
+    implicit none
+    class(distributionFunction1DUniform), intent(inout) :: self
+
+    uniformMinimum=self%limitLower
+    return
+  end function uniformMinimum
+
+  double precision function uniformMaximum(self)
+    !!{RST
+    Return the maximum possible value of a uniform distribution.
+    !!}
+    implicit none
+    class(distributionFunction1DUniform), intent(inout) :: self
+
+    uniformMaximum=self%limitUpper
+    return
+  end function uniformMaximum
+
+  double precision function uniformDensity(self,x)
+    !!{RST
+    Return the density of a uniform distribution.
+    !!}
+    implicit none
+    class           (distributionFunction1DUniform), intent(inout) :: self
+    double precision                               , intent(in   ) :: x
+
+    if (x < self%limitLower .or. x > self%limitUpper) then
+       uniformDensity=0.0d0
+    else
+       uniformDensity=1.0d0/(self%limitUpper-self%limitLower)
+    end if
+    return
+  end function uniformDensity
+
+  double precision function uniformCumulative(self,x)
+    !!{RST
+    Return the cumulative probability of a uniform distribution.
+    !!}
+    implicit none
+    class           (distributionFunction1DUniform), intent(inout) :: self
+    double precision                               , intent(in   ) :: x
+
+    if      (x < self%limitLower) then
+       uniformCumulative=0.0d0
+    else if (x > self%limitUpper) then
+       uniformCumulative=1.0d0
+    else
+       uniformCumulative=(x-self%limitLower)/(self%limitUpper-self%limitLower)
+    end if
+    return
+  end function uniformCumulative
+
+  double precision function uniformInverse(self,p)
+    !!{RST
+    Return the inverse of a uniform distribution.
+    !!}
+    use :: Error, only : Error_Report
+    implicit none
+    class           (distributionFunction1DUniform), intent(inout), target :: self
+    double precision                               , intent(in   )         :: p
+
+    if (p < 0.0d0 .or. p > 1.0d0)                                    &
+         & call Error_Report(                             &
+         &                              'probability out of range'// &
+         &                              {introspection:location}     &
+         &                             )
+    uniformInverse=self%limitLower+p*(self%limitUpper-self%limitLower)
+    return
+  end function uniformInverse

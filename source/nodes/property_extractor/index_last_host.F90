@@ -1,0 +1,125 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+!!{RST
+Implements a node property extractor for the index of the last host node.
+!!}
+
+  !![
+  <nodePropertyExtractor name="nodePropertyExtractorIndexLastHost" docformat="rst">
+   <description>
+   Extracts the stored index of the last host halo node, i.e., the host halo at the time a subhalo most recently became a satellite. Useful for tracking satellite infall histories and computing the elapsed time since infall into the current host environment.
+   </description>
+  </nodePropertyExtractor>
+  !!]
+  type, extends(nodePropertyExtractorIntegerScalar) :: nodePropertyExtractorIndexLastHost
+     !!{RST
+     A last host node index property extractor.
+     !!}
+     private
+     integer :: indexLastHostID
+   contains
+     procedure :: extract     => indexLastHostExtract
+     procedure :: name        => indexLastHostName
+     procedure :: description => indexLastHostDescription
+  end type nodePropertyExtractorIndexLastHost
+
+  interface nodePropertyExtractorIndexLastHost
+     !!{RST
+     Constructors for the :galacticus-class:`nodePropertyExtractorIndexLastHost` property extractor class.
+     !!}
+     module procedure indexLastHostConstructorParameters
+     module procedure indexLastHostConstructorInternal
+  end interface nodePropertyExtractorIndexLastHost
+
+contains
+
+  function indexLastHostConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`nodePropertyExtractorIndexLastHost` property extractor class which takes a parameter set as input.
+    !!}
+    use :: Input_Parameters, only : inputParameters
+    implicit none
+    type(nodePropertyExtractorIndexLastHost)                :: self
+    type(inputParameters                   ), intent(inout) :: parameters
+
+    self=nodePropertyExtractorIndexLastHost()
+    !![
+    <inputParametersValidate source="parameters"/>
+    !!]
+    return
+  end function indexLastHostConstructorParameters
+
+  function indexLastHostConstructorInternal() result(self)
+    !!{RST
+    Internal constructor for the :galacticus-class:`nodePropertyExtractorIndexLastHost` property extractor class.
+    !!}
+    implicit none
+    type(nodePropertyExtractorIndexLastHost) :: self
+
+    !![
+    <addMetaProperty component="basic" name="nodeIndexLastHost" type="longInteger" id="self%indexLastHostID" isCreator="no"/>
+    !!]
+    return
+  end function indexLastHostConstructorInternal
+
+  function indexLastHostExtract(self,node,time,instance)
+    !!{RST
+    Implement a ``indexLastHost`` node property extractor.
+    !!}
+    use :: Galacticus_Nodes, only : nodeComponentBasic
+    implicit none
+    integer         (kind_int8                         )                          :: indexLastHostExtract
+    class           (nodePropertyExtractorIndexLastHost), intent(inout)           :: self
+    type            (treeNode                          ), intent(inout), target   :: node
+    double precision                                    , intent(in   )           :: time
+    type            (multiCounter                      ), intent(inout), optional :: instance
+    class           (nodeComponentBasic                )               , pointer  :: basic
+    !$GLC attributes unused :: instance, time
+
+    basic                => node %basic                          (                     )
+    indexLastHostExtract =  basic%longIntegerRank0MetaPropertyGet(self%indexLastHostID)
+    return
+  end function indexLastHostExtract
+
+  function indexLastHostName(self)
+    !!{RST
+    Return the name of the branch tip index property.
+    !!}
+    implicit none
+    type (varying_string                    )                :: indexLastHostName
+    class(nodePropertyExtractorIndexLastHost), intent(inout) :: self
+    !$GLC attributes unused :: self
+
+    indexLastHostName=var_str('nodeIndexLastHost')
+    return
+  end function indexLastHostName
+
+  function indexLastHostDescription(self)
+    !!{RST
+    Return a description of the branch tip index property.
+    !!}
+    implicit none
+    type (varying_string                    )                :: indexLastHostDescription
+    class(nodePropertyExtractorIndexLastHost), intent(inout) :: self
+    !$GLC attributes unused :: self
+
+    indexLastHostDescription=var_str('Index of the node in whcih this node was last a satellite.')
+    return
+  end function indexLastHostDescription

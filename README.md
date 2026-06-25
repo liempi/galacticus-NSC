@@ -19,15 +19,24 @@ This section walks you through building and running a minimal Galacticus model f
 
 Before building, make sure you have the following available:
 
-- A modern Fortran compiler (e.g., `gfortran` ≥ 11)
+- A modern Fortran compiler (`gfortran` ≥ 16; earlier versions will not compile Galacticus)
 - `make`
-- HDF5 libraries (the code writes output in HDF5 format)
-- FFTW3 libraries
-- GSL (GNU Scientific Library)
-- Perl (used by the build system for code generation)
-- Python 3 (used by various scripts)
+- GSL, zlib, HDF5, FoX, and BLAS libraries (HDF5 and FoX must be built with the same compiler used for Galacticus)
+- Python 3 (≥ 3.9; used by the build system for code generation and various supporting scripts)
+
+FFTW3, ANN, and `libmatheval` are optional (needed only for specialized calculations). For the full, platform-specific prerequisite list and step-by-step instructions, see the [Installation guide](https://galacticus.readthedocs.io/en/latest/manuals/user-guide/installation/index.html).
 
 > **Tip:** The easiest way to get a fully configured environment is to use [GitHub Codespaces](#open-in-github-codespaces) (click the badge above). All dependencies are pre-installed.
+
+### Installing Python dependencies
+
+The build system imports modules from `python/`. Make those modules importable, and install the third-party packages they depend on (numpy, scipy, h5py, lxml, matplotlib, …), with a single editable install from the repo root:
+
+```bash
+pip install -e .
+```
+
+This is sufficient for building Galacticus and running its supporting scripts. Heavy emulation pipelines have additional dependencies (TensorFlow, lenstronomy, etc.); install those on demand with `pip install -e '.[emulation]'`. To run the Python test suite, install with `pip install -e '.[test]'`.
 
 ### Building Galacticus
 
@@ -54,10 +63,10 @@ This runs a small, pre-configured galaxy formation model designed to complete qu
 A successful run will:
 
 - Exit with code `0` (no error message printed to the terminal).
-- Write output to the path specified by the `outputFileName` parameter inside `parameters/quickTest.xml`. By default this is an HDF5 file (`.hdf5`) in the working directory. Open that file to inspect the results (e.g., with `h5ls` or any HDF5 viewer).
+- Write output to an HDF5 file in the working directory. `parameters/quickTest.xml` does not set an output filename, so Galacticus uses the default, `galacticus.hdf5`. Open that file to inspect the results (e.g., with `h5ls` or any HDF5 viewer).
 - Print progress information to standard output during the run. The final line should indicate that the run completed without errors.
 
-To find the output file path, inspect the `outputFileName` element near the top of `parameters/quickTest.xml`.
+The output is written to `galacticus.hdf5` in the directory you ran from. To change this, set an `outputFileName` parameter in the parameter file.
 
 ### Troubleshooting
 
@@ -71,3 +80,11 @@ To find the output file path, inspect the `outputFileName` element near the top 
 | Missing library errors at link time | Verify that HDF5, FFTW3, and GSL development packages are installed and that their locations are on the relevant library paths. |
 
 For further help, visit the [wiki](https://github.com/galacticusorg/galacticus/wiki) or ask in the [discussion forum](https://github.com/galacticusorg/galacticus/discussions).
+
+## Analyzing Galacticus output
+
+Analysis and visualization of Galacticus outputs - including plotting of on-the-fly analyses, MCMC chain diagnostics, and posterior corner plots - is provided by the [Dendros](https://github.com/galacticusorg/dendros) package, available on [PyPI](https://pypi.org/project/dendros/):
+
+```bash
+python3 -m pip install dendros
+```

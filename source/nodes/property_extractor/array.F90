@@ -1,0 +1,182 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+  use :: Dictionaries  , only : doubleDictionary, rank1DoubleDictionary
+  use :: Units_MetaData, only : unitType
+
+  !![
+  <nodePropertyExtractor name="nodePropertyExtractorArray" abstract="yes" docformat="rst">
+   <description>
+   Abstract base class for extractors that return a fixed-length 2D array of floating-point values per node, defining the interface (including column descriptions, element counts, names, and units) for multi-valued scalar array outputs used in output analysis.
+   </description>
+  </nodePropertyExtractor>
+  !!]
+  type, extends(nodePropertyExtractorClass), abstract :: nodePropertyExtractorArray
+     !!{RST
+     A array property extractor.
+     !!}
+     private
+   contains
+     !![
+     <methods docformat="rst">
+       <method method="columnDescriptions" description="Return a description of the columns."                          />
+       <method method="size"               description="Return the number of elements in the array."                   />
+       <method method="elementCount"       description="Return the number of properties in the array."                 />
+       <method method="extract"            description="Extract the properties from the given ``node``."            />
+       <method method="names"              description="Return the name of the properties extracted."                  />
+       <method method="descriptions"       description="Return a description of the properties extracted."             />
+       <method method="unitsInSI"          description="Return the units of the properties extracted in the SI system."/>
+       <method method="units"              description="Return an object containing units metadata for the properties."/>
+       <method method="metaData"           description="Populate a hash with meta-data for the property."              />
+     </methods>
+     !!]
+     procedure(arrayColumns     ), deferred :: columnDescriptions
+     procedure(arraySize        ), deferred :: size
+     procedure(arrayElementCount), deferred :: elementCount
+     procedure(arrayExtract     ), deferred :: extract
+     procedure(arrayNames       ), deferred :: names
+     procedure(arrayDescriptions), deferred :: descriptions
+     procedure(arrayUnitsInSI   ), deferred :: unitsInSI
+     procedure                              :: units              => arrayUnits
+     procedure                              :: metaData           => arrayMetaData
+  end type nodePropertyExtractorArray
+
+  abstract interface
+     function arrayExtract(self,node,time,instance)
+       !!{RST
+       Interface for array property extraction.
+       !!}
+       import nodePropertyExtractorArray, treeNode, multiCounter
+       double precision                            , dimension(:,:), allocatable :: arrayExtract
+       class           (nodePropertyExtractorArray), intent(inout) , target      :: self
+       type            (treeNode                  ), intent(inout) , target      :: node
+       double precision                            , intent(in   )               :: time
+       type            (multiCounter              ), intent(inout) , optional    :: instance
+     end function arrayExtract
+  end interface
+
+  abstract interface
+     subroutine arrayNames(self,names,time)
+       !!{RST
+       Interface for array names.
+       !!}
+       import varying_string, nodePropertyExtractorArray
+       class           (nodePropertyExtractorArray), intent(inout)                            :: self
+       double precision                            , intent(in   ), optional                  :: time
+       type            (varying_string            ), intent(inout), allocatable, dimension(:) :: names
+    end subroutine arrayNames
+  end interface
+
+  abstract interface
+     subroutine arrayDescriptions(self,descriptions,time)
+       !!{RST
+       Interface for array descriptions.
+       !!}
+       import varying_string, nodePropertyExtractorArray
+       class           (nodePropertyExtractorArray), intent(inout)                            :: self
+       double precision                            , intent(in   ), optional                  :: time
+       type            (varying_string            ), intent(inout), allocatable, dimension(:) :: descriptions
+    end subroutine arrayDescriptions
+  end interface
+
+  abstract interface
+     subroutine arrayColumns(self,descriptions,values,valuesDescription,valuesUnits,time)
+       !!{RST
+       Interface for array column descriptions.
+       !!}
+       import varying_string, nodePropertyExtractorArray, unitType
+       class           (nodePropertyExtractorArray), intent(inout)                            :: self
+       double precision                            , intent(in   ), optional                  :: time
+       type            (varying_string            ), intent(inout), allocatable, dimension(:) :: descriptions
+       double precision                            , intent(inout), allocatable, dimension(:) :: values
+       type            (varying_string            ), intent(  out)                            :: valuesDescription
+       type            (unitType                  ), intent(  out)                            :: valuesUnits
+     end subroutine arrayColumns
+  end interface
+
+  abstract interface
+     function arrayUnitsInSI(self,time)
+       !!{RST
+       Interface for array property units.
+       !!}
+       import nodePropertyExtractorArray
+       double precision                            , allocatable  , dimension(:) :: arrayUnitsInSI
+       class           (nodePropertyExtractorArray), intent(inout)               :: self
+       double precision                            , intent(in   ), optional     :: time
+     end function arrayUnitsInSI
+  end interface
+
+  abstract interface
+     integer function arrayElementCount(self,time)
+       !!{RST
+       Interface for array element count.
+       !!}
+       import nodePropertyExtractorArray
+       class           (nodePropertyExtractorArray), intent(inout) :: self
+       double precision                            , intent(in   ) :: time
+     end function arrayElementCount
+  end interface
+
+  abstract interface
+     function arraySize(self,time)
+       !!{RST
+       Interface for array element count.
+       !!}
+       import nodePropertyExtractorArray, c_size_t
+       integer         (c_size_t                  )                :: arraySize
+       class           (nodePropertyExtractorArray), intent(inout) :: self
+       double precision                            , intent(in   ) :: time
+     end function arraySize
+  end interface
+
+contains
+
+  function arrayUnits(self,time) result(units)
+    !!{RST
+    Default implementation: wraps the deferred ``nodePropertyExtractorArray``\ unitsInSI array into an array of ``unitType``.
+    !!}
+    implicit none
+    type            (unitType                  ), dimension(:), allocatable :: units
+    class           (nodePropertyExtractorArray), intent(inout)             :: self
+    double precision                            , intent(in   ), optional   :: time
+    double precision                            , dimension(:), allocatable :: siValues
+    integer                                                                  :: i
+
+    siValues=self%unitsInSI(time)
+    allocate(units(size(siValues)))
+    do i=1,size(siValues)
+       units(i)=unitType(siValues(i),isComoving=.false.)
+    end do
+    return
+  end function arrayUnits
+
+  subroutine arrayMetaData(self,node,indexProperty,metaDataRank0,metaDataRank1)
+    !!{RST
+    Interface for array property meta-data.
+    !!}
+    implicit none
+    class  (nodePropertyExtractorArray), intent(inout) :: self
+    type   (treeNode                  ), intent(inout) :: node
+    integer                            , intent(in   ) :: indexProperty
+    type   (doubleDictionary          ), intent(inout) :: metaDataRank0
+    type   (rank1DoubleDictionary     ), intent(inout) :: metaDataRank1
+    !$GLC attributes unused :: self, node, indexProperty, metaDataRank0, metaDataRank1
+    
+    return
+  end subroutine arrayMetaData

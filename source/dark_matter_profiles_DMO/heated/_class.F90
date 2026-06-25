@@ -1,0 +1,329 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+  !!{RST
+  An implementation of heated dark matter halo profiles.
+  !!}
+
+  use :: Mass_Distributions, only : enumerationNonAnalyticSolversType
+  use :: Object_Pools      , only : objectPool
+
+  !![
+  <darkMatterProfileDMO name="darkMatterProfileDMOHeated" docformat="rst">
+   <description>
+   A dark matter profile DMO class which builds :galacticus-class:`massDistributionSphericalHeated` objects to account for heating of some other dark matter profile.
+   </description>
+   <deepCopy>
+     <deallocate variables="pool"/>
+   </deepCopy>
+  </darkMatterProfileDMO>
+  !!]
+  type, extends(darkMatterProfileDMOClass) :: darkMatterProfileDMOHeated
+     !!{RST
+     A dark matter halo profile class implementing heated dark matter halos.
+     !!}
+     private
+     class           (darkMatterProfileDMOClass        ), pointer :: darkMatterProfileDMO_                  => null()
+     class           (darkMatterProfileHeatingClass    ), pointer :: darkMatterProfileHeating_              => null()
+     double precision                                             :: toleranceRelativeVelocityDispersion             , toleranceRelativeVelocityDispersionMaximum, &
+          &                                                          fractionRadiusFinalSmall                        , toleranceRelativePotential
+     type            (enumerationNonAnalyticSolversType)          :: nonAnalyticSolver
+     logical                                                      :: velocityDispersionApproximate                   , tolerateVelocityMaximumFailure            , &
+          &                                                          tolerateEnclosedMassIntegrationFailure          , tolerateVelocityDispersionFailure         , &
+          &                                                          toleratePotentialIntegrationFailure
+     type            (objectPool                       ), allocatable :: pool
+   contains
+     final     ::        heatedDestructor
+     procedure :: get => heatedGet
+  end type darkMatterProfileDMOHeated
+
+  interface darkMatterProfileDMOHeated
+     !!{RST
+     Constructors for the :galacticus-class:`darkMatterProfileDMOHeated` dark matter halo profile class.
+     !!}
+     module procedure heatedConstructorParameters
+     module procedure heatedConstructorInternal
+  end interface darkMatterProfileDMOHeated
+
+contains
+
+  function heatedConstructorParameters(parameters) result(self)
+    !!{RST
+    Default constructor for the ``heated`` dark matter halo profile class.
+    !!}
+    use :: Mass_Distributions, only : enumerationNonAnalyticSolversEncode
+    use :: Input_Parameters  , only : inputParameter, inputParameters
+    implicit none
+    type            (darkMatterProfileDMOHeated    )                :: self
+    type            (inputParameters               ), intent(inout) :: parameters
+    class           (darkMatterProfileDMOClass     ), pointer       :: darkMatterProfileDMO_
+    class           (darkMatterProfileHeatingClass ), pointer       :: darkMatterProfileHeating_
+    type            (varying_string                )                :: nonAnalyticSolver
+    logical                                                         :: velocityDispersionApproximate         , tolerateVelocityMaximumFailure            , &
+         &                                                             tolerateEnclosedMassIntegrationFailure, tolerateVelocityDispersionFailure         , &
+         &                                                             toleratePotentialIntegrationFailure
+    double precision                                                :: toleranceRelativeVelocityDispersion   , toleranceRelativeVelocityDispersionMaximum, &
+         &                                                             fractionRadiusFinalSmall              , toleranceRelativePotential
+
+    !![
+    <inputParameter docformat="rst">
+      <name>nonAnalyticSolver</name>
+      <defaultValue>var_str('fallThrough')</defaultValue>
+      <source>parameters</source>
+      <description>
+      Selects how solutions are computed when no analytic solution is available. If set to "``fallThrough``" then the solution ignoring heating is used, while if set to "``numerical``" then numerical solvers are used to find solutions.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>velocityDispersionApproximate</name>
+      <defaultValue>.true.</defaultValue>
+      <source>parameters</source>
+      <description>
+      If ``true``, radial velocity dispersion is computed using an approximate method in which we assume that :math:`\sigma_\mathrm{r}^2(r) \rightarrow \sigma_\mathrm{r}^2(r) - (2/3) \epsilon(r)`, where :math:`\epsilon(r)` is the specific heating energy. If ``false`` then radial velocity dispersion is computed by numerically solving the Jeans equation.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>tolerateEnclosedMassIntegrationFailure</name>
+      <defaultValue>.false.</defaultValue>
+      <source>parameters</source>
+      <description>
+      If ``true``, tolerate failures to find the mass enclosed as a function of radius.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>tolerateVelocityDispersionFailure</name>
+      <defaultValue>.false.</defaultValue>
+      <source>parameters</source>
+      <description>
+      If ``true``, tolerate failures to compute the velocity dispersion.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>tolerateVelocityMaximumFailure</name>
+      <defaultValue>.false.</defaultValue>
+      <source>parameters</source>
+      <description>
+      If ``true``, tolerate failures to find the radius of the maximum circular velocity.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>toleratePotentialIntegrationFailure</name>
+      <defaultValue>.false.</defaultValue>
+      <source>parameters</source>
+      <description>
+      If ``true``, tolerate numerical failures when computing the gravitational potential of a heated dark matter profile, allowing the calculation to continue with a fallback result rather than aborting.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>toleranceRelativeVelocityDispersion</name>
+      <defaultValue>1.0d-6</defaultValue>
+      <source>parameters</source>
+      <description>
+      The relative tolerance to use in numerical solutions for the velocity dispersion in dark-matter-only density profiles.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>toleranceRelativeVelocityDispersionMaximum</name>
+      <defaultValue>1.0d-3</defaultValue>
+      <source>parameters</source>
+      <description>
+      The maximum relative tolerance to use in numerical solutions for the velocity dispersion in dark-matter-only density profiles.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>fractionRadiusFinalSmall</name>
+      <defaultValue>1.0d-3</defaultValue>
+      <source>parameters</source>
+      <description>
+      The initial radius is limited to be no smaller than this fraction of the final radius. This can help avoid problems in profiles that are extremely close to being disrupted.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>toleranceRelativePotential</name>
+      <defaultValue>1.0d-3</defaultValue>
+      <source>parameters</source>
+      <description>
+      The maximum allowed relative tolerance to use in numerical solutions for the gravitational potential in dark-matter-only density profiles before aborting.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>tolerateVelocityMaximumFailure</name>
+      <defaultValue>.true.</defaultValue>
+      <description>
+      If true, tolerate failures to find the radius of the peak in the rotation curve.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <objectBuilder class="darkMatterProfileDMO"     name="darkMatterProfileDMO_"     source="parameters"/>
+    <objectBuilder class="darkMatterProfileHeating" name="darkMatterProfileHeating_" source="parameters"/>
+    !!]
+    self=darkMatterProfileDMOHeated(enumerationNonAnalyticSolversEncode(char(nonAnalyticSolver),includesPrefix=.false.),velocityDispersionApproximate,tolerateEnclosedMassIntegrationFailure,tolerateVelocityDispersionFailure,tolerateVelocityMaximumFailure,toleratePotentialIntegrationFailure,fractionRadiusFinalSmall,toleranceRelativeVelocityDispersion,toleranceRelativeVelocityDispersionMaximum,toleranceRelativePotential,darkMatterProfileDMO_,darkMatterProfileHeating_)
+    !![
+    <inputParametersValidate source="parameters"/>
+    <objectDestructor name="darkMatterProfileDMO_"    />
+    <objectDestructor name="darkMatterProfileHeating_"/>
+    !!]
+    return
+  end function heatedConstructorParameters
+
+  function heatedConstructorInternal(nonAnalyticSolver,velocityDispersionApproximate,tolerateEnclosedMassIntegrationFailure,tolerateVelocityDispersionFailure,tolerateVelocityMaximumFailure,toleratePotentialIntegrationFailure,fractionRadiusFinalSmall,toleranceRelativeVelocityDispersion,toleranceRelativeVelocityDispersionMaximum,toleranceRelativePotential,darkMatterProfileDMO_,darkMatterProfileHeating_) result(self)
+    !!{RST
+    Internal constructor for the :galacticus-class:`darkMatterProfileDMOHeated` dark matter halo profile class.
+    !!}
+    use :: Mass_Distributions, only : enumerationNonAnalyticSolversIsValid
+    use :: Error             , only : Error_Report
+    implicit none
+    type            (darkMatterProfileDMOHeated       )                        :: self
+    class           (darkMatterProfileDMOClass        ), intent(in   ), target :: darkMatterProfileDMO_
+    class           (darkMatterProfileHeatingClass    ), intent(in   ), target :: darkMatterProfileHeating_
+    type            (enumerationNonAnalyticSolversType), intent(in   )         :: nonAnalyticSolver
+    logical                                            , intent(in   )         :: velocityDispersionApproximate            , tolerateVelocityMaximumFailure                   , &
+         &                                                                        toleratePotentialIntegrationFailure      , tolerateEnclosedMassIntegrationFailure           , &
+         &                                                                        tolerateVelocityDispersionFailure
+    double precision                                   , intent(in   )         :: toleranceRelativeVelocityDispersion      , toleranceRelativeVelocityDispersionMaximum       , &
+         &                                                                        fractionRadiusFinalSmall                 , toleranceRelativePotential
+    double precision                                   , parameter             :: toleranceAbsolute                  =0.0d0, toleranceRelative                         =1.0d-6
+    !![
+    <constructorAssign variables="nonAnalyticSolver, velocityDispersionApproximate, tolerateVelocityMaximumFailure, toleratePotentialIntegrationFailure, tolerateEnclosedMassIntegrationFailure, tolerateVelocityDispersionFailure, fractionRadiusFinalSmall, toleranceRelativeVelocityDispersion, toleranceRelativeVelocityDispersionMaximum, toleranceRelativePotential, *darkMatterProfileDMO_, *darkMatterProfileHeating_"/>
+    !!]
+
+    ! Validate.
+    if (.not.enumerationNonAnalyticSolversIsValid(nonAnalyticSolver)) call Error_Report('invalid non-analytic solver type'//{introspection:location})
+    return
+  end function heatedConstructorInternal
+
+  subroutine heatedDestructor(self)
+    !!{RST
+    Destructor for the :galacticus-class:`darkMatterProfileDMOHeated` dark matter halo profile class.
+    !!}
+    implicit none
+    type(darkMatterProfileDMOHeated), intent(inout) :: self
+
+    ! Release any pooled heated mass distributions (and their attached kinematics
+    ! distributions) so that they are not leaked when this profile is destroyed.
+    if (allocated(self%pool)) call self%pool%destroy()
+    !![
+    <objectDestructor name="self%darkMatterProfileDMO_"    />
+    <objectDestructor name="self%darkMatterProfileHeating_"/>
+    !!]
+    return
+  end subroutine heatedDestructor
+
+  function heatedGet(self,node,weightBy,weightIndex) result(massDistribution_)
+    !!{RST
+    Return the dark matter mass distribution for the given ``node``.
+    !!}
+    use :: Galactic_Structure_Options, only : componentTypeDarkHalo          , massTypeDark                , weightByMass
+    use :: Mass_Distributions        , only : massDistributionSphericalHeated, kinematicsDistributionHeated, massDistributionSpherical, massDistributionHeatingClass
+    implicit none
+    class           (massDistributionClass       ), pointer                 :: massDistribution_
+    type            (kinematicsDistributionHeated), pointer                 :: kinematicsDistribution_
+    class           (darkMatterProfileDMOHeated  ), intent(inout)           :: self
+    type            (treeNode                    ), intent(inout)           :: node
+    type            (enumerationWeightByType     ), intent(in   ), optional :: weightBy
+    integer                                       , intent(in   ), optional :: weightIndex
+    class           (massDistributionClass       ), pointer                 :: massDistributionDecorated
+    class           (massDistributionHeatingClass), pointer                 :: massDistributionHeating_
+    logical                                                                 :: reused
+    integer                                                                 :: i
+    !![
+    <optionalArgument name="weightBy" defaultsTo="weightByMass" />
+    !!]
+
+    ! Assume a null distribution by default.
+    massDistribution_ => null()
+    ! If weighting is not by mass, return a null profile.
+    if (weightBy_ /= weightByMass) return
+    ! Acquire a pool slot, creating the pool itself on first use. If an existing object is
+    ! available for re-use "reused" is returned true, otherwise we must create a new object.
+    if (.not.allocated(self%pool)) allocate(self%pool)
+    call self%pool%acquire(i,reused)
+    if (.not.reused) allocate(massDistributionSphericalHeated :: self%pool%slots(i)%object_)
+    ! Get the decorated distribution and heating object for this node. The decorated
+    ! distribution is (typically) itself drawn from a pool, so this is cheap; the heating
+    ! object is currently constructed afresh on each call.
+    massDistributionDecorated => self%darkMatterProfileDMO_    %get(node,weightBy,weightIndex)
+    massDistributionHeating_  => self%darkMatterProfileHeating_%get(node                     )
+    select type (massDistribution__ => self%pool%slots(i)%object_)
+    type is (massDistributionSphericalHeated)
+       select type (massDistributionDecorated)
+       class is (massDistributionSpherical)
+          if (reused) then
+             ! Re-use an existing heated mass distribution: re-point its decorated and heating
+             ! sub-objects to those for this node (releasing the previous ones - in particular
+             ! returning the previously-decorated distribution to its own pool) and clear its
+             ! stale memoized state.
+             call massDistribution__%reinitialize(massDistributionDecorated,massDistributionHeating_)
+             !![
+             <objectDestructor name="massDistributionDecorated"/>
+             <objectDestructor name="massDistributionHeating_" />
+             !!]
+          else
+             ! No pool object was available - construct a new heated mass distribution and
+             ! attach a (re-usable) kinematics distribution to it.
+             !![
+	     <referenceConstruct object="massDistribution__">
+	       <constructor>
+                 massDistributionSphericalHeated(                                                                                    &amp;
+                  &amp;                          nonAnalyticSolver                     =self%nonAnalyticSolver                     , &amp;
+	          &amp;                          tolerateVelocityMaximumFailure        =self%tolerateVelocityMaximumFailure        , &amp;
+	          &amp;                          tolerateEnclosedMassIntegrationFailure=self%tolerateEnclosedMassIntegrationFailure, &amp;
+	          &amp;                          toleratePotentialIntegrationFailure   =self%toleratePotentialIntegrationFailure   , &amp;
+	          &amp;                          fractionRadiusFinalSmall              =self%fractionRadiusFinalSmall              , &amp;
+	          &amp;                          toleranceRelativePotential            =self%toleranceRelativePotential            , &amp;
+                  &amp;                          massDistribution_                     =     massDistributionDecorated             , &amp;
+                  &amp;                          massDistributionHeating_              =     massDistributionHeating_              , &amp;
+                  &amp;                          componentType                         =     componentTypeDarkHalo                 , &amp;
+                  &amp;                          massType                              =     massTypeDark                            &amp;
+                  &amp;                         )
+	       </constructor>
+	     </referenceConstruct>
+	     <objectDestructor name="massDistributionDecorated"/>
+	     <objectDestructor name="massDistributionHeating_" />
+             !!]
+             allocate(kinematicsDistribution_)
+             !![
+             <referenceConstruct object="kinematicsDistribution_">
+               <constructor>
+                 kinematicsDistributionHeated(                                                                                            &amp;
+                  &amp;                       nonAnalyticSolver                         =self%nonAnalyticSolver                         , &amp;
+                  &amp;                       velocityDispersionApproximate             =self%velocityDispersionApproximate             , &amp;
+                  &amp;                       toleranceRelativeVelocityDispersion       =self%toleranceRelativeVelocityDispersion       , &amp;
+                  &amp;                       toleranceRelativeVelocityDispersionMaximum=self%toleranceRelativeVelocityDispersionMaximum  &amp;
+	          &amp;                      )
+               </constructor>
+             </referenceConstruct>
+             !!]
+             call massDistribution__%setKinematicsDistribution(kinematicsDistribution_)
+             !![
+             <objectDestructor name="kinematicsDistribution_"/>
+             !!]
+          end if
+       class default
+          call Error_Report('expected a spherical mass distribution'//{introspection:location})
+       end select
+       ! Increment the reference count for the object since we are returning it to a calling
+       ! function which will therefore hold a reference to it.
+       !![
+       <referenceCountIncrement object="massDistribution__"/>
+       !!]
+       massDistribution_ => massDistribution__
+    end select
+    return
+  end function heatedGet

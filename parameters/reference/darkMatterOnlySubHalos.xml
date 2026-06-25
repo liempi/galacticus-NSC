@@ -3,17 +3,20 @@
 
 <parameters>
   <formatVersion>2</formatVersion>
-  <lastModified revision="61711340399619cdd6d89322db6e90ce228d3d93" time="2026-04-14T18:10:17"/>
+  <lastModified revision="23263e8c1dfc569099e2c1fbdedbc04ed6446e59" time="2026-05-18T15:53:57"/>
 
 
   <!-- Include requried parameters -->
-  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="cosmology.xml"               xpointer="xpointer(parameters/*)" />
-  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="powerSpectrum.xml"           xpointer="xpointer(parameters/*)" />
-  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="structureFormation.xml"      xpointer="xpointer(parameters/*)" />
-  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="darkMatterHalos.xml"         xpointer="xpointer(parameters/*)" />
-  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="subhaloOrbits.xml"           xpointer="xpointer(parameters/*)" />
-  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="mergerTrees.xml"             xpointer="xpointer(parameters/*)" />
-  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="evolutionDarkMatterOnly.xml" xpointer="xpointer(parameters/*)" />
+  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="cosmology.xml"                   xpointer="xpointer(parameters/*)" />
+  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="powerSpectrum.xml"               xpointer="xpointer(parameters/*)" />
+  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="structureFormation.xml"          xpointer="xpointer(parameters/*)" />
+  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="darkMatterParticleCDM.xml"       xpointer="xpointer(parameters/*)" />
+  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="darkMatterHalosProfile.xml"      xpointer="xpointer(parameters/*)" />
+  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="darkMatterHalosTidalHeating.xml" xpointer="xpointer(parameters/*)" />
+  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="darkMatterHalosStructure.xml"    xpointer="xpointer(parameters/*)" />
+  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="subhaloOrbits.xml"               xpointer="xpointer(parameters/*)" />
+  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="mergerTrees.xml"                 xpointer="xpointer(parameters/*)" />
+  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="evolutionDarkMatterOnly.xml"     xpointer="xpointer(parameters/*)" />
 
   <!-- Random number generation -->
   <randomNumberGenerator value="GSL">

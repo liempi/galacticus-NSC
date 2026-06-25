@@ -1,0 +1,49 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+!!{RST
+Contains a module which implements the nonlinear power spectrum.
+!!}
+
+module Power_Spectra_Nonlinear
+  !!{RST
+  Implements the nonlinear power spectrum.
+  !!}
+  private
+
+  !![
+  <functionClass docformat="rst">
+   <name>powerSpectrumNonlinear</name>
+   <descriptiveName>Nonlinear Power Spectrum</descriptiveName>
+   <description>
+   Class providing non-linear matter power spectra :math:`P_\mathrm{NL}(k,t)`---the variance of the dark matter density field per unit logarithmic wavenumber interval, including the contributions from non-linear gravitational clustering that boost power on small scales beyond the linear prediction. Non-linear power spectra are essential for computing accurate two-point statistics, weak lensing observables, and halo model predictions at :math:`k \gtrsim 0.1` Mpc\ :math:`^{-1}`. Implementations include fitting formulae (e.g.\ halofit) and emulators trained on N-body simulations.
+   </description>
+   <default>cosmicEmu</default>
+   <method name="value" >
+    <description>
+    Return the nonlinear power spectrum for :math:`k=`\ ``wavenumber`` [Mpc\ :math:`^{-1}`] at cosmic time :math:`t=`\ ``time`` [Gyr].
+    </description>
+    <type>double precision</type>
+    <pass>yes</pass>
+    <argument>double precision, intent(in   ) :: wavenumber, time</argument>
+   </method>
+  </functionClass>
+  !!]
+
+end module Power_Spectra_Nonlinear

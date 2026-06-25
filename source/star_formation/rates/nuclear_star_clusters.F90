@@ -1,0 +1,53 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+  !+    Contributions to this file made by: Matías Liempi
+
+!!{RST
+Contains a module which provides a class that implements rates of star formation in nuclear star clusters.
+!!}
+
+module Star_Formation_Rates_Nuclear_Star_Clusters
+  !!{RST
+  Provides a class that implements calculations of rates of formation in nuclear star clusters.
+  !!}
+  use :: Galacticus_Nodes, only : treeNode
+  private
+
+  !![
+  <functionClass docformat="rst">
+   <name>starFormationRateNuclearStarClusters</name>
+   <descriptiveName>Star Formation Rates in Nuclear Star Clusters</descriptiveName>
+   <description>
+   Class providing models of the star formation rate (in :math:`\mathrm{M}_\odot \, \mathrm{Gyr}^{-1}`) in the nuclear star cluster component of a galaxy---the compact, dense stellar system residing at the galactic center. Nuclear star cluster star formation is fuelled by gas inflows driven by disk instabilities and dynamical processes, and is governed by local gas conditions analogous to, but more extreme than, those in the main disk. Implementations may apply the same star formation prescription as the disk but evaluated at the nuclear cluster's characteristic density and dynamical time.
+   </description>
+   <default>krumholz2009</default>
+   <method name="rate" >
+    <description>
+    Returns the rate (in units of :math:`\mathrm{M}_\odot` Gyr\ :math:`^{-1}`) for star formation in the nuclear star cluster component of ``node``.
+    </description>
+    <type>double precision</type>
+    <pass>yes</pass>
+    <selfTarget>yes</selfTarget>
+    <argument>type(treeNode)  , intent(inout) :: node</argument>
+   </method>
+  </functionClass>
+  !!]
+
+end module Star_Formation_Rates_Nuclear_Star_Clusters

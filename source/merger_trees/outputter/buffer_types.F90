@@ -1,0 +1,72 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+!!{RST
+Contains a module which provides buffer types for merger tree outputters.
+!!}
+
+module Merger_Tree_Outputter_Buffer_Types
+  !!{RST
+  Provides buffer types for merger tree outputters.
+  !!}
+  use :: Kind_Numbers      , only : kind_int8
+  use :: Dictionaries      , only : doubleDictionary, rank1DoubleDictionary
+  use :: IO_HDF5           , only : hdf5VarDouble   , hdf5VarDouble2D      , hdf5VarInteger8
+  use :: ISO_Varying_String, only : varying_string
+  use :: Units_MetaData    , only : unitType
+  public
+
+  ! Maximum length of names and comments.
+  integer, parameter :: propertyNameLengthMax=256, propertyCommentLengthMax=256
+
+  type :: outputPropertyInteger
+     !!{RST
+     A type used to store integer data for output.
+     !!}
+     character       (len=propertyNameLengthMax   )                              :: name
+     character       (len=propertyCommentLengthMax)                              :: comment
+     type            (doubleDictionary            ), allocatable                 :: metaDataRank0
+     type            (rank1DoubleDictionary       ), allocatable                 :: metaDataRank1
+     type            (unitType                    )                              :: units
+     integer         (kind_int8                   ), allocatable, dimension(:  ) :: scalar
+     integer         (kind_int8                   ), allocatable, dimension(:,:) :: rank1
+     type            (hdf5VarInteger8             ), allocatable, dimension(:  ) :: rank1VarLen
+     type            (varying_string              ), allocatable, dimension(:  ) :: rank1Descriptors
+  end type outputPropertyInteger
+
+  type :: outputPropertyDouble
+     !!{RST
+     A type used to store double precision data for output.
+     !!}
+     character       (len=propertyNameLengthMax   )                              :: name
+     character       (len=propertyCommentLengthMax)                              :: comment
+     type            (doubleDictionary            ), allocatable                 :: metaDataRank0
+     type            (rank1DoubleDictionary       ), allocatable                 :: metaDataRank1
+     type            (unitType                    )                              :: units
+     double precision                              , allocatable, dimension(:  ) :: scalar
+     double precision                              , allocatable, dimension(:,:) :: rank1
+     type            (hdf5VarDouble               ), allocatable, dimension(:  ) :: rank1VarLen
+     type            (hdf5VarDouble2D             ), allocatable, dimension(:  ) :: rank2VarLen
+     type            (varying_string              ), allocatable, dimension(:  ) :: rank1Descriptors
+     double precision                              , allocatable, dimension(:  ) :: rank1DescriptorValues
+     type            (varying_string               )                             :: rank1DescriptorComment
+     type            (unitType                    )                              :: rank1DescriptorUnits
+  end type outputPropertyDouble
+
+end module Merger_Tree_Outputter_Buffer_Types

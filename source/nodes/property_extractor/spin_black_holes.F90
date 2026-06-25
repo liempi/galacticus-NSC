@@ -1,0 +1,160 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+  !![
+  <nodePropertyExtractor name="nodePropertyExtractorSpinBlackHoles" docformat="rst">
+   <description>
+   Extracts a list of dimensionless spin parameters for all supermassive black holes in each node, providing per-black-hole angular momentum data for studies of black hole spin evolution and jet production efficiency.
+   </description>
+  </nodePropertyExtractor>
+  !!]
+  type, extends(nodePropertyExtractorList) :: nodePropertyExtractorSpinBlackHoles
+     !!{RST
+     A property extractor which extracts a list of all super-massive black hole spins.
+     !!}
+     private
+   contains
+     procedure :: elementCount => spinBlackHolesElementCount
+     procedure :: extract      => spinBlackHolesExtract
+     procedure :: names        => spinBlackHolesNames
+     procedure :: descriptions => spinBlackHolesDescriptions
+     procedure :: unitsInSI    => spinBlackHolesUnitsInSI
+     procedure :: units       => spinBlackHolesUnits
+  end type nodePropertyExtractorSpinBlackHoles
+
+  interface nodePropertyExtractorSpinBlackHoles
+     !!{RST
+     Constructors for the :galacticus-class:`nodePropertyExtractorSpinBlackHoles` property extractor class.
+     !!}
+     module procedure spinBlackHolesConstructorParameters
+  end interface nodePropertyExtractorSpinBlackHoles
+
+contains
+
+  function spinBlackHolesConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`nodePropertyExtractorSpinBlackHoles` property extractor class which takes a parameter set as input.
+    !!}
+    use :: Input_Parameters, only : inputParameter, inputParameters
+    implicit none
+    type(nodePropertyExtractorSpinBlackHoles)                :: self
+    type(inputParameters                    ), intent(inout) :: parameters
+
+    self=nodePropertyExtractorSpinBlackHoles()
+    !![
+    <inputParametersValidate source="parameters"/>
+    !!]
+    return
+  end function spinBlackHolesConstructorParameters
+
+  integer function spinBlackHolesElementCount(self)
+    !!{RST
+    Return a count of the number of properties extracted.
+    !!}
+    implicit none
+    class(nodePropertyExtractorSpinBlackHoles), intent(inout) :: self
+
+    spinBlackHolesElementCount=1
+    return
+  end function spinBlackHolesElementCount
+
+  function spinBlackHolesExtract(self,node,instance) result(spin)
+    !!{RST
+    Implement an output extractor for the spins of all supermassive black holes.
+    !!}
+    use :: Galacticus_Nodes, only : nodeComponentBlackHole
+    implicit none
+    double precision                                     , dimension(:,:), allocatable :: spin
+    class           (nodePropertyExtractorSpinBlackHoles), intent(inout)               :: self
+    type            (treeNode                           ), intent(inout)               :: node
+    type            (multiCounter                       ), intent(inout) , optional    :: instance
+    class           (nodeComponentBlackHole             )                , pointer     :: blackHole
+    integer                                                                            :: i        , countBlackHoles
+    !$GLC attributes unused :: instance
+
+    countBlackHoles=node%blackHoleCount()
+    allocate(spin(countBlackHoles,1))
+    do i=1,countBlackHoles
+       blackHole      => node     %blackHole(instance=i)
+       spin     (i,1) =  blackHole%spin     (          )
+    end do
+    return
+  end function spinBlackHolesExtract
+
+  subroutine spinBlackHolesNames(self,names)
+    !!{RST
+    Return the names of the ``spinBlackHoles`` properties.
+    !!}
+    implicit none
+    class(nodePropertyExtractorSpinBlackHoles), intent(inout)                             :: self
+    type (varying_string                     ), intent(inout), dimension(:) , allocatable :: names
+    !$GLC attributes unused :: self
+
+    allocate(names(1))
+    names(1)=var_str('spinBlackHoles')
+    return
+  end subroutine spinBlackHolesNames
+
+  subroutine spinBlackHolesDescriptions(self,descriptions)
+    !!{RST
+    Return the descriptions of the ``spinBlackHoles`` properties.
+    !!}
+    implicit none
+    class(nodePropertyExtractorSpinBlackHoles), intent(inout)                             :: self
+    type (varying_string                     ), intent(inout), dimension(:) , allocatable :: descriptions
+    !$GLC attributes unused :: self
+
+    allocate(descriptions(1))
+    descriptions(1)=var_str('Spins of super-massive black holes in this galaxy.')
+    return
+  end subroutine spinBlackHolesDescriptions
+
+  function spinBlackHolesUnitsInSI(self) result(unitsInSI)
+    !!{RST
+    Return the units of the ``spinBlackHoles`` properties in the SI system.
+    !!}
+    implicit none
+    double precision                                     , dimension(:) , allocatable :: unitsInSI
+    class           (nodePropertyExtractorSpinBlackHoles), intent(inout)              :: self
+    !$GLC attributes unused :: self
+
+    allocate(unitsInSI(1))
+    unitsInSI(1)=1.0d0
+    return
+  end function spinBlackHolesUnitsInSI
+
+  function spinBlackHolesUnits(self) result(units)
+    !!{RST
+    Return the units of the spinBlackHoles properties.
+    !!}
+    use :: Units_MetaData, only : unitType
+    implicit none
+    type            (unitType                           ), dimension(:) , allocatable :: units
+    class           (nodePropertyExtractorSpinBlackHoles), intent(inout)              :: self
+    double precision                                     , dimension(:) , allocatable :: siValues
+    integer                                                                           :: i
+    !$GLC attributes unused :: self
+
+    siValues=self%unitsInSI()
+    allocate(units(size(siValues)))
+    do i=1,size(siValues)
+       units(i)=unitType(siValues(i))
+    end do
+    return
+  end function spinBlackHolesUnits

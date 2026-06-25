@@ -1,0 +1,55 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+!!{RST
+Contains a module which filters merger trees.
+!!}
+
+module Merger_Tree_Filters
+  !!{RST
+  Constructs/destructs merger trees.
+  !!}
+  use :: Galacticus_Nodes, only : mergerTree
+  private
+
+  !![
+  <functionClass docformat="rst">
+   <name>mergerTreeFilter</name>
+   <descriptiveName>Merger Tree Filters</descriptiveName>
+   <description>
+   Class providing merger tree filters---boolean predicates applied to a whole merger tree that determine whether it should be evolved and included in the simulation output. Filters allow trees to be selectively skipped based on e.g.\ their root halo mass, the presence of specific substructure, or random subsampling. This is useful for restricting expensive calculations to a subset of trees or for implementing importance sampling.
+   </description>
+   <default>always</default>
+   <method name="passes" >
+    <description>
+    Return true if the given ``tree`` passes the filter.
+    </description>
+    <type>logical</type>
+    <pass>yes</pass>
+    <argument>type(mergerTree), intent(in   ) :: tree</argument>
+   </method>
+  </functionClass>
+  !!]
+
+  type, public :: filterList
+     class(mergerTreeFilterClass), pointer :: filter_ => null()
+     type (filterList           ), pointer :: next    => null()
+  end type filterList
+
+end module Merger_Tree_Filters

@@ -1,0 +1,256 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+  !!{RST
+  Implements a merger tree outputter class that outputs :math:`k`-space density profiles as needed for halo model calculations.
+  !!}
+  
+  use :: Cosmology_Functions     , only : cosmologyFunctionsClass
+  use :: Dark_Matter_Halo_Scales , only : darkMatterHaloScaleClass
+  use :: Dark_Matter_Profiles_DMO, only : darkMatterProfileDMOClass
+  use :: Galactic_Filters        , only : galacticFilterClass
+  use :: IO_HDF5                 , only : hdf5Object
+
+  !![
+  <mergerTreeOutputter name="mergerTreeOutputterHaloFourierProfiles" docformat="rst">
+   <description>
+   A merger tree outputter class which outputs :math:`k`-space density profiles as needed for halo model calculations. A "``haloModel``" group is created in the Galacticus output file. This group contains the following:
+
+   ``wavenumber``
+      A dataset giving the wavenumbers (in units of Mpc\ :math:`^{-1}`) at which all output power spectra are tabulated. The minimum and maximum wavenumbers to tabulate are determined by the ``[haloModelWavenumberMinimum]`` and ``[haloModelWavenumberMaximum]`` parameters respectively, while the number of points to tabulate in each decade of wavenumber is determined by the ``[haloModelWavenumberPointsPerDecade]`` parameter.
+
+   ``powerSpectrum``
+      A dataset giving the linear theory power spectrum (in units of Mpc\ :math:`^3` normalized to :math:`z=0`) at each wavenumber specified in the ``wavenumber`` dataset.
+
+   ``Output{i}/mergerTree{j}/fourierProfile{k}``
+      A dataset giving the Fourier transform of the dark matter halo density profile (dimensionless and normalized to unity at small wavenumber) for the node with index ``k`` in merger tree with index ``j`` at output number ``i``. Profiles are written only for nodes which are isolated, and are tabulated at the wavenumbers given in the ``wavenumber`` group. Note that wavenumbers are assumed to be comoving.
+
+   Finally, each numbered output group is given two additional attributes, ``linearGrowthFactor`` and ``linearGrowthFactorLogDerivative`` which give the growth factor, :math:`D`, and its logarithmic derivative, :math:`\d \ln D / \d \ln a` at the output time.
+   </description>
+  </mergerTreeOutputter>
+  !!]
+  type, extends(mergerTreeOutputterClass) :: mergerTreeOutputterHaloFourierProfiles
+     !!{RST
+     Implementation of a merger tree outputter class that outputs :math:`k`-space density profiles as needed for halo model calculations.
+     !!}
+     private
+     class           (cosmologyFunctionsClass  ), pointer                   :: cosmologyFunctions_       => null()
+     class           (darkMatterHaloScaleClass ), pointer                   :: darkMatterHaloScale_      => null()
+     class           (darkMatterProfileDMOClass), pointer                   :: darkMatterProfileDMO_     => null()
+     class           (galacticFilterClass      ), pointer                   :: galacticFilter_           => null()
+     integer                                                                :: wavenumberPointsPerDecade          , wavenumberCount
+     double precision                                                       :: wavenumberMaximum                  , wavenumberMinimum
+     double precision                           , allocatable, dimension(:) :: wavenumber
+     type            (hdf5Object               )                            :: outputGroup
+   contains
+     final     ::               haloFourierProfilesDestructor
+     procedure :: outputTree => haloFourierProfilesOutputTree
+     procedure :: outputNode => haloFourierProfilesOutputNode
+  end type mergerTreeOutputterHaloFourierProfiles
+
+  interface mergerTreeOutputterHaloFourierProfiles
+     !!{RST
+     Constructors for the :galacticus-class:`mergerTreeOutputterHaloFourierProfiles` merger tree outputter.
+     !!}
+     module procedure haloFourierProfilesConstructorParameters
+     module procedure haloFourierProfilesConstructorInternal
+  end interface mergerTreeOutputterHaloFourierProfiles
+  
+contains
+  
+  function haloFourierProfilesConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`mergerTreeOutputterHaloFourierProfiles` merger tree outputter class which takes a parameter set as input.
+    !!}
+    use :: Input_Parameters, only : inputParameters
+    implicit none
+    type            (mergerTreeOutputterHaloFourierProfiles)                :: self
+    type            (inputParameters                       ), intent(inout) :: parameters
+    class           (cosmologyFunctionsClass               ), pointer       :: cosmologyFunctions_
+    class           (darkMatterProfileDMOClass             ), pointer       :: darkMatterProfileDMO_
+    class           (darkMatterHaloScaleClass              ), pointer       :: darkMatterHaloScale_
+    class           (galacticFilterClass                   ), pointer       :: galacticFilter_
+    double precision                                                        :: wavenumberMinimum        , wavenumberMaximum
+    integer                                                                 :: wavenumberPointsPerDecade
+
+    !![
+    <inputParameter docformat="rst">
+      <name>wavenumberPointsPerDecade</name>
+      <defaultValue>10</defaultValue>
+      <description>
+      The number of points per decade in wavenumber at which to tabulate power spectra for the halo model.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>wavenumberMinimum</name>
+      <defaultValue>1.0d-3</defaultValue>
+      <description>
+      The minimum wavenumber (in Mpc\ :math:`{^-1}`) at which to tabulate power spectra for the halo model.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>wavenumberMaximum</name>
+      <defaultValue>1.0d4</defaultValue>
+      <description>
+      The maximum wavenumber (in Mpc\ :math:`{^-1}`) at which to tabulate power spectra for the halo model.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <objectBuilder class="galacticFilter"       name="galacticFilter_"       source="parameters"/>
+    <objectBuilder class="cosmologyFunctions"   name="cosmologyFunctions_"   source="parameters"/>
+    <objectBuilder class="darkMatterProfileDMO" name="darkMatterProfileDMO_" source="parameters"/>
+    <objectBuilder class="darkMatterHaloScale"  name="darkMatterHaloScale_"  source="parameters"/>
+    !!]
+    self=mergerTreeOutputterHaloFourierProfiles(wavenumberPointsPerDecade,wavenumberMinimum,wavenumberMaximum,cosmologyFunctions_,darkMatterHaloScale_,darkMatterProfileDMO_,galacticFilter_)
+    !![
+    <inputParametersValidate source="parameters"/>
+    <objectDestructor name="galacticFilter_"      />
+    <objectDestructor name="cosmologyFunctions_"  />
+    <objectDestructor name="darkMatterHaloScale_" />
+    <objectDestructor name="darkMatterProfileDMO_"/>
+    !!]
+    return
+  end function haloFourierProfilesConstructorParameters
+
+  function haloFourierProfilesConstructorInternal(wavenumberPointsPerDecade,wavenumberMinimum,wavenumberMaximum,cosmologyFunctions_,darkMatterHaloScale_,darkMatterProfileDMO_,galacticFilter_) result(self)
+    !!{RST
+    Internal constructor for the :galacticus-class:`mergerTreeOutputterHaloFourierProfiles` merger tree outputter class.
+    !!}
+    use :: Numerical_Ranges, only : Make_Range, rangeTypeLogarithmic
+    implicit none
+    type            (mergerTreeOutputterHaloFourierProfiles)                        :: self
+    class           (cosmologyFunctionsClass               ), intent(in   ), target :: cosmologyFunctions_
+    class           (darkMatterHaloScaleClass              ), intent(in   ), target :: darkMatterHaloScale_
+    class           (darkMatterProfileDMOClass             ), intent(in   ), target :: darkMatterProfileDMO_
+    class           (galacticFilterClass                   ), intent(in   ), target :: galacticFilter_
+    double precision                                        , intent(in   )         :: wavenumberMinimum        , wavenumberMaximum
+    integer                                                 , intent(in   )         :: wavenumberPointsPerDecade
+    !![
+    <constructorAssign variables="wavenumberPointsPerDecade, wavenumberMinimum, wavenumberMaximum, *cosmologyFunctions_, *darkMatterHaloScale_, *darkMatterProfileDMO_, *galacticFilter_"/>
+    !!]
+    
+    ! Build a grid of wavenumbers.
+    self%wavenumberCount=int(log10(self%wavenumberMaximum/self%wavenumberMinimum)*dble(self%wavenumberPointsPerDecade))+1
+    allocate(self%wavenumber(self%wavenumberCount))
+    self%wavenumber=Make_Range(self%wavenumberMinimum,self%wavenumberMaximum,self%wavenumberCount,rangeType=rangeTypeLogarithmic)
+    return
+  end function haloFourierProfilesConstructorInternal
+
+  subroutine haloFourierProfilesDestructor(self)
+    !!{RST
+    Destructor for the :galacticus-class:`mergerTreeOutputterHaloFourierProfiles` merger tree outputter class.
+    !!}
+    implicit none
+    type(mergerTreeOutputterHaloFourierProfiles), intent(inout) :: self
+    
+    !![
+    <objectDestructor name="self%galacticFilter_"      />
+    <objectDestructor name="self%cosmologyFunctions_"  />
+    <objectDestructor name="self%darkMatterHaloScale_" />
+    <objectDestructor name="self%darkMatterProfileDMO_"/>
+    !!]
+    return
+  end subroutine haloFourierProfilesDestructor
+  
+  subroutine haloFourierProfilesOutputTree(self,tree,indexOutput,time,outputType)
+    !!{RST
+    Write properties of nodes in ``tree`` to the Galacticus output file.
+    !!}
+    use    :: Output_HDF5                     , only : outputFile
+    use    :: Galacticus_Nodes                , only : treeNode                , nodeComponentBasic
+    !$ use :: HDF5_Access                     , only : hdf5Access
+    use    :: ISO_Varying_String              , only : var_str
+    use    :: Mass_Distributions              , only : massDistributionClass
+    use    :: Merger_Tree_Walkers             , only : mergerTreeWalkerAllNodes
+    use    :: Numerical_Constants_Astronomical, only : megaParsec
+    use    :: Units_MetaData                  , only : unitType
+    use    :: String_Handling                 , only : operator(//)
+    implicit none
+    class           (mergerTreeOutputterHaloFourierProfiles), intent(inout)               :: self
+    type            (mergerTree                            ), intent(inout), target       :: tree
+    integer         (c_size_t                              ), intent(in   )               :: indexOutput
+    double precision                                        , intent(in   )               :: time
+    type            (enumerationOutputGroupTypeType        ), intent(in   ), optional     :: outputType
+    type            (treeNode                              )               , pointer      :: node
+    class           (nodeComponentBasic                    )               , pointer      :: basic
+    class           (massDistributionClass                 )               , pointer      :: massDistribution_
+    double precision                                        , allocatable  , dimension(:) :: fourierProfile
+    type            (mergerTreeWalkerAllNodes              )                              :: treeWalker
+    type            (hdf5Object                            )                              :: outputGroup      , treeGroup   , &
+         &                                                                                   dataset
+    integer         (c_size_t                              )                              :: treeIndexPrevious
+    double precision                                                                      :: expansionFactor  , radiusVirial
+    integer                                                                               :: i
+    !$GLC attributes unused :: time, outputType
+    
+    allocate(fourierProfile(self%wavenumberCount))
+    !$ call hdf5Access%set  ()
+    if (.not.self%outputGroup%isOpen()) then
+       self%outputGroup=outputFile%openGroup("haloFourierProfiles","Halo model data.")
+       call self   %outputGroup%writeDataset  (self%wavenumber ,'wavenumber','Wavenumber at which Fourier transform of density profile is tabulated [Mpc⁻¹].',datasetReturned=dataset)
+       call dataset            %writeAttribute(unitType(1.0d0/megaParsec,"Mpc⁻¹","Mpc^-1",.true.),'units'                                                                                          )
+    end if
+    outputGroup=self%outputGroup%openGroup(char(var_str('output')//indexOutput),char(var_str("Fourier space density profiles of halos for all trees at output number ")//indexOutput//"."))
+    !$ call hdf5Access%unset()
+    treeIndexPrevious=-huge(0_c_size_t)
+    treeWalker       =mergerTreeWalkerAllNodes(tree,spanForest=.true.)
+    do while (treeWalker%next(node))
+       if (.not.self%galacticFilter_%passes(node)) cycle       
+       if (node%hostTree%index /= treeIndexPrevious) then
+          treeIndexPrevious=node%hostTree%index
+          !$ call hdf5Access%set  ()
+          treeGroup=outputGroup%openGroup(char(var_str('tree')//node%hostTree%index),"Fourier space density profiles of halos for each tree.")
+          !$ call hdf5Access%unset()
+       end if
+       basic           => node%basic                              (            )
+       expansionFactor =  self%cosmologyFunctions_%expansionFactor(basic%time())
+       ! Construct profile. (Our wavenumbers are comoving, so we must convert them to physical coordinates before passing them to
+       ! the dark matter profile k-space routine.)
+       massDistribution_ => self%darkMatterProfileDMO_%get         (node)
+       radiusVirial      =  self%darkMatterHaloScale_ %radiusVirial(node)
+       do i=1,self%waveNumberCount
+          fourierProfile(i)=massDistribution_%fourierTransform(radiusVirial,self%wavenumber(i)/expansionFactor)
+       end do
+       !![
+       <objectDestructor name="massDistribution_"/>
+       !!]
+       !$ call hdf5Access%set  ()
+       call treeGroup%writeDataset(fourierProfile,char(var_str('node')//node%index()),"The Fourier-space density profile.")
+       !$ call hdf5Access%unset()
+    end do
+    return
+  end subroutine haloFourierProfilesOutputTree
+
+  subroutine haloFourierProfilesOutputNode(self,node,indexOutput, outputType)
+    !!{RST
+    Perform no output.
+    !!}
+    use :: Error, only : Error_Report
+    implicit none
+    class  (mergerTreeOutputterHaloFourierProfiles), intent(inout)           :: self
+    type   (treeNode                              ), intent(inout)           :: node
+    integer(c_size_t                              ), intent(in   )           :: indexOutput
+    type   (enumerationOutputGroupTypeType        ), intent(in   ), optional :: outputType
+    !$GLC attributes unused :: self, node, indexOutput, outputType
+
+    call Error_Report('output of single nodes is not supported'//{introspection:location})
+    return
+  end subroutine haloFourierProfilesOutputNode

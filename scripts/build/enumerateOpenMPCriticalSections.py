@@ -4,13 +4,7 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 
-galacticus_exec_path = os.environ.get('GALACTICUS_EXEC_PATH')
-if not galacticus_exec_path:
-    print("Error: GALACTICUS_EXEC_PATH environment variable is not set.", file=sys.stderr)
-    sys.exit(1)
-python_path = os.path.abspath(os.path.join(galacticus_exec_path, 'python'))
-sys.path.insert(0, python_path)
-from build.fortran_utils import get_fortran_line
+from Galacticus.Build.FortranUtils import get_fortran_line
 
 # Locate all OpenMP critical sections, and build an enumeration of them for use
 # in source code instrumentation.
@@ -26,10 +20,14 @@ src_path         = os.path.join(source_directory, "source")
 
 critical_section_names = {}
 
-for file_name in os.listdir(src_path):
-    if not re.search(r'\.f(90)?$', file_name, re.IGNORECASE):
-        continue
-    full_path = os.path.join(src_path, file_name)
+source_file_paths = []
+for dirpath, dirnames, filenames in os.walk(src_path):
+    dirnames[:] = sorted(d for d in dirnames if not d.startswith('.'))
+    for file_name in filenames:
+        if re.search(r'\.f(90)?$', file_name, re.IGNORECASE):
+            source_file_paths.append(os.path.join(dirpath, file_name))
+
+for full_path in sorted(source_file_paths):
     try:
         with open(full_path, 'r', errors='replace') as fh:
             while True:
@@ -80,12 +78,18 @@ with open(count_tmp, 'w') as fh:
 _update_file(os.path.join(build_path, "openMPCriticalSections.count.inc"), count_tmp)
 
 # --- openMPCriticalSections.enumerate.inc ---
+# A fixed-length `character` array is used (rather than `varying_string`) to
+# mirror the event-hook wait-time code in EventHooks.py: a local automatic
+# `varying_string` array segfaults gfortran when it is finalized on return
+# from OpenMP_Critical_Wait_Times (it is written to the output file and never
+# otherwise needs the dynamic length).
 enum_tmp = os.path.join(build_path, "openMPCriticalSections.enumerate.inc.tmp")
 sorted_names = sorted(critical_section_names)
+name_length_max = max((len(name) for name in sorted_names), default=1)
 with open(enum_tmp, 'w') as fh:
-    fh.write("type(varying_string), dimension(criticalSectionCount) :: criticalSectionNames\n")
-    fh.write("criticalSectionNames=[ &\n")
-    joined = "'), &\n & var_str('".join(sorted_names)
-    fh.write(f" & var_str('{joined}') &\n")
+    fh.write(f"character(len={name_length_max}), dimension(criticalSectionCount) :: criticalSectionNames\n")
+    fh.write(f"criticalSectionNames=[character(len={name_length_max}) :: &\n")
+    joined = "', &\n & '".join(sorted_names)
+    fh.write(f" & '{joined}' &\n")
     fh.write(" & ]\n")
 _update_file(os.path.join(build_path, "openMPCriticalSections.enumerate.inc"), enum_tmp)

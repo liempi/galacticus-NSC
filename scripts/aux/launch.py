@@ -14,10 +14,13 @@ import re
 import copy
 import hashlib
 import json
+import socket
 import subprocess
 import threading
 import time
 from xml.etree import ElementTree as ET
+
+from XML.Utils import xml_to_dict
 
 # ---------------------------------------------------------------------------
 # XML utilities
@@ -25,35 +28,6 @@ from xml.etree import ElementTree as ET
 
 # Element names that Perl XML::Simple ForceArray would always wrap in a list.
 _FORCE_ARRAY = frozenset({"modify", "value", "parameter", "parameters", "requirement"})
-
-
-def _xml_to_dict(element, force_array=_FORCE_ARRAY):
-    """Recursively convert an XML element to nested Python dicts/lists/strings.
-
-    Mirrors Perl XML::Simple with KeyAttr="" and the given force_array set:
-    - Elements with only text content  => plain string
-    - Elements with attributes/children => dict
-    - Multiple same-tag siblings       => list
-    - Tags in force_array              => always list (even if only one element)
-    """
-    result = dict(element.attrib)
-
-    children_by_tag: dict = {}
-    for child in element:
-        children_by_tag.setdefault(child.tag, []).append(child)
-
-    for tag, children in children_by_tag.items():
-        converted = [_xml_to_dict(child, force_array) for child in children]
-        result[tag] = converted if (tag in force_array or len(converted) > 1) else converted[0]
-
-    text = (element.text or "").strip()
-    if text:
-        if result:
-            result["content"] = text
-        else:
-            return text  # pure-text element
-
-    return result
 
 
 def _dict_to_xml_elem(tag: str, data, parent=None, _nested: bool = False):
@@ -158,8 +132,48 @@ def _load_config() -> dict:
         os.path.join(os.path.expanduser("~"), ".galacticusConfig.xml"),
     ):
         if os.path.isfile(path):
-            return _xml_to_dict(ET.parse(path).getroot())
+            return xml_to_dict(ET.parse(path).getroot())
     return {}
+
+
+def resolve_host_section(section: str, config: dict | None = None,
+                         hostname: str | None = None) -> dict:
+    """Return the host-specific subsection of ``config[section]``.
+
+    Mirrors Galacticus::Options::Config(section). Each ``<host name="...">``
+    entry's ``name`` is matched as a regex (``re.fullmatch``) against the current
+    hostname, with a ``name="default"`` fallback. Returns ``{}`` if no entry
+    matches and no default is provided.
+    """
+    if config is None:
+        config = _load_config()
+    if hostname is None:
+        hostname = os.environ.get("HOSTNAME") or socket.gethostname()
+    section_value = config.get(section) if isinstance(config, dict) else None
+    if not isinstance(section_value, dict):
+        return {}
+    host_entries = section_value.get("host")
+    if host_entries is None:
+        return {}
+    if not isinstance(host_entries, list):
+        host_entries = [host_entries]
+    default_entry: dict | None = None
+    for entry in host_entries:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("name")
+        if name is None:
+            continue
+        if name == "default":
+            default_entry = entry
+            continue
+        try:
+            matched = re.fullmatch(name, hostname) is not None
+        except re.error:
+            matched = name == hostname
+        if matched:
+            return entry
+    return default_entry if default_entry is not None else {}
 
 
 # ---------------------------------------------------------------------------
@@ -168,7 +182,7 @@ def _load_config() -> dict:
 
 def _parse_launch_script(filename: str) -> dict:
     """Parse the launch XML file and apply defaults."""
-    script = _xml_to_dict(ET.parse(filename).getroot(), force_array=_FORCE_ARRAY)
+    script = xml_to_dict(ET.parse(filename).getroot(), force_array=_FORCE_ARRAY)
     defaults: dict = {
         "verbosity":          0,
         "md5Names":           "no",
@@ -372,6 +386,9 @@ def _post_cleanup(job: dict, launch_script: dict):
 
 def _local_validate(launch_script: dict):
     local = launch_script.setdefault("local", {})
+    for key, val in resolve_host_section("local", launch_script.get("config")).items():
+        if key != "name":
+            local.setdefault(key, val)
     local.setdefault("threadCount", 1)
     local.setdefault("ompThreads",  "maximum")
     local.setdefault("executable",  "Galacticus.exe")
@@ -441,6 +458,9 @@ def _local_run_models(i_thread: int, thread_count: int,
 
 def _pbs_validate(launch_script: dict):
     pbs = launch_script.setdefault("pbs", {})
+    for key, val in resolve_host_section("pbs", launch_script.get("config")).items():
+        if key != "name":
+            pbs.setdefault(key, val)
     for key, val in {
         "mpiLaunch":               "yes",
         "mpiRun":                  ("mpirun --map-by node --mca mpi_preconnect_mpi 1"
@@ -594,6 +614,9 @@ def _qsub(script: str) -> str:
 
 def _slurm_validate(launch_script: dict):
     slurm = launch_script.setdefault("slurm", {})
+    for key, val in resolve_host_section("slurm", launch_script.get("config")).items():
+        if key != "name":
+            slurm.setdefault(key, val)
     for key, val in {
         "mpiLaunch":               "yes",
         "mpiRun":                  "mpirun --bynode",
@@ -671,6 +694,9 @@ def _write_slurm_script(path: str, job: dict, launch_script: dict, slurm: dict):
         f.write(f"#SBATCH -o {pwd}{job['directory']}/galacticus.log\n")
         if "account" in slurm:
             f.write(f"#SBATCH -A {slurm['account']}\n")
+        partition = slurm.get("partition") or slurm.get("queue")
+        if partition:
+            f.write(f"#SBATCH --partition={partition}\n")
         for env in _as_list(slurm.get("environment")):
             f.write(f"export {env}\n")
         for mod in _as_list(slurm.get("module")):
@@ -1014,7 +1040,7 @@ def _construct_models(launch_script: dict) -> list:
                 parameters: dict = {}
                 base_file = launch_script.get("baseParameters", "")
                 if base_file:
-                    parameters = _xml_to_dict(
+                    parameters = xml_to_dict(
                         ET.parse(base_file).getroot(),
                         force_array=frozenset(),
                     )

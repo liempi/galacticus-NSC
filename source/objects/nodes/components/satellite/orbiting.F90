@@ -1,0 +1,466 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+!+    Contributions to this file made by:  Anthony Pullen, Andrew Benson.
+
+!!{RST
+Contains a module of satellite orbit tree node methods.
+!!}
+module Node_Component_Satellite_Orbiting
+  !!{RST
+  Implements the orbiting satellite component.
+  !!}
+  use :: Dark_Matter_Halo_Scales, only : darkMatterHaloScaleClass
+  use :: Kepler_Orbits          , only : keplerOrbit
+  use :: Tensors                , only : tensorRank2Dimension3Symmetric
+  implicit none
+  private
+  public :: Node_Component_Satellite_Orbiting_Scale_Set        , Node_Component_Satellite_Orbiting_Initialize         , &
+       &    Node_Component_Satellite_Orbiting_Thread_Initialize, Node_Component_Satellite_Orbiting_Thread_Uninitialize, &
+       &    Node_Component_Satellite_Orbiting_State_Store      , Node_Component_Satellite_Orbiting_State_Restore
+  
+  !![
+  <component>
+   <class>satellite</class>
+   <name>orbiting</name>
+   <isDefault>false</isDefault>
+   <properties>
+    <property>
+      <name>position</name>
+      <type>double</type>
+      <rank>1</rank>
+      <attributes isSettable="true" isGettable="true" isEvolvable="true" />
+      <output labels="[X,Y,Z]" unitsInSI="megaParsec" unitsDescription="Mpc" unitsQuantity="Mpc" comment="Orbital position of the node relative to its immediate host (sub-)halo."/>
+      <classDefault>[0.0d0,0.0d0,0.0d0]</classDefault>
+    </property>
+    <property>
+      <name>velocity</name>
+      <type>double</type>
+      <rank>1</rank>
+      <attributes isSettable="true" isGettable="true" isEvolvable="true" />
+      <output labels="[X,Y,Z]" unitsInSI="kilo" unitsDescription="km/s" unitsQuantity="km/s" comment="Orbital velocity of the node relative to its immediate host (sub-)halo."/>
+      <classDefault>[0.0d0,0.0d0,0.0d0]</classDefault>
+    </property>
+    <property>
+      <name>timeOfMerging</name>
+      <type>double</type>
+      <rank>0</rank>
+      <attributes isSettable="true" isGettable="true" isEvolvable="false" />
+      <classDefault>huge(0.0d0)</classDefault>
+    </property>
+    <property>
+      <name>destructionTime</name>
+      <type>double</type>
+      <rank>0</rank>
+      <attributes isSettable="true" isGettable="true" isEvolvable="false" />
+      <classDefault>-1.0d0</classDefault>
+    </property>
+    <property>
+      <name>boundMass</name>
+      <type>double</type>
+      <rank>0</rank>
+      <attributes isSettable="true" isGettable="true" isEvolvable="true" />
+      <classDefault>selfBasic%mass()</classDefault>
+      <output unitsInSI="massSolar" unitsDescription="Solar masses" unitsQuantity="solMass" comment="Bound mass of the node."/>
+    </property>
+    <property>
+      <name>virialOrbit</name>
+      <type>keplerOrbit</type>
+      <rank>0</rank>
+      <attributes isSettable="true" isGettable="true" isEvolvable="false" isDeferred="set:get" />
+    </property>
+    <property>
+      <name>tidalTensorPathIntegrated</name>
+      <type>tensorRank2Dimension3Symmetric</type>
+      <rank>0</rank>
+      <attributes isSettable="true" isGettable="true" isEvolvable="true" />
+    </property>
+    <property>
+      <name>tidalHeatingNormalized</name>
+      <type>double</type>
+      <rank>0</rank>
+      <attributes isSettable="true" isGettable="true" isEvolvable="true" />
+      <output unitsInSI="kilo**2/megaParsec**2" unitsDescription="(km/s/Mpc)²" unitsQuantity="km^2/(s^2 Mpc^2)" comment="Specific energy/radius² of satellite in units of (km/s)²/Mpc²."/>
+    </property>
+   </properties>
+  </component>
+  !!]
+
+  ! Objects used by this module.
+  class(darkMatterHaloScaleClass), pointer :: darkMatterHaloScale_
+  !$omp threadprivate(darkMatterHaloScale_)
+
+  ! Option controlling whether or not unbound virial orbits are acceptable.
+  logical :: acceptUnboundOrbits
+
+  ! A threadprivate object used to track to which thread events are attached.
+  integer :: thread
+  !$omp threadprivate(thread)
+
+contains
+
+  !![
+  <nodeComponentInitializationTask function="Node_Component_Satellite_Orbiting_Initialize"/>
+  !!]
+  subroutine Node_Component_Satellite_Orbiting_Initialize(parameters)
+    !!{RST
+    Initializes the orbiting satellite methods module.
+    !!}
+    use :: Galacticus_Nodes  , only : defaultSatelliteComponent, nodeComponentSatelliteOrbiting
+    use :: Input_Parameters  , only : inputParameter           , inputParameters
+    implicit none
+    type(inputParameters               ), intent(inout) :: parameters
+    type(nodeComponentSatelliteOrbiting)                :: satellite
+    type(inputParameters               )                :: subParameters
+
+    ! Initialize the module if necessary.
+    if (defaultSatelliteComponent%orbitingIsActive()) then
+       ! Find our parameters.
+       subParameters=parameters%subParameters('componentSatellite')
+       !![
+       <inputParameter docformat="rst">
+         <name>acceptUnboundOrbits</name>
+         <defaultValue>.false.</defaultValue>
+         <description>
+         If true, accept unbound virial orbits for satellites, otherwise reject them.
+         </description>
+         <source>subParameters</source>
+       </inputParameter>
+       !!]
+       ! Specify the function to use for setting virial orbits.
+       call satellite%virialOrbitSetFunction(Node_Component_Satellite_Orbiting_Virial_Orbit_Set)
+       call satellite%virialOrbitFunction   (Node_Component_Satellite_Orbiting_Virial_Orbit    )
+    end if
+    return
+  end subroutine Node_Component_Satellite_Orbiting_Initialize
+
+  !![
+  <nodeComponentThreadInitializationTask function="Node_Component_Satellite_Orbiting_Thread_Initialize"/>
+  !!]
+  subroutine Node_Component_Satellite_Orbiting_Thread_Initialize(parameters)
+    !!{RST
+    Initializes the tree node orbiting satellite module.
+    !!}
+    use :: Galacticus_Nodes, only : defaultSatelliteComponent
+    use :: Input_Parameters, only : inputParameters
+    use :: Events_Hooks    , only : satellitePreHostChangeEvent, nodePromotionEvent, openMPThreadBindingAtLevel, subhaloPromotionEvent, &
+         &                          dependencyDirectionBefore  , dependencyExact
+
+    implicit none
+    type(inputParameters), intent(inout) :: parameters
+    type(inputParameters)                :: subParameters
+    type(dependencyExact), dimension(1)  :: dependenciesSubhaloPromotion
+
+    if (defaultSatelliteComponent%orbitingIsActive()) then
+       ! Find our parameters.
+       subParameters=parameters%subParameters('componentSatellite')
+       !![
+       <objectBuilder class="darkMatterHaloScale" name="darkMatterHaloScale_" source="subParameters"/>
+       !!]
+       dependenciesSubhaloPromotion(1)=dependencyExact(dependencyDirectionBefore,'mergerTreeNodeEvolver')
+       call       subhaloPromotionEvent%attach(thread,subhaloPromotion      ,openMPThreadBindingAtLevel,label='nodeComponentSatelliteOrbiting',dependencies=dependenciesSubhaloPromotion)
+       call          nodePromotionEvent%attach(thread,nodePromotion         ,openMPThreadBindingAtLevel,label='nodeComponentSatelliteOrbiting'                                          )
+       call satellitePreHostChangeEvent%attach(thread,satellitePreHostChange,openMPThreadBindingAtLevel,label='nodeComponentSatelliteOrbiting'                                          )
+    end if
+    return
+  end subroutine Node_Component_Satellite_Orbiting_Thread_Initialize
+
+  !![
+  <nodeComponentThreadUninitializationTask function="Node_Component_Satellite_Orbiting_Thread_Uninitialize"/>
+  !!]
+  subroutine Node_Component_Satellite_Orbiting_Thread_Uninitialize()
+    !!{RST
+    Uninitializes the tree node orbiting satellite module.
+    !!}
+    use :: Galacticus_Nodes, only : defaultSatelliteComponent
+    use :: Events_Hooks    , only : satellitePreHostChangeEvent, nodePromotionEvent, subhaloPromotionEvent
+    implicit none
+
+    if (defaultSatelliteComponent%orbitingIsActive()) then
+       !![
+       <objectDestructor name="darkMatterHaloScale_"/>
+       !!]
+       if (      subhaloPromotionEvent%isAttached(thread,subhaloPromotion      )) call       subhaloPromotionEvent%detach(thread,subhaloPromotion      )
+       if (satellitePreHostChangeEvent%isAttached(thread,satellitePreHostChange)) call satellitePreHostChangeEvent%detach(thread,satellitePreHostChange)
+       if (         nodePromotionEvent%isAttached(thread,nodePromotion         )) call          nodePromotionEvent%detach(thread,nodePromotion         )
+   end if
+    return
+  end subroutine Node_Component_Satellite_Orbiting_Thread_Uninitialize
+
+  !![
+  <scaleSetTask function="Node_Component_Satellite_Orbiting_Scale_Set"/>
+  !!]
+  subroutine Node_Component_Satellite_Orbiting_Scale_Set(node)
+    !!{RST
+    Set scales for properties of ``node``.
+    !!}
+    use :: Galacticus_Nodes                , only : nodeComponentSatellite, nodeComponentSatelliteOrbiting, nodeComponentBasic, treeNode
+    use :: Numerical_Constants_Astronomical, only : gigaYear              , megaParsec
+    use :: Numerical_Constants_Prefixes    , only : kilo
+    use :: Tensors                         , only : tensorUnitR2D3Sym
+    implicit none
+    type            (treeNode              ), pointer  , intent(inout) :: node
+    class           (nodeComponentBasic    ), pointer                  :: basic
+    class           (nodeComponentSatellite), pointer                  :: satellite
+    double precision                        , parameter                :: positionScaleFractional                 =1.0d-2                              , &
+         &                                                                velocityScaleFractional                 =1.0d-2                              , &
+         &                                                                boundMassScaleFractional                =1.0d-6                              , &
+         &                                                                tidalTensorPathIntegratedScaleFractional=1.0d-2                              , &
+         &                                                                tidalHeatingNormalizedScaleFractional   =1.0d-2
+    double precision                                                   :: virialRadius                                   , virialVelocity              , &
+         &                                                                virialIntegratedTidalTensor                    , virialTidalHeatingNormalized, &
+         &                                                                massSatellite
+
+    ! Get the satellite component.
+    satellite => node%satellite()
+    ! Ensure that it is of the orbiting class.
+    select type (satellite)
+    class is (nodeComponentSatelliteOrbiting)
+       basic                       => node                %basic         (    )
+       massSatellite               =  basic               %mass          (    )
+       virialRadius                =  darkMatterHaloScale_%radiusVirial  (node)
+       virialVelocity              =  darkMatterHaloScale_%velocityVirial(node)
+       virialIntegratedTidalTensor =   virialVelocity/virialRadius*megaParsec/kilo/gigaYear
+       virialTidalHeatingNormalized=  (virialVelocity/virialRadius)**2
+       call satellite%positionScale                 (                                          &
+            &                                        +[1.0d0,1.0d0,1.0d0]                      &
+            &                                        *virialRadius                             &
+            &                                        *                 positionScaleFractional &
+            &                                       )
+       call satellite%velocityScale                 (                                          &
+            &                                        +[1.0d0,1.0d0,1.0d0]                      &
+            &                                        *virialVelocity                           &
+            &                                        *                 velocityScaleFractional &
+            &                                       )
+       call satellite%boundMassScale                (                                          &
+            &                                        +massSatellite                            &
+            &                                        *                boundMassScaleFractional &
+            &                                       )
+       call satellite%tidalTensorPathIntegratedScale(                                          &
+            &                                        +tensorUnitR2D3Sym                        &
+            &                                        *virialIntegratedTidalTensor              &
+            &                                        *tidalTensorPathIntegratedScaleFractional &
+            &                                       )
+       call satellite%tidalHeatingNormalizedScale   (                                          &
+            &                                        +virialTidalHeatingNormalized             &
+            &                                        *   tidalHeatingNormalizedScaleFractional &
+            &                                       )
+    end select
+    return
+  end subroutine Node_Component_Satellite_Orbiting_Scale_Set
+  
+  subroutine nodePromotion(self,node)
+    !!{RST
+    Ensure that ``node`` is ready for promotion to its parent. In this case, we simply copy any preexisting satellite orbit from the parent.
+    !!}
+    use :: Error           , only : Error_Report
+    use :: Galacticus_Nodes, only : treeNode    , nodeComponentSatellite, nodeComponentSatelliteOrbiting
+    implicit none
+    class(*                     ), intent(inout)          :: self
+    type (treeNode              ), intent(inout), target  :: node
+    class(nodeComponentSatellite)               , pointer :: satellite, satelliteParent
+    type  (keplerOrbit          )                         :: orbit    , orbitParent
+    !$GLC attributes unused :: self
+
+    satelliteParent => node%parent%satellite()
+    select type (satelliteParent)
+    type is (nodeComponentSatelliteOrbiting)
+       satellite => node%satellite()
+       select type (satellite)
+       type is (nodeComponentSatellite)
+          ! This is as expected - nothing to do. 
+       type is (nodeComponentSatelliteOrbiting)
+          orbitParent=satelliteParent%virialOrbit()
+          orbit      =satellite      %virialOrbit()
+          if (.not. orbit == orbitParent) call Error_Report('multiple satellite components defined on branch have differnt orbits'//{introspection:location})
+       class default
+          call Error_Report('multiple satellite components defined on branch'//{introspection:location})
+       end select
+       call node%parent%satelliteMove(node,overwrite=.true.)
+    end select
+    return
+  end subroutine nodePromotion
+
+  subroutine subhaloPromotion(self,node,nodePromotion)
+    !!{RST
+    Remove the satellite component from the subhalo about to be promoted to an isolated halo (which should have no satellite component).
+    !!}
+    use :: Galacticus_Nodes, only : treeNode
+    implicit none
+    class(*                     ), intent(inout)          :: self
+    type (treeNode              ), intent(inout), pointer :: node, nodePromotion
+     !$GLC attributes unused :: self, nodePromotion
+    
+    call node%satelliteRemove(1)
+    return
+  end subroutine subhaloPromotion
+
+  subroutine satellitePreHostChange(self,node,nodeHostNew)
+    !!{RST
+    A satellite is about to move to a new host, adjust its position and velocity appropriately
+    !!}
+    use :: Galacticus_Nodes, only : defaultSatelliteComponent, nodeComponentSatellite, treeNode
+    implicit none
+    class           (*                     ), intent(inout)         :: self
+    type            (treeNode              ), intent(inout), target :: node             , nodeHostNew
+    type            (treeNode              ), pointer               :: nodeHost         , nodeHostNew_
+    class           (nodeComponentSatellite), pointer               :: satellite        , satelliteHost
+    double precision                        , dimension(3)          :: positionSatellite, velocitySatellite, &
+         &                                                             positionHost     , velocityHost
+    !$GLC attributes unused :: self
+    
+    ! Return immediately if this method is not active.
+    if (.not.defaultSatelliteComponent%orbitingIsActive()) return
+    ! Extract current position and velocity.
+    satellite        =>  node     %satellite()
+    positionSatellite =  satellite%position ()
+    velocitySatellite =  satellite%velocity ()
+    ! Walk up through hosts until the new host is found.
+    nodeHost     => node       %parent
+    nodeHostNew_ => nodeHostNew
+    do while (associated(nodeHost))
+       ! Extract position and velocity of this host.
+       satelliteHost =>      nodeHost%satellite()
+       positionHost  =  satelliteHost%position ()
+       velocityHost  =  satelliteHost%velocity ()
+       ! Shift the current node position and velocity by those of the host.
+       positionSatellite=positionSatellite+positionHost
+       velocitySatellite=velocitySatellite+velocityHost
+       ! Move to the next host - if we arrive at the new host we are finished.
+       nodeHost => nodeHost%parent
+       if (associated(nodeHost,nodeHostNew_)) exit
+    end do
+    ! Update the position and velocity of the node.
+    call satellite%positionSet(positionSatellite)
+    call satellite%velocitySet(velocitySatellite)
+    return
+  end subroutine satellitePreHostChange
+  
+  function Node_Component_Satellite_Orbiting_Virial_Orbit(self) result(orbit)
+    !!{RST
+    Return the orbit of the satellite at the virial radius.
+    !!}
+    use :: Galacticus_Nodes, only : nodeComponentSatelliteOrbiting, treeNode
+    implicit none
+    type (keplerOrbit                   )                :: orbit
+    class(nodeComponentSatelliteOrbiting), intent(inout) :: self
+    type (treeNode                      ), pointer       :: selfNode
+
+    selfNode => self%host            ()
+    orbit    =  self%virialOrbitValue()
+    if (orbit%isDefined().or.selfNode%isSatellite().or.(.not.selfNode%isPrimaryProgenitor().and.associated(selfNode%parent))) then
+       if (.not.orbit%isDefined()) then
+          ! Orbit has not been defined - define it now.
+          !![
+          <eventHook name="subhaloOrbitInitialization">
+	    <import>
+              <module name="Galacticus_Nodes" symbols="treeNode"/>
+	    </import>
+	    <interface>
+              type   (treeNode), intent(inout)           :: selfNode
+	      logical          , intent(in   ), optional :: orbitIsDefined
+	    </interface>
+	    <callWith>selfNode,orbitIsDefined=.false.</callWith>
+	  </eventHook>
+	  !!]
+	  ! Extract the orbit for return.
+          orbit=self%virialOrbitValue()
+       end if
+    else
+       call orbit%reset()
+    end if
+    return
+  end function Node_Component_Satellite_Orbiting_Virial_Orbit
+  
+  subroutine Node_Component_Satellite_Orbiting_Virial_Orbit_Set(self,orbit)
+    !!{RST
+    Set the orbit of the satellite at the virial radius.
+    !!}
+    use :: Coordinates     , only : assignment(=)
+    use :: Galacticus_Nodes, only : nodeComponentSatellite, nodeComponentSatelliteOrbiting
+    use :: Tensors         , only : tensorNullR2D3Sym
+    implicit none
+    class           (nodeComponentSatellite), intent(inout) :: self
+    type            (keplerOrbit           ), intent(in   ) :: orbit
+    double precision                        , dimension(3)  :: position   , velocity
+    type            (keplerOrbit           )                :: virialOrbit
+
+    select type (self)
+    class is (nodeComponentSatelliteOrbiting)
+       ! Ensure the orbit is defined.
+       call orbit%assertIsDefined()
+       ! Store the orbit.
+       call self%virialOrbitSetValue(orbit)
+       ! Store orbital position and velocity.
+       virialOrbit=orbit
+       position   =virialOrbit%position()
+       velocity   =virialOrbit%velocity()
+       call self%positionSet(position)
+       call self%velocitySet(velocity)
+       ! Set the merging/destruction time to -1 to indicate that we don't know when merging/destruction will occur.
+       call self%destructionTimeSet          (           -1.0d0)
+       call self%tidalTensorPathIntegratedSet(tensorNullR2D3Sym)
+       call self%tidalHeatingNormalizedSet   (            0.0d0)       
+    end select
+    return
+  end subroutine Node_Component_Satellite_Orbiting_Virial_Orbit_Set
+
+  !![
+  <stateStoreTask function="Node_Component_Satellite_Orbiting_State_Store"/>
+  !!]
+  subroutine Node_Component_Satellite_Orbiting_State_Store(stateFile,gslStateFile,stateOperationID)
+    !!{RST
+    Store object state,
+    !!}
+    use            :: Display      , only : displayMessage, verbosityLevelInfo
+    use, intrinsic :: ISO_C_Binding, only : c_ptr         , c_size_t
+    implicit none
+    integer          , intent(in   ) :: stateFile
+    integer(c_size_t), intent(in   ) :: stateOperationID
+    type   (c_ptr   ), intent(in   ) :: gslStateFile
+
+    call displayMessage('Storing state for: componentSatellite -> orbiting',verbosity=verbosityLevelInfo)
+    !![
+    <stateStore variables="darkMatterHaloScale_"/>
+    !!]
+    return
+  end subroutine Node_Component_Satellite_Orbiting_State_Store
+
+  !![
+  <stateRetrieveTask function="Node_Component_Satellite_Orbiting_State_Restore"/>
+  !!]
+  subroutine Node_Component_Satellite_Orbiting_State_Restore(stateFile,gslStateFile,stateOperationID)
+    !!{RST
+    Retrieve object state.
+    !!}
+    use            :: Display      , only : displayMessage, verbosityLevelInfo
+    use, intrinsic :: ISO_C_Binding, only : c_ptr         , c_size_t
+    implicit none
+    integer          , intent(in   ) :: stateFile
+    integer(c_size_t), intent(in   ) :: stateOperationID
+    type   (c_ptr   ), intent(in   ) :: gslStateFile
+
+    call displayMessage('Retrieving state for: componentSatellite -> orbiting',verbosity=verbosityLevelInfo)
+    !![
+    <stateRestore variables="darkMatterHaloScale_"/>
+    !!]
+    return
+  end subroutine Node_Component_Satellite_Orbiting_State_Restore
+
+end module Node_Component_Satellite_Orbiting

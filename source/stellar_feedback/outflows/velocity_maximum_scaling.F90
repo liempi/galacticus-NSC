@@ -1,0 +1,199 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+  !!{RST
+  Implementation of an stellar feedback model which scales with peak halo velocity.
+  !!}
+
+  use :: Cosmology_Functions     , only : cosmologyFunctionsClass
+  use :: Dark_Matter_Profiles_DMO, only : darkMatterProfileDMOClass
+  use :: Math_Exponentiation     , only : fastExponentiator
+
+  !![
+  <stellarFeedbackOutflows name="stellarFeedbackOutflowsVlctyMxSclng" docformat="rst">
+   <description>
+   A stellar feedback outflow model in which the mass outflow rate scales as a power law in the *peak* (maximum) circular velocity of the dark matter halo profile and the cosmological expansion factor, providing stronger feedback in lower-mass halos with lower peak velocities.
+   </description>
+  </stellarFeedbackOutflows>
+  !!]
+  type, extends(stellarFeedbackOutflowsClass) :: stellarFeedbackOutflowsVlctyMxSclng
+     !!{RST
+     Implementation of an stellar feedback model which scales with peak halo velocity.
+     !!}
+     private
+     double precision                                     :: fraction                         , exponentRedshift            , &
+          &                                                  exponentVelocity                 , normalization               , &
+          &                                                  velocityPrevious                 , velocityFactor              , &
+          &                                                  expansionFactorPrevious          , expansionFactorFactor
+     type            (fastExponentiator        )          :: velocityExponentiator            , expansionFactorExponentiator
+     class           (cosmologyFunctionsClass  ), pointer :: cosmologyFunctions_     => null()
+     class           (darkMatterProfileDMOClass), pointer :: darkMatterProfileDMO_   => null()
+   contains
+     final     ::                vlctyMxSclngDestructor
+     procedure :: outflowRate => vlctyMxSclngOutflowRate
+  end type stellarFeedbackOutflowsVlctyMxSclng
+
+  interface stellarFeedbackOutflowsVlctyMxSclng
+     !!{RST
+     Constructors for the velocity maximum scaling fraction stellar feedback class.
+     !!}
+     module procedure vlctyMxSclngConstructorParameters
+     module procedure vlctyMxSclngConstructorInternal
+  end interface stellarFeedbackOutflowsVlctyMxSclng
+
+contains
+
+  function vlctyMxSclngConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the velocity maximum scaling fraction stellar feedback class which takes a parameter set as input.
+    !!}
+    use :: Error, only : Error_Report
+    implicit none
+    type            (stellarFeedbackOutflowsVlctyMxSclng)                :: self
+    type            (inputParameters                    ), intent(inout) :: parameters
+    double precision                                                     :: fraction             , exponentRedshift, &
+         &                                                                  exponentVelocity
+    class           (cosmologyFunctionsClass            ), pointer       :: cosmologyFunctions_
+    class           (darkMatterProfileDMOClass          ), pointer       :: darkMatterProfileDMO_
+
+    !![
+    <inputParameter docformat="rst">
+      <name>fraction</name>
+      <source>parameters</source>
+      <defaultValue>0.01d0</defaultValue>
+      <description>
+      The normalization :math:`f` of the outflow rate relative to the star formation rate, evaluated at the reference peak circular velocity of 200 km/s and expansion factor of 1, setting the overall amplitude of the feedback-driven outflow.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>exponentVelocity</name>
+      <source>parameters</source>
+      <defaultValue>-2.0d0</defaultValue>
+      <description>
+      The exponent of virial velocity in the outflow rate in disks.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>exponentRedshift</name>
+      <source>parameters</source>
+      <defaultValue>0.0d0</defaultValue>
+      <description>
+      The power-law exponent of the cosmological expansion factor in the peak-velocity-scaling outflow rate, controlling the redshift evolution of the mass-loading factor; a value of zero gives no redshift evolution.
+      </description>
+    </inputParameter>
+    <objectBuilder class="cosmologyFunctions"   name="cosmologyFunctions_"   source="parameters"/>
+    <objectBuilder class="darkMatterProfileDMO" name="darkMatterProfileDMO_" source="parameters"/>
+    !!]
+    self=stellarFeedbackOutflowsVlctyMxSclng(fraction,exponentRedshift,exponentVelocity,cosmologyFunctions_,darkMatterProfileDMO_)
+    !![
+    <inputParametersValidate source="parameters"/>
+    <objectDestructor name="cosmologyFunctions_"  />
+    <objectDestructor name="darkMatterProfileDMO_"/>
+    !!]
+    return
+  end function vlctyMxSclngConstructorParameters
+
+  function vlctyMxSclngConstructorInternal(fraction,exponentRedshift,exponentVelocity,cosmologyFunctions_,darkMatterProfileDMO_) result(self)
+    !!{RST
+    Internal constructor for the halo scaling stellar feedback class.
+    !!}
+    use :: Stellar_Feedback, only : feedbackEnergyInputAtInfinityCanonical
+    implicit none
+    type            (stellarFeedbackOutflowsVlctyMxSclng)                        :: self
+    double precision                                     , intent(in   )         :: fraction                     , exponentRedshift, &
+         &                                                                          exponentVelocity
+    class           (cosmologyFunctionsClass            ), intent(in   ), target :: cosmologyFunctions_
+    class           (darkMatterProfileDMOClass          ), intent(in   ), target :: darkMatterProfileDMO_
+    double precision                                     , parameter             :: velocityNormalization=200.0d0
+
+    !![
+    <constructorAssign variables="fraction, exponentRedshift, exponentVelocity, *cosmologyFunctions_, *darkMatterProfileDMO_"/>
+    !!]
+    ! Initialize stored values.
+    self%velocityPrevious       =-1.0d0
+    self%expansionFactorPrevious=-1.0d0
+    self%velocityFactor         =-1.0d0
+    self%expansionFactorFactor  =-1.0d0
+    ! Compute the normalization factor.
+    self%normalization          =+self%fraction                                &
+         &                       /feedbackEnergyInputAtInfinityCanonical       &
+         &                       /velocityNormalization**self%exponentVelocity
+    ! Initialize fast exponentiators.
+    self%velocityExponentiator       =fastExponentiator(1.0d+0,1.0d+3,self%exponentVelocity,1.0d+1,abortOutsideRange=.false.)
+    self%expansionFactorExponentiator=fastExponentiator(1.0d-3,1.0d+0,self%exponentRedshift,1.0d+3,abortOutsideRange=.false.)
+    return
+  end function vlctyMxSclngConstructorInternal
+
+  subroutine vlctyMxSclngDestructor(self)
+    !!{RST
+    Destructor for the velocity maximum scaling stellar feedback class.
+    !!}
+    implicit none
+    type(stellarFeedbackOutflowsVlctyMxSclng), intent(inout) :: self
+
+    !![
+    <objectDestructor name="self%cosmologyFunctions_"  />
+    <objectDestructor name="self%darkMatterProfileDMO_"/>
+    !!]
+    return
+  end subroutine vlctyMxSclngDestructor
+
+  subroutine vlctyMxSclngOutflowRate(self,component,rateStarFormation,rateEnergyInput,rateOutflowEjective,rateOutflowExpulsive)
+    !!{RST
+    Returns the outflow rate (in :math:`\mathrm{M}_\odot` Gyr\ :math:`^{-1}`) for star formation in the given ``component``.
+    !!}
+    use :: Galacticus_Nodes  , only : nodeComponentBasic
+    use :: Mass_Distributions, only : massDistributionClass
+    implicit none
+    class           (stellarFeedbackOutflowsVlctyMxSclng), intent(inout) :: self
+    class           (nodeComponent                      ), intent(inout) :: component
+    double precision                                     , intent(in   ) :: rateEnergyInput    , rateStarFormation
+    double precision                                     , intent(  out) :: rateOutflowEjective, rateOutflowExpulsive
+    class           (nodeComponentBasic                 ), pointer       :: basic
+    class           (massDistributionClass              ), pointer       :: massDistribution_
+    double precision                                                     :: expansionFactor    , velocityMaximum
+    !$GLC attributes unused :: rateStarFormation
+
+    ! Get the basic component.
+    basic => component%hostNode%basic()
+    ! Get virial velocity and expansion factor.
+    massDistribution_ => self             %darkMatterProfileDMO_%get                         (component%hostNode  )
+    velocityMaximum   =  massDistribution_                      %velocityRotationCurveMaximum(                    )
+    expansionFactor   =  self             %cosmologyFunctions_  %expansionFactor             (basic    %time    ())
+    !![
+    <objectDestructor name="massDistribution_"/>
+    !!]
+    ! Compute the velocity factor.
+    if (velocityMaximum /= self%velocityPrevious) then
+       self%velocityPrevious       =                                                     velocityMaximum
+       self%velocityFactor         =      self%velocityExponentiator       %exponentiate(velocityMaximum)
+    end if
+    ! Compute the expansion-factor factor.
+    if (expansionFactor /= self%expansionFactorPrevious) then
+       self%expansionFactorPrevious=                                                     expansionFactor
+       self%expansionFactorFactor  =1.0d0/self%expansionFactorExponentiator%exponentiate(expansionFactor)
+    end if
+    ! Compute the outflow rate.
+    rateOutflowEjective =+self%normalization         &
+         &               *rateEnergyInput            &
+         &               *self%velocityFactor        &
+         &               *self%expansionFactorFactor
+    rateOutflowExpulsive=+0.0d0
+    return
+  end subroutine vlctyMxSclngOutflowRate

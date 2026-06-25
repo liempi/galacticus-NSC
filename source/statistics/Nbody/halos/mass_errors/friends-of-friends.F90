@@ -1,0 +1,108 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+  !!{RST
+  Implements an N-body dark matter halo mass error class using a fit appropriate for friends-of-friends group finders.
+  !!}
+
+  !![
+  <nbodyHaloMassError name="nbodyHaloMassErrorFriendsOfFriends" docformat="rst">
+   <description>
+   An N-body dark matter halo mass error class that models the statistical mass errors in halos identified by friends-of-friends group finding algorithms, using a fitting function calibrated against simulations. The simulation particle mass required for the error model is set by the ``[massParticle]`` parameter.
+   </description>
+  </nbodyHaloMassError>
+  !!]
+  type, extends(nbodyHaloMassErrorPowerLaw) :: nbodyHaloMassErrorFriendsOfFriends
+     !!{RST
+     An N-body halo mass error class which uses a fit appropriate for friends-of-friends group finders.
+     !!}
+     private
+     double precision :: massParticle
+   contains
+  end type nbodyHaloMassErrorFriendsOfFriends
+
+  interface nbodyHaloMassErrorFriendsOfFriends
+     !!{RST
+     Constructors for the :galacticus-class:`nbodyHaloMassErrorFriendsOfFriends` N-body halo mass error class.
+     !!}
+     module procedure friendsOfFriendsConstructorParameters
+     module procedure friendsOfFriendsConstructorInternal
+  end interface nbodyHaloMassErrorFriendsOfFriends
+
+contains
+
+  function friendsOfFriendsConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`nbodyHaloMassErrorFriendsOfFriends` N-body halo mass error class which takes a parameter set as input.
+    !!}
+    use :: Input_Parameters, only : inputParameter, inputParameters
+    implicit none
+    type            (nbodyHaloMassErrorFriendsOfFriends)                :: self
+    type            (inputParameters                   ), intent(inout) :: parameters
+    double precision                                                    :: massParticle
+
+    ! Check and read parameters.
+    !![
+    <inputParameter docformat="rst">
+      <name>massParticle</name>
+      <source>parameters</source>
+      <variable>massParticle</variable>
+      <description>
+      The mass of the particle in the N-body simulation in which friends-of-friends groups were found.
+      </description>
+    </inputParameter>
+    !!]
+    self=nbodyHaloMassErrorFriendsOfFriends(massParticle)
+    !![
+    <inputParametersValidate source="parameters"/>
+    !!]
+    return
+  end function friendsOfFriendsConstructorParameters
+
+  function friendsOfFriendsConstructorInternal(massParticle) result(self)
+    !!{RST
+    Internal constructor for the :galacticus-class:`nbodyHaloMassErrorFriendsOfFriends` N-body halo mass error class.
+    !!}
+    implicit none
+    type            (nbodyHaloMassErrorFriendsOfFriends)                :: self
+    double precision                                    , intent(in   ) :: massParticle
+    double precision                                    , parameter     :: exponentLocal      =-0.5d00
+    double precision                                    , parameter     :: normalizationLocal =+1.25d00
+    double precision                                    , parameter     :: errorHighMass      =+0.022d00
+    double precision                                                    :: normalizationParent
+    !![
+    <constructorAssign variables="massParticle"/>
+    !!]
+
+    ! Convert from a model defined in terms of particle number (in which the fractional error is 1.2/sqrt(N)) to one defined in
+    ! terms of halo mass as used in our parent class. Build the parent class with the trivial correlation model so that the new
+    ! correlation parameters introduced in the parent class are initialized.
+    normalizationParent             = +normalizationLocal                       &
+         &                            *(                                        &
+         &                              +massReference                          &
+         &                              /massParticle                           &
+         &                             )**exponentLocal
+    self%nbodyHaloMassErrorPowerLaw =  nbodyHaloMassErrorPowerLaw(                                             &
+         &                                                        normalization          =normalizationParent, &
+         &                                                        exponent               =exponentLocal      , &
+         &                                                        fractionalErrorHighMass=errorHighMass      , &
+         &                                                        correlationModelTrivial=.true.               &
+         &                                                       )
+    return
+  end function friendsOfFriendsConstructorInternal

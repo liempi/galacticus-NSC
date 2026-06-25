@@ -1,0 +1,123 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+!!{RST
+Implements merger tree index property extractor class.
+!!}
+
+  !![
+  <nodePropertyExtractor name="nodePropertyExtractorIndicesTree" docformat="rst">
+   <description>
+   Extracts index identifiers for the merger tree containing each node, including the tree index and node index within that tree, enabling unique identification of nodes across all merger trees in a simulation output for cross-matching and provenance tracking.
+   </description>
+  </nodePropertyExtractor>
+  !!]
+  type, extends(nodePropertyExtractorIntegerScalar) :: nodePropertyExtractorIndicesTree
+     !!{RST
+     A merger tree index property extractor class.
+     !!}
+     private
+   contains
+     procedure :: extract     => indicesTreeExtract
+     procedure :: name        => indicesTreeName
+     procedure :: description => indicesTreeDescription
+     procedure :: units       => indicesTreeUnits
+  end type nodePropertyExtractorIndicesTree
+
+  interface nodePropertyExtractorIndicesTree
+     !!{RST
+     Constructors for the :galacticus-class:`nodePropertyExtractorIndicesTree` property extractor class.
+     !!}
+     module procedure indicesTreeConstructorParameters
+  end interface nodePropertyExtractorIndicesTree
+
+contains
+
+  function indicesTreeConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`nodePropertyExtractorIndicesTree` property extractor class which takes a parameter set as input.
+    !!}
+    use :: Input_Parameters, only : inputParameters
+    implicit none
+    type(nodePropertyExtractorIndicesTree)                :: self
+    type(inputParameters                 ), intent(inout) :: parameters
+
+    self=nodePropertyExtractorIndicesTree()
+    !![
+    <inputParametersValidate source="parameters"/>
+    !!]
+    return
+  end function indicesTreeConstructorParameters
+
+  function indicesTreeExtract(self,node,time,instance)
+    !!{RST
+    Implement a ``indicesTree`` node property extractor.
+    !!}
+    implicit none
+    integer         (kind_int8                       )                          :: indicesTreeExtract
+    class           (nodePropertyExtractorIndicesTree), intent(inout)           :: self
+    type            (treeNode                        ), intent(inout), target   :: node
+    double precision                                  , intent(in   )           :: time
+    type            (multiCounter                    ), intent(inout), optional :: instance
+    !$GLC attributes unused :: self, instance, time
+
+    indicesTreeExtract=node%hostTree%index
+    return
+  end function indicesTreeExtract
+
+
+  function indicesTreeName(self)
+    !!{RST
+    Return the name of the indicesTree property.
+    !!}
+    implicit none
+    type (varying_string                  )                :: indicesTreeName
+    class(nodePropertyExtractorIndicesTree), intent(inout) :: self
+    !$GLC attributes unused :: self
+
+    indicesTreeName=var_str('mergerTreeIndex')
+    return
+  end function indicesTreeName
+
+  function indicesTreeDescription(self)
+    !!{RST
+    Return a description of the indicesTree property.
+    !!}
+    implicit none
+    type (varying_string                  )                :: indicesTreeDescription
+    class(nodePropertyExtractorIndicesTree), intent(inout) :: self
+    !$GLC attributes unused :: self
+
+    indicesTreeDescription=var_str('Tree index for this node.')
+    return
+  end function indicesTreeDescription
+
+  function indicesTreeUnits(self) result(units)
+    !!{RST
+    Return the units of the indicesTree property.
+    !!}
+    use :: Units_MetaData, only : unitType
+    implicit none
+    type (unitType                        )                :: units
+    class(nodePropertyExtractorIndicesTree), intent(inout) :: self
+    !$GLC attributes unused :: self
+
+    units=unitType(1.0d0)
+    return
+  end function indicesTreeUnits

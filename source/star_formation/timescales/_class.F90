@@ -1,0 +1,50 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+!!{RST
+Provides a class that implements timescales for star formation.
+!!}
+
+module Star_Formation_Timescales
+  !!{RST
+  Provides a class that implements calculations of timescales for star formation.
+  !!}
+  use :: Galacticus_Nodes, only : nodeComponent
+  private
+
+  !![
+  <functionClass docformat="rst">
+   <name>starFormationTimescale</name>
+   <descriptiveName>Star Formation Timescales</descriptiveName>
+   <description>
+   Class providing models of the timescale (in Gyr) over which gas is converted into stars in a galaxy component. The star formation timescale sets the depletion time of the gas reservoir---the ratio of available gas mass to star formation rate---and is a key regulator of galaxy growth. Implementations may tie the timescale to the local dynamical time, gas surface density, or molecular gas fraction, with different dependencies expected for disk versus spheroid components.
+   </description>
+   <default>dynamicalTime</default>
+   <method name="timescale" >
+    <description>
+    Returns the timescale (in Gyr) for star formation in the provided ``component``.
+    </description>
+    <type>double precision</type>
+    <pass>yes</pass>
+    <argument>class(nodeComponent), intent(inout) :: component</argument>
+   </method>
+  </functionClass>
+  !!]
+
+end module Star_Formation_Timescales

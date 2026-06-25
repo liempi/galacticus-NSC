@@ -1,0 +1,149 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+  !!{RST
+  Implementation of a merger tree masses class which samples masses from a distribution uniformly.
+  !!}
+
+  !![
+  <mergerTreeBuildMasses name="mergerTreeBuildMassesSampledDistributionUniform" docformat="rst">
+   <description>
+   A merger tree masses class which samples masses from a distribution uniformly.
+   </description>
+  </mergerTreeBuildMasses>
+  !!]
+  type, extends(mergerTreeBuildMassesSampledDistribution) :: mergerTreeBuildMassesSampledDistributionUniform
+     !!{RST
+     Implementation of a merger tree masses class which samples masses from a distribution with uniform sampling.
+     !!}
+     private
+   contains
+     final     ::              sampledDistributionUniformDestructor
+     procedure :: sampleCMF => sampledDistributionUniformSampleCMF
+  end type mergerTreeBuildMassesSampledDistributionUniform
+
+  interface mergerTreeBuildMassesSampledDistributionUniform
+     module procedure sampledDistributionUniformConstructorParameters
+     module procedure sampledDistributionUniformConstructorInternal
+  end interface mergerTreeBuildMassesSampledDistributionUniform
+
+contains
+
+  function sampledDistributionUniformConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`mergerTreeBuildMassesSampledDistributionUniform` merger tree masses class which takes a parameter set as input.
+    !!}
+    use :: Input_Parameters, only : inputParameters
+    implicit none
+    type           (mergerTreeBuildMassesSampledDistributionUniform )                :: self
+    type           (inputParameters                                 ), intent(inout) :: parameters
+    class           (mergerTreeBuildMassDistributionClass           ), pointer       :: mergerTreeBuildMassDistribution_
+    double precision                                                                 :: massTreeMinimum                 , massTreeMaximum, &
+         &                                                                              treesPerDecade
+    
+    !![
+    <inputParameter docformat="rst">
+      <name>massTreeMinimum</name>
+      <defaultValue>1.0d10</defaultValue>
+      <description>
+      The minimum mass of merger tree base halos to consider when sampled masses from a distribution, in units of :math:`M_\odot`.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>massTreeMaximum</name>
+      <defaultValue>1.0d15</defaultValue>
+      <description>
+      The maximum mass of merger tree base halos to consider when sampled masses from a distribution, in units of :math:`M_\odot`.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>treesPerDecade</name>
+      <defaultValue>10.0d0</defaultValue>
+      <description>
+      The number of merger trees masses to sample per decade of base halo mass.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <objectBuilder class="mergerTreeBuildMassDistribution" name="mergerTreeBuildMassDistribution_" source="parameters"/>
+    !!]
+    self=mergerTreeBuildMassesSampledDistributionUniform(massTreeMinimum,massTreeMaximum,treesPerDecade,mergerTreeBuildMassDistribution_)
+    !![
+    <inputParametersValidate source="parameters"/>
+    <objectDestructor name="mergerTreeBuildMassDistribution_"/>
+    !!]
+    return
+  end function sampledDistributionUniformConstructorParameters
+
+  function sampledDistributionUniformConstructorInternal(massTreeMinimum,massTreeMaximum,treesPerDecade,mergerTreeBuildMassDistribution_) result(self)
+    !!{RST
+    Internal constructor for the :galacticus-class:`mergerTreeBuildMassesSampledDistributionUniform` merger tree masses class.
+    !!}
+    use :: Display, only : displayMessage, verbosityLevelWarn
+    use :: Error  , only : Error_Report
+    implicit none
+    type            (mergerTreeBuildMassesSampledDistributionUniform)                        :: self
+    class           (mergerTreeBuildMassDistributionClass           ), intent(in   ), target :: mergerTreeBuildMassDistribution_
+    double precision                                                 , intent(in   )         :: massTreeMinimum                 , massTreeMaximum, &
+         &                                                                                      treesPerDecade
+    !![
+    <constructorAssign variables="massTreeMinimum, massTreeMaximum, treesPerDecade, *mergerTreeBuildMassDistribution_"/>
+    !!]
+
+    if (self%massTreeMaximum >= 1.0d16              )                                               &
+         & call displayMessage(                                                                     &
+         &                     '[massHaloMaximum] > 10¹⁶ - this seems very large and may lead '//   &
+         &                     'to failures in merger tree construction'                         ,  &
+         &                     verbosityLevelWarn                                                   &
+         &                    )
+    if (self%massTreeMaximum <= self%massTreeMinimum)                                               &
+         & call Error_Report  (                                                                     &
+         &                     '[massHaloMaximum] > [massHaloMinimum] is required'             //   &
+         &                     {introspection:location}                                             &
+         &                    )
+    return
+  end function sampledDistributionUniformConstructorInternal
+
+  subroutine sampledDistributionUniformDestructor(self)
+    !!{RST
+    Destructor for the :galacticus-class:`mergerTreeBuildMassesSampledDistributionUniform` merger tree masses class.
+    !!}
+    implicit none
+    type(mergerTreeBuildMassesSampledDistributionUniform), intent(inout) :: self
+
+    !![
+    <objectDestructor name="self%mergerTreeBuildMassDistribution_"/>
+    !!]
+    return
+  end subroutine sampledDistributionUniformDestructor
+
+  subroutine sampledDistributionUniformSampleCMF(self,x)
+    !!{RST
+    Generate a uniform sample of points from the merger tree mass distribution.
+    !!}
+    use :: Numerical_Ranges, only : Make_Range, rangeTypeLinear
+    implicit none
+    class           (mergerTreeBuildMassesSampledDistributionUniform), intent(inout)               :: self
+    double precision                                                 , intent(  out), dimension(:) :: x
+    !$GLC attributes unused :: self
+
+    x=Make_Range(0.0d0,1.0d0,size(x),rangeType=rangeTypeLinear,rangeBinned=.true.)
+    return
+  end subroutine sampledDistributionUniformSampleCMF

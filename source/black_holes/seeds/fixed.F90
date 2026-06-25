@@ -1,0 +1,153 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+  !!{RST
+  Implements fixed mass and spin black hole seeds.
+  !!}
+
+  !![
+  <blackHoleSeeds name="blackHoleSeedsFixed" docformat="rst">
+   <description>
+   A model of black hole seeds in which seeds have fixed mass and spin, independent of the halo in which they form.
+   </description>
+  </blackHoleSeeds>
+  !!]
+  type, extends(blackHoleSeedsClass) :: blackHoleSeedsFixed
+     !!{RST
+     A model of black hole seeds in which seeds have fixed mass and spin, independent of the halo in which they form.
+     !!}
+     private
+     double precision                                   :: mass_, spin_   
+   contains
+     procedure :: timescale        => fixedTimescale
+     procedure :: mass             => fixedMass
+     procedure :: spin             => fixedSpin
+     procedure :: formationChannel => fixedFormationChannel
+  end type blackHoleSeedsFixed
+  
+  interface blackHoleSeedsFixed
+     !!{RST
+     Constructors for the :galacticus-class:`blackHoleSeedsFixed` black hole seeds class.
+     !!}
+     module procedure standardConstructorParameters
+     module procedure standardConstructorInternal
+  end interface blackHoleSeedsFixed
+
+contains
+
+  function standardConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`blackHoleSeedsFixed` black hole seeds class which takes a parameter list as input.
+    !!}
+    use :: Input_Parameters, only : inputParameters
+    implicit none
+    type            (blackHoleSeedsFixed    )                :: self
+    type            (inputParameters        ), intent(inout) :: parameters
+    double precision                                         :: mass      , spin
+    
+    !![
+    <inputParameter docformat="rst">
+      <name>mass</name>
+      <defaultValue>100.0d0</defaultValue>
+      <description>
+      The fixed mass (in :math:`\mathrm{M}_\odot`) assigned to all newly-formed seed black holes in this implementation, representing the initial black hole mass when a halo first forms a central black hole.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>spin</name>
+      <defaultValue>0.0d0</defaultValue>
+      <description>
+      The dimensionless spin parameter (between :math:`-1` and :math:`+1`) assigned to all newly-formed seed black holes, where :math:`0` corresponds to a non-rotating Schwarzschild black hole and :math:`\pm 1` to a maximally rotating Kerr black hole.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    !!]
+    self=blackHoleSeedsFixed(mass,spin)
+    !![
+    <inputParametersValidate source="parameters"/>
+    !!]
+    return
+  end function standardConstructorParameters
+
+  function standardConstructorInternal(mass_,spin_) result(self)
+    !!{RST
+    Internal constructor for the :galacticus-class:`blackHoleSeedsFixed` black hole seeds class.
+    !!}
+    implicit none
+    type            (blackHoleSeedsFixed)                :: self
+    double precision                     , intent(in   ) :: mass_, spin_
+    !![
+    <constructorAssign variables="mass_, spin_"/>
+    !!]
+
+    return
+  end function standardConstructorInternal
+
+  double precision function fixedTimescale(self, node)
+    !!{
+      Returns the timescale associated to the seeding mechanism.
+    !!}
+    implicit none
+    class           (blackHoleSeedsFixed), intent(inout) :: self
+    type            (treeNode           ), intent(inout) :: node
+
+    fixedTimescale=-1.0d0
+    return
+  end function fixedTimescale
+
+  double precision function fixedMass(self,node) result(mass)
+    !!{RST
+    Compute the mass of the seed black hole.
+    !!}
+    implicit none
+    class(blackHoleSeedsFixed), intent(inout) :: self
+    type (treeNode           ), intent(inout) :: node
+    !$GLC attributes unused :: node
+    
+    mass=self%mass_
+    return
+  end function fixedMass
+
+  double precision function fixedSpin(self,node) result(spin)
+    !!{RST
+    Compute the spin of the seed black hole.
+    !!}
+    implicit none
+    class(blackHoleSeedsFixed), intent(inout) :: self
+    type (treeNode           ), intent(inout) :: node
+    !$GLC attributes unused :: node
+    
+    spin=self%spin_
+    return
+  end function fixedSpin
+
+  function fixedFormationChannel(self,node) result(channel)
+    !!{RST
+    Compute the spin of the seed black hole.
+    !!}
+    implicit none
+    type (enumerationBlackHoleFormationChannelType)                :: channel
+    class(blackHoleSeedsFixed                     ), intent(inout) :: self
+    type (treeNode                                ), intent(inout) :: node
+    !$GLC attributes unused :: self, node
+
+    channel=blackHoleFormationChannelUndetermined
+    return
+  end function fixedFormationChannel

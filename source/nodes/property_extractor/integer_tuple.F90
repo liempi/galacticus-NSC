@@ -1,0 +1,152 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+  use :: Kind_Numbers, only : kind_int8
+  use :: Dictionaries, only : doubleDictionary, rank1DoubleDictionary
+
+  !![
+  <nodePropertyExtractor name="nodePropertyExtractorIntegerTuple" abstract="yes" docformat="rst">
+   <description>
+   Abstract base class for extractors that return a fixed-length tuple of integer values per node, defining the interface (element count, names, descriptions, and units) for multi-valued integer outputs such as combined index arrays used in output analysis.
+   </description>
+  </nodePropertyExtractor>
+  !!]
+  type, extends(nodePropertyExtractorClass), abstract :: nodePropertyExtractorIntegerTuple
+     !!{RST
+     A integerTuple property extractor.
+     !!}
+     private
+   contains
+     !![
+     <methods docformat="rst">
+       <method method="elementCount" description="Return the number of properties in the tuple."                 />
+       <method method="extract"      description="Extract the properties from the given ``node``."            />
+       <method method="names"        description="Return the names of the properties extracted."                 />
+       <method method="descriptions" description="Return descriptions of the properties extracted."              />
+       <method method="unitsInSI"    description="Return the units of the properties extracted in the SI system."/>
+       <method method="units"        description="Return an object containing units metadata for the properties."/>
+       <method method="metaData"     description="Populate a hash with meta-data for the property."              />
+     </methods>
+     !!]
+     procedure(integerTupleElementCount), deferred :: elementCount
+     procedure(integerTupleExtract     ), deferred :: extract
+     procedure(integerTupleNames       ), deferred :: names
+     procedure(integerTupleDescriptions), deferred :: descriptions
+     procedure(integerTupleUnitsInSI   ), deferred :: unitsInSI
+     procedure                                     :: units       => integerTupleUnits
+     procedure                                     :: metaData    => integerTupleMetaData
+  end type nodePropertyExtractorIntegerTuple
+
+  abstract interface
+     function integerTupleExtract(self,node,time,instance)
+       !!{RST
+       Interface for ``integerTuple`` property extraction.
+       !!}
+       import nodePropertyExtractorIntegerTuple, treeNode, multiCounter, kind_int8
+       integer         (kind_int8                        ), dimension(:) , allocatable :: integerTupleExtract
+       class           (nodePropertyExtractorIntegerTuple), intent(inout)              :: self
+       type            (treeNode                         ), intent(inout)              :: node
+       double precision                                   , intent(in   )              :: time
+       type            (multiCounter                     ), intent(inout), optional    :: instance
+     end function integerTupleExtract
+  end interface
+
+  abstract interface
+     subroutine integerTupleNames(self,time,names)
+       !!{RST
+       Interface for ``integerTuple`` property names.
+       !!}
+       import varying_string, nodePropertyExtractorIntegerTuple
+       class           (nodePropertyExtractorIntegerTuple), intent(inout)                             :: self
+       double precision                                   , intent(in   )                             :: time
+       type            (varying_string                   ), intent(inout), dimension(:) , allocatable :: names
+     end subroutine integerTupleNames
+  end interface
+
+  abstract interface
+     subroutine integerTupleDescriptions(self,time,descriptions)
+       !!{RST
+       Interface for ``integerTuple`` property descriptions.
+       !!}
+       import varying_string, nodePropertyExtractorIntegerTuple
+       class           (nodePropertyExtractorIntegerTuple), intent(inout)                             :: self
+       double precision                                   , intent(in   )                             :: time
+       type            (varying_string                   ), intent(inout), dimension(:) , allocatable :: descriptions
+     end subroutine integerTupleDescriptions
+  end interface
+
+  abstract interface
+     function integerTupleUnitsInSI(self,time)
+       !!{RST
+       Interface for ``integerTuple`` property units.
+       !!}
+       import nodePropertyExtractorIntegerTuple
+       double precision                                   , dimension(:) , allocatable :: integerTupleUnitsInSI
+       class           (nodePropertyExtractorIntegerTuple), intent(inout)              :: self
+       double precision                                   , intent(in   )              :: time
+     end function integerTupleUnitsInSI
+  end interface
+
+  abstract interface
+     integer function integerTupleElementCount(self,time)
+       !!{RST
+       Interface for ``integerTuple`` element count.
+       !!}
+       import nodePropertyExtractorIntegerTuple
+       class           (nodePropertyExtractorIntegerTuple), intent(inout) :: self
+       double precision                                   , intent(in   ) :: time
+     end function integerTupleElementCount
+  end interface
+
+contains
+
+  function integerTupleUnits(self,time) result(units)
+    !!{RST
+    Default implementation: wraps the deferred ``nodePropertyExtractorIntegerTuple`` ``unitsInSI`` array into an array of ``unitType``.
+    !!}
+    use :: Units_MetaData, only : unitType
+    implicit none
+    type            (unitType                         ), dimension(:), allocatable :: units
+    class           (nodePropertyExtractorIntegerTuple), intent(inout)             :: self
+    double precision                                   , intent(in   )             :: time
+    double precision                                   , dimension(:), allocatable :: siValues
+    integer                                                                        :: i
+
+    siValues=self%unitsInSI(time)
+    allocate(units(size(siValues)))
+    do i=1,size(siValues)
+       units(i)=unitType(siValues(i))
+    end do
+    return
+  end function integerTupleUnits
+
+  subroutine integerTupleMetaData(self,node,indexProperty,metaDataRank0,metaDataRank1)
+    !!{RST
+    Interface for integerTuple property meta-data.
+    !!}
+    implicit none
+    class  (nodePropertyExtractorIntegerTuple), intent(inout) :: self
+    type   (treeNode                         ), intent(inout) :: node
+    integer                                   , intent(in   ) :: indexProperty
+    type   (doubleDictionary                 ), intent(inout) :: metaDataRank0
+    type   (rank1DoubleDictionary            ), intent(inout) :: metaDataRank1
+    !$GLC attributes unused :: self, node, indexProperty, metaDataRank0, metaDataRank1
+    
+    return
+  end subroutine integerTupleMetaData

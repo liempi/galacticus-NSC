@@ -237,6 +237,9 @@
   <migration commit="f483d9caf532e5f33cdbe46aad53d076316ec394">
     <translation function="method_suffix_remove"/>
   </migration>
+  <migration commit="dc78406459ea03b964218f7256d2bf3f4e150bf3">
+    <translation function="evaluated_parameter_xpath"/>
+  </migration>
   <migration commit="2af8b4de4a0d9c4e83a0254a2f161dc94e305c15">
     <translation xpath="//stellarFeedbackOutflows[@value]">
       <value old="creasey2012" new="creasey2013"/>
@@ -275,6 +278,12 @@
   </migration>
   <migration commit="212e406d158bef30e0d62f78445334f7547b50e8">
     <translation function="satellite_bound_mass_initializor"/>
+  </migration>
+  <migration commit="13ffc8779d109a773f8cf7d85d4008541207f8e8">
+    <translation function="disk_very_simple_analytic_solver"/>
+  </migration>
+  <migration commit="3148b72923e0261deb472182fee74ccd1a9a7a13">
+    <translation function="satellite_orbit_initializor"/>
   </migration>
 
   <!-- Known default values for parameters -->
