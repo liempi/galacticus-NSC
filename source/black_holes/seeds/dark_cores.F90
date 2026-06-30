@@ -17,12 +17,13 @@
 !!    You should have received a copy of the GNU General Public License
 !!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
 
-  !!{
+  !!{RST
   Implements a black hole seed based on collapse of nuclear star clusters due to runaway stellar collisions.
   !!}
- 
+  
+  ! TO DO: The description is wrong. I need to update it. 
   !![
-  <blackHoleSeeds name="blackHoleSeedsDarkCores">
+  <blackHoleSeeds name="blackHoleSeedsDarkCores" docformat="rst">
     <description>
       A model of black hole seeds in which seeds are formed due to the collapse of nuclear star clusters into a black hole,
       based on the model of \cite{vergara_global_2023} and \cite{escala_observational_2021}.
@@ -31,7 +32,7 @@
   !!]
 
   type, extends(blackHoleSeedsClass) :: blackHoleSeedsDarkCores
-     !!{
+     !!{RST
      A black hole seeds class in which seeds are formed due to the collapse of nuclear star clusters into a black hole,
      based on the model of \cite{vergara_global_2023} and \cite{escala_observational_2021}.
      !!}
@@ -48,8 +49,8 @@
   end type blackHoleSeedsDarkCores
   
   interface blackHoleSeedsDarkCores
-     !!{
-     Constructors for the {\normalfont \ttfamily DarkCores} black hole seeds class.
+     !!{RST
+     Constructors for the :galacticus-class:`DarkCores` black hole seeds class.
      !!}
      module procedure darkCoresConstructorParameters
      module procedure darkCoresConstructorInternal
@@ -58,8 +59,8 @@
 contains
 
   function darkCoresConstructorParameters(parameters) result(self)
-    !!{
-    Constructor for the {\normalfont \ttfamily DarkCores} node operator class which takes a parameter set as input.
+    !!{RST
+    Constructor for the :galacticus-class:`DarkCores` black hole seeds class which takes a parameter set as input.
     !!}
     use :: Input_Parameters, only : inputParameters
     implicit none
@@ -68,19 +69,19 @@ contains
     double precision                                         :: massEfficiency       , velocityThreshold, &
       &                                                         massDarkCoreThreshold
     !![
-    <inputParameter>
+    <inputParameter docformat="rst">
       <name>massEfficiency</name>
       <defaultValue>1.0d-1</defaultValue>
       <description>Specifies the efficiency of the mass converted into a black hole seed.</description>
       <source>parameters</source>
     </inputParameter>
-    <inputParameter>
+    <inputParameter docformat="rst">
       <name>velocityThreshold</name>
       <defaultValue>1.0d3</defaultValue>
       <description>Specifies the velocity dispersion of the dark core to apply the seeding prescription.</description>
       <source>parameters</source>
     </inputParameter>
-    <inputParameter>
+    <inputParameter docformat="rst">
       <name>massDarkCoreThreshold</name>
       <defaultValue>1.0d2</defaultValue>
       <description>Specifies the minimum mass of the dark core to apply the seeding prescription.</description>
@@ -95,8 +96,8 @@ contains
   end function darkCoresConstructorParameters
   
   function darkCoresConstructorInternal(massEfficiency,velocityThreshold,massDarkCoreThreshold) result(self)
-    !!{
-    Internal constructor for the {\normalfont \ttfamily DarkCores} node operator class.
+    !!{RST
+    Internal constructor for the :galacticus-class:`DarkCores` black hole seeds class.
     !!}
     implicit none
     type            (blackHoleSeedsDarkCores)                :: self
@@ -115,7 +116,7 @@ contains
   end function darkCoresConstructorInternal
 
   double precision function darkCoreTimescale(self, node)
-    !!{
+    !!{RST
       Returns the timescale associated to the seeding mechanism.
     !!}
     use :: Galacticus_Nodes                , only : nodeComponentNSC              , nodeComponentNSCStandard, treeNode
@@ -172,7 +173,7 @@ contains
   end function darkCoreTimescale
 
   double precision function darkCoresMass(self,node) result(mass)
-      !!{
+      !!{RST
         Compute the nuclear star cluster collapse condition.
       !!}
     use :: Galacticus_Nodes                , only : nodeComponentNSC               , nodeComponentNSCStandard, treeNode  
@@ -228,7 +229,7 @@ contains
   end function darkCoresMass
 
   double precision function darkCoresSpin(self,node) result(spin)
-    !!{
+    !!{RST
     Compute the spin of the seed black hole.
     !!}
     implicit none
@@ -242,7 +243,7 @@ contains
   end function darkCoresSpin
 
   function darkCoresFormationChannel (self,node) result(channel)
-    !!{
+    !!{RST
     Compute the spin of the seed black hole.
     !!}
     implicit none

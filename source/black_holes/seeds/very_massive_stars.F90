@@ -19,13 +19,13 @@
 
   !+    Contributions to this file made by: Matías Liempi
 
-  !!{
+  !!{RST
   Implements a black hole seed based on rapid formation of a very massive star due to stellar collisions,
   which then collapses and form a black hole seed.
   !!}
  
   !![
-  <blackHoleSeeds name="blackHoleSeedsVeryMassiveStars">
+  <blackHoleSeeds name="blackHoleSeedsVeryMassiveStars" docformat="rst">
     <description>
       A model of black hole seeds in which seeds are formed due to the collapse of a very massive star that grows due to stellar collisions.
     </description>
@@ -33,7 +33,7 @@
   !!]
 
   type, extends(blackHoleSeedsClass) :: blackHoleSeedsVeryMassiveStars
-     !!{
+     !!{RST
      A black hole seeds class in which seeds are formed as a result of the collapse of a very massive star.
      !!}
      private
@@ -51,8 +51,8 @@
   end type blackHoleSeedsVeryMassiveStars
   
   interface blackHoleSeedsVeryMassiveStars
-     !!{
-     Constructors for the {\normalfont \ttfamily veryMassiveStars} black hole seeds class.
+     !!{RST
+     Constructors for the :galacticus-class:`veryMassiveStars` black hole seeds class.
      !!}
      module procedure veryMassiveStarsConstructorParameters
      module procedure veryMassiveStarsConstructorInternal
@@ -65,8 +65,8 @@
 contains
 
   function veryMassiveStarsConstructorParameters(parameters) result(self)
-    !!{
-    Constructor for the {\normalfont \ttfamily veryMassiveStars} node operator class which takes a parameter set as input.
+    !!{RST
+    Constructor for the :galacticus-class:`veryMassiveStars` black hole seed class which takes a parameter set as input.
     !!}
     use :: Input_Parameters, only : inputParameters
     implicit none
@@ -75,13 +75,13 @@ contains
     double precision                                                :: massFraction, nuclearStarClusterMaximumAge 
 
     !![
-    <inputParameter>
+    <inputParameter docformat="rst">
       <name>massFraction</name>
       <defaultValue>0.0824d0</defaultValue>
       <description>Specifies the efficiency of very massive stars which form a black hole seed.</description>
       <source>parameters</source>
     </inputParameter>
-    <inputParameter>
+    <inputParameter docformat="rst">
       <name>nuclearStarClusterMaximumAge</name>
       <defaultValue>5.0d-3</defaultValue>
       <description>Specifies the maximum age (Gyr) of the nuclear star cluster to apply this formation channel.</description>
@@ -96,8 +96,8 @@ contains
   end function veryMassiveStarsConstructorParameters
   
   function veryMassiveStarsConstructorInternal(massFraction,nuclearStarClusterMaximumAge) result(self)
-    !!{
-    Internal constructor for the {\normalfont \ttfamily veryMassiveStars} node operator class.
+    !!{RST
+    Internal constructor for the :galacticus-class:`veryMassiveStars` black hole seed class.
     !!}
     implicit none
     type            (blackHoleSeedsVeryMassiveStars)                :: self
@@ -116,7 +116,7 @@ contains
   end function veryMassiveStarsConstructorInternal
 
   double precision function veryMassiveStarsTimescale(self, node)
-    !!{
+    !!{RST
       Returns the timescale associated to the very massive star black hole seed prescription.
     !!}
     use :: Galacticus_Nodes, only : nodeComponentNSC, treeNode
@@ -131,7 +131,7 @@ contains
   end function veryMassiveStarsTimescale
 
   double precision function veryMassiveStarsMass(self,node) result(mass)
-    !!{
+    !!{RST
       Compute the core collapse condition for nuclear star clusters.
     !!}
     use :: Galacticus_Nodes                , only : nodeComponentNSC                     , nodeComponentBasic                     , nodeComponentNSCStandard, treeNode  
@@ -241,7 +241,7 @@ contains
   end function veryMassiveStarsMass
 
   double precision function veryMassiveStarsSpin(self,node) result(spin)
-    !!{
+    !!{RST
     Compute the spin of the seed black hole.
     !!}
     implicit none
@@ -255,7 +255,7 @@ contains
   end function veryMassiveStarsSpin
 
   function veryMassiveStarsFormationChannel (self,node) result(channel)
-    !!{
+    !!{RST
     Compute the spin of the seed black hole.
     !!}
     implicit none

@@ -88,15 +88,9 @@ module Galactic_Structure_Radii_Definitions
 
 contains
 
-<<<<<<< HEAD:source/galactic_structure.radius_definition.F90
-  
-  subroutine Galactic_Structure_Radii_Definition_Decode(descriptors,specifiers,hotHaloRequired,diskRequired,spheroidRequired,nuclearStarClusterRequired,satelliteRequired,radiusVirialRequired,radiusScaleRequired)    !!{
-    !!{
-=======
 
   subroutine Galactic_Structure_Radii_Definition_Decode(descriptors,specifiers,hotHaloRequired,diskRequired,spheroidRequired,nuclearStarClusterRequired,satelliteRequired,radiusVirialRequired,radiusScaleRequired)
     !!{RST
->>>>>>> upstream/master:source/galactic_structure/radius_definition.F90
     Decode a set of radii descriptors and return the corresponding specifiers.
     !!}
     use :: Galactic_Structure_Options    , only : enumerationComponentTypeEncode   , enumerationMassTypeEncode  , weightByLuminosity      , weightByMass       , &

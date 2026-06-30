@@ -121,15 +121,9 @@ contains
     return
   end function vergara2023ConstructorParameters
   
-<<<<<<< HEAD:source/black_holes.seeds.Vergara2023.F90
   function vergara2023ConstructorInternal(massSingleStar, radiusSingleStar, massEfficiency, radiusEfficiency, massThreshold) result(self)
-    !!{
-    Internal constructor for the \refClass{blackHoleSeedsVergara2023} node operator class.
-=======
-  function vergara2023ConstructorInternal(massSingleStar, radiusSingleStar, massEfficiency, radiusEfficiency, massThreshold,cosmologyFunctions_) result(self)
     !!{RST
     Internal constructor for the :galacticus-class:`blackHoleSeedsVergara2023` black hole seeds class.
->>>>>>> upstream/master:source/black_holes/seeds/Vergara2023.F90
     !!}
     implicit none
     type            (blackHoleSeedsVergara2023)                :: self
@@ -154,7 +148,6 @@ contains
     return
   end function vergara2023ConstructorInternal
 
-<<<<<<< HEAD:source/black_holes.seeds.Vergara2023.F90
   double precision function vergara2023Timescale(self, node)
     !!{
       Returns the timescale associated to the very massive star black hole seed prescription.
@@ -222,20 +215,6 @@ contains
       &                      )
     return
   end function vergara2023Timescale
-=======
-  subroutine vergara2023Destructor(self)
-      !!{RST
-      Destructor for the :galacticus-class:`blackHoleSeedsVergara2023` black hole seeds class.
-      !!}
-      implicit none 
-      type(blackHoleSeedsVergara2023), intent(inout) :: self
-      
-      !![
-      <objectDestructor name="self%cosmologyFunctions_"/>
-      !!]
-      return
-  end subroutine vergara2023Destructor
->>>>>>> upstream/master:source/black_holes/seeds/Vergara2023.F90
 
   double precision function vergara2023Mass(self,node) result(mass)
       !!{RST

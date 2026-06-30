@@ -119,7 +119,7 @@ contains
     return
   end subroutine antonini2015Destructor
 
-  double precision function antonini2015Rate(self,node) result(rate)
+  double precision function antonini2015Rate(self,node,time) result(rate)
     !!{RST
     Returns the gas inflow rate (in :math:`\mathrm{M}_\odot` Gyr\ :math:`^{-1}`) onto the galactic :term:`NSC` of ``node``. The :term:`NSC` is assumed to obey the :cite:t:`antonini_coevolution_2015` gas inflow rate model.
     !!}
@@ -127,7 +127,7 @@ contains
     implicit none
     class           (nuclearStarClusterGrowthRatesAntonini2015), intent(inout), target  :: self
     type            (treeNode                                 ), intent(inout)          :: node
-    double precision                                           , intent(in   )          :: time  
+    double precision                                           , intent(in   )          :: time
     class           (nodeComponentSpheroid                    ),                pointer :: spheroid
     double precision                                                                    :: rateStarFormationSpheroid
     !$GLC attributes unused :: time

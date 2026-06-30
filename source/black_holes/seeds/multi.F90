@@ -175,7 +175,7 @@ contains
 
   double precision function blackHoleMultiMass(self,node) result(mass)
    !!{RST
-      Compute the black hole masses according to condition.
+      Compute the black hole seed masses according to different seeding conditions.
    !!}
     use :: Galacticus_Nodes, only : treeNode  
     implicit none
