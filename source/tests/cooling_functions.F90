@@ -1,0 +1,301 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+!+    Contributions to this file made by: Andrew Benson, Claude.
+
+!!{RST
+Contains a program which tests cooling function functionality.
+!!}
+
+program Test_Cooling_Functions
+  !!{RST
+  Tests cooling function functionality.
+  !!}
+  use :: Abundances_Structure            , only : abundances                                , metallicityTypeLinearByMassSolar
+  use :: Chemical_Abundances_Structure   , only : chemicalAbundances                        , zeroChemicalAbundances
+  use :: Chemical_States                 , only : chemicalStateAtomicCIECloudy
+  use :: Cooling_Functions               , only : coolingFunctionSummation                  , coolingFunctionAtomicCIECloudy   , coolingFunctionCMBCompton          , coolantList, &
+       &                                          coolingFunctionMolecularHydrogenGalliPalla
+  use :: Cosmology_Parameters            , only : cosmologyParametersSimple
+  use :: Cooling_Times                   , only : coolingTimeSimple
+  use :: Cosmology_Functions             , only : cosmologyFunctionsMatterLambda
+  use :: Display                         , only : displayVerbositySet                       , verbosityLevelStandard
+  use :: Events_Hooks                    , only : eventsHooksInitialize
+  use :: Functions_Global_Utilities      , only : Functions_Global_Set
+  use :: Galacticus_Nodes                , only : nodeClassHierarchyInitialize              , nodeComponentBasic               , treeNode
+  use :: Input_Parameters                , only : inputParameters
+  use :: Node_Components                 , only : Node_Components_Initialize                , Node_Components_Thread_Initialize, Node_Components_Thread_Uninitialize, Node_Components_Uninitialize
+  use :: Numerical_Constants_Astronomical, only : gigaYear                                  , massSolar                        , megaParsec
+  use :: Numerical_Constants_Atomic      , only : massHydrogenAtom
+  use :: Numerical_Constants_Physical    , only : boltzmannsConstant
+  use :: Numerical_Constants_Prefixes    , only : hecto
+  use :: Numerical_Constants_Units       , only : ergs
+  use :: Radiation_Fields                , only : radiationFieldCosmicMicrowaveBackground
+  use :: Unit_Tests                      , only : Assert                                    , Unit_Tests_Begin_Group           , Unit_Tests_End_Group               , Unit_Tests_Finish
+  implicit none
+  type            (coolantList                            ), pointer                                    :: coolants                          , coolantsMixed
+  type            (treeNode                               ), pointer                                    :: node
+  class           (nodeComponentBasic                     ), pointer                                    :: basic
+  type            (coolingFunctionCMBCompton              ), target                                     :: coolingFunctionCMBCompton_
+  type            (coolingFunctionSummation               )                                             :: coolingFunctionSummation_
+  type            (coolingFunctionSummation               ), target                                     :: coolingFunctionMixed_
+  type            (coolingTimeSimple                      )                                             :: coolingTime_
+  type            (coolingFunctionAtomicCIECloudy         ), target                                     :: coolingFunctionAtomicCIECloudy_
+  type            (cosmologyParametersSimple              )                                             :: cosmologyParameters_
+  type            (cosmologyFunctionsMatterLambda         )                                             :: cosmologyFunctions_
+  type            (chemicalStateAtomicCIECloudy           ), target                                     :: chemicalState_
+  type            (abundances                             )                                             :: gasAbundances
+  type            (chemicalAbundances                     )                                             :: chemicalDensities
+  type            (radiationFieldCosmicMicrowaveBackground)                                             :: radiation
+  double precision                                                                                      :: numberDensityHydrogen             , temperature                        , &
+       &                                                                                                   coolantSummation                  , coolantCMBCompton                  , &
+       &                                                                                                   timescaleCooling                  , coolantAtomicCIECloudy             , &
+       &                                                                                                   density                           , gradientDensity                    , &
+       &                                                                                                   gradientTemperature               , gradientDensityNumerical           , &
+       &                                                                                                   gradientTemperatureNumerical
+  ! Logarithmic step used in finite difference estimates of the cooling time gradients.
+  double precision                                                                          , parameter :: stepLogarithmic  =1.0d-3
+  type            (inputParameters                        )                                             :: parameters
+  ! Objects and workspace used to check that the tabulation built by the Galli & Palla molecular hydrogen cooling function does
+  ! not depend on the order in which temperatures are requested of it.
+  integer                                                                                   , parameter :: countTemperatures=5
+  double precision                                            , dimension(countTemperatures), parameter :: temperaturesOrder=[1.0d2,3.0d2,1.0d3,3.0d3,1.0d4]
+  type            (coolingFunctionMolecularHydrogenGalliPalla)                                          :: coolingFunctionGalliPallaAscending, coolingFunctionGalliPallaDescending
+  ! One object per temperature, each constructed once and asked a single question - these must not be re-assigned in a loop, as
+  ! the assignment would finalize the previous object.
+  type            (coolingFunctionMolecularHydrogenGalliPalla), dimension(countTemperatures)            :: coolingFunctionGalliPallaSingle
+  double precision                                            , dimension(countTemperatures)            :: coolantLowDensityAscending        , coolantLowDensityDescending        , &
+       &                                                                                                   coolantLowDensitySingle           , coolantEquilibriumAscending        , &
+       &                                                                                                   coolantEquilibriumDescending      , coolantEquilibriumSingle
+  double precision                                                                                      :: numberDensityCritical
+  character       (len=1024                               )                                             :: message
+  integer                                                                                               :: i
+
+  ! Set verbosity level.
+  call displayVerbositySet(verbosityLevelStandard)
+  call eventsHooksInitialize()
+  call Functions_Global_Set ()
+  ! Begin unit tests.
+  call Unit_Tests_Begin_Group("Cooling functions")
+  ! Build a node (required to be passed to cooling functions).
+  parameters=inputParameters()
+  call nodeClassHierarchyInitialize     (parameters)
+  call Node_Components_Initialize       (parameters)
+  call Node_Components_Thread_Initialize(parameters)
+  node  => treeNode      (                 )
+  basic => node    %basic(autoCreate=.true.)
+  call basic%timeSet            (13.8d00)
+  call basic%timeLastIsolatedSet(13.8d00)
+  call basic%massSet            ( 1.0d12)
+  ! Construct cooling functions.
+  !![
+  <referenceConstruct object="cosmologyParameters_"           >
+   <constructor>
+    cosmologyParametersSimple     (                                            &amp;
+     &amp;                         OmegaMatter         = 0.28120d0           , &amp;
+     &amp;                         OmegaBaryon         = 0.04611d0           , &amp;
+     &amp;                         OmegaDarkEnergy     = 0.71880d0           , &amp;
+     &amp;                         temperatureCMB      = 2.72548d0           , &amp;
+     &amp;                         HubbleConstant      =69.70000d0             &amp;
+     &amp;                        )
+   </constructor>
+  </referenceConstruct>
+  <referenceConstruct object="cosmologyFunctions_"            >
+   <constructor>
+    cosmologyFunctionsMatterLambda(                                            &amp;
+     &amp;                          cosmologyParameters_=cosmologyParameters_  &amp;
+     &amp;                        )
+   </constructor>
+  </referenceConstruct>
+  <referenceConstruct object="chemicalState_" >
+   <constructor>
+    chemicalStateAtomicCIECloudy  (                                            &amp;
+     &amp;                        )
+   </constructor>
+  </referenceConstruct>
+  <referenceConstruct object="coolingFunctionCMBCompton_"     >
+   <constructor>
+    coolingFunctionCMBCompton     (                                           &amp;
+     &amp;                          chemicalState_      =chemicalState_       &amp;
+     &amp;                        )
+   </constructor>
+  </referenceConstruct>
+  <referenceConstruct object="coolingFunctionAtomicCIECloudy_">
+   <constructor>
+    coolingFunctionAtomicCIECloudy(                                           &amp;
+     &amp;                        )
+   </constructor>
+  </referenceConstruct>
+  !!]
+  allocate(coolants     )
+  allocate(coolants%next)
+  coolants     %coolingFunction => coolingFunctionCMBCompton_
+  coolants%next%coolingFunction => coolingFunctionCMBCompton_
+  !![
+  <referenceConstruct object="coolingFunctionSummation_"      >
+   <constructor>
+    coolingFunctionSummation      (                                           &amp;
+     &amp;                         coolants             =coolants             &amp;
+     &amp;                        )
+   </constructor>
+  </referenceConstruct>
+  !!]
+  ! Define plasma conditions.
+  numberDensityHydrogen=1.0d-4 ! cm⁻³
+  temperature          =1.0d+6 ! K
+  chemicalDensities    =zeroChemicalAbundances
+  radiation            =radiationFieldCosmicMicrowaveBackground(cosmologyFunctions_)
+  call radiation    %       timeSet(1.0d0                                                  )
+  call gasAbundances%metallicitySet(1.0d0,metallicityType= metallicityTypeLinearByMassSolar)
+  ! Summed cooling function should be twice the CMB Compton cooling function.
+  coolantSummation       =  coolingFunctionSummation_ %coolingFunction                   (node,numberDensityHydrogen,temperature,gasAbundances,chemicalDensities,radiation)
+  coolantCMBCompton      =  coolingFunctionCMBCompton_%coolingFunction                   (node,numberDensityHydrogen,temperature,gasAbundances,chemicalDensities,radiation)
+  call Assert('summation'        ,coolantSummation,2.0d0*coolantCMBCompton,relTol=1.0d-6)
+  ! Logarithmic derivatives of summed cooling function should equal those of the CMB Compton cooling function.
+  coolantSummation       =  coolingFunctionSummation_ %coolingFunctionDensityLogSlope    (node,numberDensityHydrogen,temperature,gasAbundances,chemicalDensities,radiation)
+  coolantCMBCompton      =  coolingFunctionCMBCompton_%coolingFunctionDensityLogSlope    (node,numberDensityHydrogen,temperature,gasAbundances,chemicalDensities,radiation)
+  call Assert('density slope'    ,coolantSummation,      coolantCMBCompton,relTol=1.0d-6)
+  ! Logarithmic derivatives of summed cooling function should equal those of the CMB Compton cooling function.
+  coolantSummation       =  coolingFunctionSummation_ %coolingFunctionTemperatureLogSlope(node,numberDensityHydrogen,temperature,gasAbundances,chemicalDensities,radiation)
+  coolantCMBCompton      =  coolingFunctionCMBCompton_%coolingFunctionTemperatureLogSlope(node,numberDensityHydrogen,temperature,gasAbundances,chemicalDensities,radiation)
+  call Assert('temperature slope',coolantSummation,      coolantCMBCompton,relTol=1.0d-6)
+  ! Begin repeatability tests.
+  call Unit_Tests_Begin_Group("Repeatability")
+  ! Compute timescale for Compton cooling off of CMB at the present day.
+  call radiation%timeSet(13.8d0)
+  coolantCMBCompton=+coolingFunctionCMBCompton_%coolingFunction(node,numberDensityHydrogen,temperature,gasAbundances,chemicalDensities,radiation)
+  timescaleCooling =+1.5d0                 &
+       &            *numberDensityHydrogen &
+       &            *boltzmannsConstant    &
+       &            *temperature           &
+       &            /ergs                  &
+       &            /coolantCMBCompton     &
+       &            /gigaYear
+  ! The expected value was updated when the cosmology function tabulations were pinned to an absolute lattice (#1317). The
+  ! Compton cooling rate goes as the fourth power of the temperature of the cosmic microwave background, and so as the
+  ! inverse fourth power of the expansion factor at the epoch set above - a quantity interpolated from a tabulation whose
+  ! abscissae that change moved, and whose initial condition is now imposed at a fixed, earlier epoch. The timescale shifted
+  ! by 1.9 parts per million, just past the tolerance asserted here.
+  call Assert('CMB Compton cooling timescale at z=0',timescaleCooling,980.09973759556078d0,relTol=1.0d-6)
+  ! Compute Cloudy cooling time.
+  coolantAtomicCIECloudy=+coolingFunctionAtomicCIECloudy_%coolingFunction(node,numberDensityHydrogen,temperature,gasAbundances,chemicalDensities,radiation)
+  call Assert('Cloudy CIE cooling function',coolantAtomicCIECloudy,1.4198000000000027d-30,relTol=1.0d-6)
+  call Unit_Tests_End_Group       ()
+  ! Check that the tabulation built by the Galli & Palla molecular hydrogen cooling function does not depend on the order in
+  ! which temperatures are requested of it. That tabulation is built on an absolute lattice, so the temperatures at which the
+  ! cooling function is evaluated depend only on which lattice points are spanned - three objects asked for the same
+  ! temperatures must therefore agree exactly, whichever order they were asked in, and however far each extended its
+  ! tabulation. Without pinning the tabulation is laid out afresh across whatever range has accumulated, and the three disagree
+  ! at the level of the interpolation error.
+  call Unit_Tests_Begin_Group("Molecular hydrogen tabulation")
+  coolingFunctionGalliPallaAscending =coolingFunctionMolecularHydrogenGalliPalla()
+  coolingFunctionGalliPallaDescending=coolingFunctionMolecularHydrogenGalliPalla()
+  do i=1,countTemperatures
+     call coolingFunctionGalliPallaAscending    %commonFactors(numberDensityHydrogen,temperaturesOrder(i),numberDensityCritical,coolantEquilibriumAscending (i),coolantLowDensityAscending (i))
+  end do
+  do i=countTemperatures,1,-1
+     call coolingFunctionGalliPallaDescending   %commonFactors(numberDensityHydrogen,temperaturesOrder(i),numberDensityCritical,coolantEquilibriumDescending(i),coolantLowDensityDescending(i))
+  end do
+  do i=1,countTemperatures
+     coolingFunctionGalliPallaSingle(i)=coolingFunctionMolecularHydrogenGalliPalla()
+     call coolingFunctionGalliPallaSingle    (i)%commonFactors(numberDensityHydrogen,temperaturesOrder(i),numberDensityCritical,coolantEquilibriumSingle    (i),coolantLowDensitySingle    (i))
+  end do
+  call Assert('low density limit is independent of the order in which temperatures are requested'   ,coolantLowDensityAscending ,coolantLowDensityDescending ,absTol=0.0d0)
+  call Assert('low density limit is independent of the range of temperatures tabulated'             ,coolantLowDensityAscending ,coolantLowDensitySingle     ,absTol=0.0d0)
+  call Assert('LTE cooling function is independent of the order in which temperatures are requested',coolantEquilibriumAscending,coolantEquilibriumDescending,absTol=0.0d0)
+  call Assert('LTE cooling function is independent of the range of temperatures tabulated'          ,coolantEquilibriumAscending,coolantEquilibriumSingle    ,absTol=0.0d0)
+  ! The low density limit cooling function increases steeply and monotonically with temperature over this range, so a value
+  ! placed at the wrong temperature would show itself here.
+  do i=2,countTemperatures
+     write (message,'(a,f8.1,a)') 'low density limit increases with temperature [T = ',temperaturesOrder(i),' K]'
+     call Assert(trim(message),coolantLowDensityAscending(i) > coolantLowDensityAscending(i-1),.true.)
+  end do
+  call Unit_Tests_End_Group()
+  ! Check the logarithmic gradients of the simple cooling time against finite differences of the cooling time itself. Use a sum of
+  ! the CIE and CMB Compton cooling functions, at a density where the two are comparable - the density slope of the summed cooling
+  ! function then depends on the density at which it is evaluated, so this tests that the gradients are evaluated at the correct
+  ! hydrogen number density (not at the mass density, in M☉ Mpc⁻³).
+  call Unit_Tests_Begin_Group("Cooling time gradients")
+  allocate(coolantsMixed     )
+  allocate(coolantsMixed%next)
+  coolantsMixed     %coolingFunction => coolingFunctionCMBCompton_
+  coolantsMixed%next%coolingFunction => coolingFunctionAtomicCIECloudy_
+  !![
+  <referenceConstruct object="coolingFunctionMixed_">
+   <constructor>
+    coolingFunctionSummation      (                                        &amp;
+     &amp;                         coolants        =coolantsMixed          &amp;
+     &amp;                        )
+   </constructor>
+  </referenceConstruct>
+  <referenceConstruct object="coolingTime_"         >
+   <constructor>
+    coolingTimeSimple             (                                        &amp;
+     &amp;                         degreesOfFreedom=3.0d0                , &amp;
+     &amp;                         coolingFunction_=coolingFunctionMixed_, &amp;
+     &amp;                         chemicalState_  =chemicalState_         &amp;
+     &amp;                        )
+   </constructor>
+  </referenceConstruct>
+  !!]
+  call radiation%timeSet(13.8d0)
+  numberDensityHydrogen=+1.0d-7 ! cm⁻³
+  temperature          =+1.1d+6 ! K
+  ! Convert to a mass density (in M☉ Mpc⁻³), as required by the cooling time class.
+  density              =+numberDensityHydrogen                &
+       &                /gasAbundances%hydrogenMassFraction() &
+       &                *massHydrogenAtom                     &
+       &                *hecto                            **3 &
+       &                *megaParsec                       **3 &
+       &                /massSolar
+  ! Confirm that the two cooling functions are comparable at these conditions.
+  coolantCMBCompton     =coolingFunctionCMBCompton_     %coolingFunction(node,numberDensityHydrogen,temperature,gasAbundances,chemicalDensities,radiation)
+  coolantAtomicCIECloudy=coolingFunctionAtomicCIECloudy_%coolingFunction(node,numberDensityHydrogen,temperature,gasAbundances,chemicalDensities,radiation)
+  call Assert('CIE and CMB Compton cooling are comparable',abs(log10(coolantAtomicCIECloudy/coolantCMBCompton)) < 1.0d0,.true.)
+  ! Compute the gradients, and their finite difference estimates.
+  gradientDensity          =+coolingTime_%gradientDensityLogarithmic    (node,temperature                      ,density                      ,gasAbundances,chemicalDensities,radiation)
+  gradientTemperature      =+coolingTime_%gradientTemperatureLogarithmic(node,temperature                      ,density                      ,gasAbundances,chemicalDensities,radiation)
+  gradientDensityNumerical =+log(                                                                                                                                                        &
+       &                         +coolingTime_%time                     (node,temperature                      ,density*exp(+stepLogarithmic),gasAbundances,chemicalDensities,radiation) &
+       &                         /coolingTime_%time                     (node,temperature                      ,density*exp(-stepLogarithmic),gasAbundances,chemicalDensities,radiation) &
+       &                        )                                                                                                                                                        &
+       &                    /2.0d0                                                                                                                                                       &
+       &                    /stepLogarithmic
+  gradientTemperatureNumerical=+log(                                                                                                                                                     &
+       &                            +coolingTime_%time                  (node,temperature*exp(+stepLogarithmic),density                      ,gasAbundances,chemicalDensities,radiation) &
+       &                            /coolingTime_%time                  (node,temperature*exp(-stepLogarithmic),density                      ,gasAbundances,chemicalDensities,radiation) &
+       &                           )                                                                                                                                                     &
+       &                       /2.0d0                                                                                                                                                    &
+       &                       /stepLogarithmic
+  ! The temperature gradient neglects any dependence of the total particle number density on temperature, so is checked to a
+  ! looser tolerance (it agrees to better than 10⁻³ here). Evaluating the cooling function at the mass density, rather than the
+  ! hydrogen number density, and omitting the thermal energy term from the temperature gradient, gave errors of 0.3 and 0.6 in
+  ! these gradients.
+  call Assert('cooling time density gradient'    ,gradientDensity    ,gradientDensityNumerical    ,absTol=1.0d-3)
+  call Assert('cooling time temperature gradient',gradientTemperature,gradientTemperatureNumerical,absTol=1.0d-2)
+  call Unit_Tests_End_Group()
+  ! End unit tests.
+  call Unit_Tests_End_Group()
+  call Unit_Tests_Finish   ()
+  ! Clean up.
+  call node%destroy()
+  deallocate(node)
+  call Node_Components_Thread_Uninitialize()
+  call Node_Components_Uninitialize       ()
+end program Test_Cooling_Functions

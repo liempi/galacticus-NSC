@@ -1,0 +1,51 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+!!{RST
+Contains a module which provides a class that implements rates of star formation in disks.
+!!}
+
+module Star_Formation_Rates_Disks
+  !!{RST
+  Provides a class that implements calculations of rates of formation in disks.
+  !!}
+  use :: Galacticus_Nodes, only : treeNode
+  private
+
+  !![
+  <functionClass docformat="rst">
+   <name>starFormationRateDisks</name>
+   <descriptiveName>Star Formation Rates in Disks</descriptiveName>
+   <description>
+   Class providing models of the star formation rate (in :math:`\mathrm{M}_\odot` Gyr\ :math:`^{-1}`) in the disk component of a galaxy. The star formation rate typically depends on the available cold gas mass, the disk surface density, and the dynamical state of the disk. Implementations may integrate over surface density profiles, apply empirical Schmidt-Kennicutt type relations, or use dynamical instability thresholds to determine where and how quickly stars form.
+   </description>
+   <default>intgrtdSurfaceDensity</default>
+   <method name="rate" >
+    <description>
+    Returns the rate (in units of :math:`\mathrm{M}_\odot` Gyr\ :math:`^{-1}`) for star formation in the disk component of ``node``.
+    </description>
+    <type>double precision</type>
+    <pass>yes</pass>
+    <selfTarget>yes</selfTarget>
+    <argument>type(treeNode), intent(inout), target :: node</argument>
+   </method>
+  </functionClass>
+  !!]
+
+end module Star_Formation_Rates_Disks

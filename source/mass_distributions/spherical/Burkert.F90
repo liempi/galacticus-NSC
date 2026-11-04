@@ -1,0 +1,908 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+  !+    Contributions to this file made by: Andrew Benson, Claude.
+
+  !!{RST
+  Implementation of a Burkert :cite:p:`burkert_structure_1995` mass distribution class.
+  !!}
+
+  use :: Tabulations_Inverse     , only : tabulationInverse
+  use :: Numerical_Constants_Math, only : Pi
+  
+  !![
+  <massDistribution name="massDistributionBurkert" docformat="rst">
+    <description>
+    A mass distribution class which implements the :cite:p:`burkert_structure_1995` density profile:
+
+    .. math::
+
+       \rho_\mathrm{dark matter}(r) = \rho_0 \left(1+{r\over r_\mathrm{s}}\right)^{-1} \left(1+[{r\over
+       r_\mathrm{s}}]^2\right)^{-1}.
+
+    The mass enclosed within radius :math:`r` is given by
+
+    .. math::
+
+       M(&lt;r) = \pi \rho_0 r_\mathrm{s}^3 \left[ 2 \log(1 + R) + \log(1 + R^2) -2 \tan^{-1}(R) \right]
+
+    where :math:`R=r/r_\mathrm{s}`. The associated gravitational potential is
+
+    .. math::
+
+       \Phi(r) = - \frac{\mathrm{G} \pi \rho_0 r_\mathrm{s}^2}{R} \left[ 2 (1+R) \log (1+R) + (1-R) \log \left(1+R^2\right) - 2 \tan^{-1}(R) + 2 R \cot^{-1}(R) \right]
+
+    The peak of the rotation curve occurs at :math:`R=3.2446257246042642` (found by numerical solution) at which point the rotation curve amplitude is 1.644297750532498, and the Fourier transform of the profile, :math:`F(k) = \int_0^c 4 \pi r^2 \exp(-i k r) \rho(r) \mathrm{d} r / k r` (needed in calculations of clustering using the halo model) is given by
+
+    .. math::
+
+       F(k) &amp; = (1+i) \frac{\pi}{k m(c) } \left( \right.                                                              \nonumber \\
+       &amp;         +      \exp( k) \left\{ -i \pi -\mathrm{E}_\mathrm{i}[-  k]+\mathrm{E}_\mathrm{i}[(-1+ic)k] \right\} \nonumber \\
+       &amp;         +(1-i) \exp(-k) \left\{        +\mathrm{E}_\mathrm{i}[-i k]+\mathrm{E}_\mathrm{i}[(+i+ic)k] \right\} \nonumber \\
+       &amp;         +   i  \exp(-k) \left\{        +\mathrm{E}_\mathrm{i}[+  k]+\mathrm{E}_\mathrm{i}[(+1+ic)k] \right\} \nonumber \\
+       &amp;         \left. \right).
+    </description>
+  </massDistribution>
+  !!]
+  type, public, extends(massDistributionSpherical) :: massDistributionBurkert
+     !!{RST
+     The :cite:p:`burkert_structure_1995` mass distribution.
+     !!}
+     private
+     double precision                    :: densityNormalization             , scaleLength
+     ! Tabulations of the scale-free profile, built for inversion.
+     type            (tabulationInverse) :: densityScaleFree_                , massScaleFree_        , &
+          &                                 angularMomentumSpecificScaleFree_, timeFreefallScaleFree_
+   contains
+     !![
+     <methods docformat="rst">
+       <method method="timeFreefallTabulate" description="Tabulate the freefall time as a function of radius in a scale-free Burkert mass distribution."/>
+     </methods>
+     !!]
+     procedure :: massTotal                         => burkertMassTotal
+     procedure :: density                           => burkertDensity
+     procedure :: densityGradientRadial             => burkertDensityGradientRadial
+     procedure :: densitySlopeLogarithmicCentral    => burkertDensitySlopeLogarithmicCentral
+     procedure :: densityRadialMoment               => burkertDensityRadialMoment
+     procedure :: massEnclosedBySphere              => burkertMassEnclosedBySphere
+     procedure :: velocityRotationCurveMaximum      => burkertVelocityRotationCurveMaximum
+     procedure :: radiusRotationCurveMaximum        => burkertRadiusRotationCurveMaximum
+     procedure :: radiusEnclosingMass               => burkertRadiusEnclosingMass
+     procedure :: radiusEnclosingDensity            => burkertRadiusEnclosingDensity
+     procedure :: radiusFromSpecificAngularMomentum => burkertRadiusFromSpecificAngularMomentum
+     procedure :: fourierTransform                  => burkertFourierTransform
+     procedure :: radiusFreefall                    => burkertRadiusFreefall
+     procedure :: radiusFreefallIncreaseRate        => burkertRadiusFreefallIncreaseRate
+     procedure :: timeFreefallTabulate              => burkertTimeFreefallTabulate
+     procedure :: potentialIsAnalytic               => burkertPotentialIsAnalytic
+     procedure :: potential                         => burkertPotential
+     procedure :: energyPotential                   => burkertEnergyPotential
+     procedure :: descriptor                        => burkertDescriptor
+  end type massDistributionBurkert
+  
+  interface massDistributionBurkert
+     !!{RST
+     Constructors for the :galacticus-class:`massDistributionBurkert` mass distribution class.
+     !!}
+     module procedure massDistributionBurkertConstructorParameters
+     module procedure massDistributionBurkertConstructorInternal
+  end interface massDistributionBurkert
+
+  ! Density of the tabulations; see the note in the NFW implementation for why an octave lattice is used here.
+  integer          , parameter :: countRadiiPerOctave         =30
+
+  ! The minimum (scale-free) freefall timescale in a Burkert profile.
+  double precision , parameter :: timeFreefallScaleFreeMinimum=sqrt(3.0d0*Pi)/4.0d0
+
+contains
+
+  function massDistributionBurkertConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`massDistributionBurkert` mass distribution class which builds the object from a parameter set.
+    !!}
+    use :: Input_Parameters          , only : inputParameter                , inputParameters
+    use :: Galactic_Structure_Options, only : enumerationComponentTypeEncode, enumerationMassTypeEncode
+    use :: Numerical_Constants_Math  , only : Pi
+    implicit none
+    type            (massDistributionBurkert)                :: self
+    type            (inputParameters        ), intent(inout) :: parameters
+    double precision                                         :: mass                , scaleLength  , &
+         &                                                      densityNormalization, radiusOuter
+    logical                                                  :: dimensionless
+    type            (varying_string         )                :: componentType       , massType
+
+    !![
+    <inputParameter docformat="rst">
+      <name>densityNormalization</name>
+      <defaultValue>1.0d0/Pi/(log(8.0d0)-Pi/2.0d0)</defaultValue>
+      <description>
+      The density normalization of the Burkert profile.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>scaleLength</name>
+      <defaultValue>1.0d0</defaultValue>
+      <description>
+      The scale radius of the Burkert profile.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>mass</name>
+      <defaultValue>1.0d0</defaultValue>
+      <description>
+      The total mass (in :math:`\mathrm{M}_\odot`) of the Burkert profile, used to set the density normalization :math:`\rho_0` when ``densityNormalization`` is not supplied.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>radiusOuter</name>
+      <description>
+      The outer radius of the Burkert profile.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>dimensionless</name>
+      <defaultValue>.true.</defaultValue>
+      <description>
+      If true the Burkert profile is considered to be dimensionless.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>componentType</name>
+      <defaultValue>var_str('unknown')</defaultValue>
+      <description>
+      The component type that this mass distribution represents.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>massType</name>
+      <defaultValue>var_str('unknown')</defaultValue>
+      <description>
+      The mass type that this mass distribution represents.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <conditionalCall>
+     <call>self=massDistributionBurkert(scaleLength=scaleLength,componentType=enumerationComponentTypeEncode(componentType,includesPrefix=.false.),massType=enumerationMassTypeEncode(massType,includesPrefix=.false.){conditions})</call>
+     <argument name="densityNormalization" value="densityNormalization" parameterPresent="parameters"/>
+     <argument name="mass"                 value="mass"                 parameterPresent="parameters"/>
+     <argument name="radiusOuter"          value="radiusOuter"          parameterPresent="parameters"/>
+     <argument name="dimensionless"        value="dimensionless"        parameterPresent="parameters"/>
+    </conditionalCall>
+    <inputParametersValidate source="parameters"/>
+    !!]
+    return
+  end function massDistributionBurkertConstructorParameters
+
+  function massDistributionBurkertConstructorInternal(scaleLength,densityNormalization,mass,radiusOuter,dimensionless,componentType,massType) result(self)
+    !!{RST
+    Internal constructor for "burkert" mass distribution class.
+    !!}
+    use :: Error                   , only : Error_Report
+    use :: Numerical_Constants_Math, only : Pi
+    implicit none
+    type            (massDistributionBurkert     )                          :: self
+    double precision                              , intent(in   )           :: scaleLength
+    double precision                              , intent(in   ), optional :: densityNormalization, radiusOuter, &
+         &                                                                     mass
+    logical                                       , intent(in   ), optional :: dimensionless
+    type            (enumerationComponentTypeType), intent(in   ), optional :: componentType
+    type            (enumerationMassTypeType     ), intent(in   ), optional :: massType
+    double precision                                                        :: radiusScaleFree
+    !![
+    <constructorAssign variables="scaleLength, componentType, massType"/>
+    !!]
+
+    ! Determine density normalization.
+    if      (                                   &
+         &   present(densityNormalization)      &
+         &  ) then
+       self%densityNormalization=densityNormalization
+    else if (                                   &
+         &   present(mass                ).and. &
+         &   present(radiusOuter        )       &
+         &  ) then
+       radiusScaleFree          =+radiusOuter/self%scaleLength
+       self%densityNormalization=+mass/Pi/self%scaleLength**3/(2.0d0*log(1.0d0+radiusScaleFree)+log(1.0d0+radiusScaleFree**2)-2.0d0*atan(radiusScaleFree))
+    else
+       self%densityNormalization=+0.0d0
+       call Error_Report('either "densityNormalization", or "mass" and "radiusOuter" must be specified'//{introspection:location})
+    end if
+    ! Determine if profile is dimensionless.
+    if      (present(dimensionless     )) then
+       self%dimensionless=dimensionless
+    else
+       self%dimensionless=.false.
+    end if
+    ! Initialize the tabulations.
+    call self%densityScaleFree_                %reset(countRadiiPerOctave,increasing=.false.)
+    call self%massScaleFree_                   %reset(countRadiiPerOctave,increasing=.true. )
+    call self%angularMomentumSpecificScaleFree_%reset(countRadiiPerOctave,increasing=.true. )
+    call self%timeFreefallScaleFree_           %reset(countRadiiPerOctave,increasing=.true. )
+    return
+  end function massDistributionBurkertConstructorInternal
+
+  double precision function burkertMassTotal(self)
+    !!{RST
+    Return the total mass in an Burkert mass distribution.
+    !!}
+    implicit none
+    class(massDistributionBurkert), intent(inout) :: self
+ 
+    burkertMassTotal=huge(0.0d0)
+    return
+  end function burkertMassTotal
+
+  double precision function burkertDensity(self,coordinates)
+    !!{RST
+    Return the density at the specified ``coordinates`` in an Burkert mass distribution.
+    !!}
+    implicit none
+    class           (massDistributionBurkert), intent(inout) :: self
+    class           (coordinate             ), intent(in   ) :: coordinates
+    double precision                                         :: radiusScaleFree
+
+    ! Compute the density at this position.
+    radiusScaleFree=+coordinates%rSpherical          () &
+         &          /self       %scaleLength
+    burkertDensity =+self       %densityNormalization   &
+         &          /(+1.0d0+radiusScaleFree   )        &
+         &          /(+1.0d0+radiusScaleFree**2)
+    return
+  end function burkertDensity
+
+  double precision function burkertDensityGradientRadial(self,coordinates,logarithmic) result(densityGradientRadial)
+    !!{RST
+    Return the density at the specified ``coordinates`` in an Burkert :cite:p:`burkert_structure_1995` mass distribution.
+    !!}
+    implicit none
+    class           (massDistributionBurkert), intent(inout), target   :: self
+    class           (coordinate             ), intent(in   )           :: coordinates
+    logical                                  , intent(in   ), optional :: logarithmic
+    double precision                                                   :: radiusScaleFree
+    !![
+    <optionalArgument name="logarithmic" defaultsTo=".false."/>
+    !!]
+
+    radiusScaleFree      =+coordinates%rSpherical()         &
+         &                /self       %scaleLength
+    densityGradientRadial=-3.0d0                            &
+         &                +1.0d0/(1.0d0+radiusScaleFree   ) &
+         &                +2.0d0/(1.0d0+radiusScaleFree**2)
+    if (.not.logarithmic_) densityGradientRadial=+            densityGradientRadial              &
+         &                                       *self       %density              (coordinates) &
+         &                                       /coordinates%rSpherical           (           )
+    return
+  end function burkertDensityGradientRadial
+
+  double precision function burkertDensitySlopeLogarithmicCentral(self) result(slope)
+    !!{RST
+    Return the central logarithmic slope of the density profile in a Burkert :cite:p:`burkert_structure_1995` mass
+    distribution. The profile has a constant density core, so the density is evaluable at zero radius.
+    !!}
+    implicit none
+    class(massDistributionBurkert), intent(inout) :: self
+    !$GLC attributes unused :: self
+
+    slope=0.0d0
+    return
+  end function burkertDensitySlopeLogarithmicCentral
+
+  double precision function burkertDensityRadialMoment(self,moment,radiusMinimum,radiusMaximum,isInfinite) result(densityRadialMoment)
+    !!{RST
+    Computes radial moments of the density in an Burkert :cite:p:`burkert_structure_1995` mass distribution.
+    !!}
+    implicit none
+    class           (massDistributionBurkert), intent(inout)           :: self
+    double precision                         , intent(in   )           :: moment
+    double precision                         , intent(in   ), optional :: radiusMinimum      , radiusMaximum
+    logical                                  , intent(  out), optional :: isInfinite
+    double precision                                                   :: radialMomentMinimum, radialMomentMaximum
+
+    densityRadialMoment=0.0d0
+    if (present(isInfinite)) isInfinite=.false.
+    if (present(radiusMinimum)) then
+       radialMomentMinimum=radialMomentScaleFree(radiusMinimum/self%scaleLength)
+    else
+       radialMomentMinimum=radialMomentScaleFree(                         0.0d0)
+    end if
+    if (present(radiusMaximum)) then
+       radialMomentMaximum=radialMomentScaleFree(radiusMaximum/self%scaleLength)
+    else
+       radialMomentMaximum=0.0d0
+       if (moment >= 3.0d0) then
+          if (present(isInfinite)) then
+             isInfinite=.true.
+             return
+          else
+             call Error_Report('moment is infinite'//{introspection:location})
+          end if
+       end if
+    end if    
+    densityRadialMoment=+self%densityNormalization                 &
+         &              *self%scaleLength         **(moment+1.0d0) &
+         &              *(                                         &
+         &                +radialMomentMaximum                     &
+         &                -radialMomentMinimum                     &
+         &               )    
+    return
+
+  contains
+
+    double precision function radialMomentScaleFree(radius)
+      !!{RST
+      Provides the scale-free part of the radial moment of the Burkert density profile.
+      !!}
+      use :: Hypergeometric_Functions, only : Hypergeometric_2F1
+      use :: Numerical_Comparison    , only : Values_Agree
+      implicit none
+      double precision, intent(in   ) :: radius
+      
+      if (Values_Agree(moment,0.0d0,absTol=1.0d-6)) then
+         radialMomentScaleFree=+0.50d0*atan(       radius   ) &
+              &                +0.50d0*log (+1.0d0+radius   ) &
+              &                -0.25d0*log (+1.0d0+radius**2)
+      else if (Values_Agree(moment,1.0d0,absTol=1.0d-6)) then
+         radialMomentScaleFree=+0.50d0*atan(       radius   ) &
+              &                -0.50d0*log (+1.0d0+radius   ) &
+              &                +0.25d0*log (+1.0d0+radius**2)
+      else if (Values_Agree(moment,2.0d0,absTol=1.0d-6)) then
+         radialMomentScaleFree=-0.50d0*atan(       radius   ) &
+              &                +0.50d0*log (+1.0d0+radius   ) &
+              &                +0.25d0*log (+1.0d0+radius**2)
+      else if (Values_Agree(moment,3.0d0,absTol=1.0d-6)) then
+         radialMomentScaleFree=+                   radius     &
+              &                -0.50d0*atan(       radius   ) &
+              &                -0.50d0*log (+1.0d0+radius   ) &
+              &                -0.25d0*log (+1.0d0+radius**2)
+      else
+         radialMomentScaleFree=+radius**(1.0d0+moment)                                                                              &
+              &                /   2.0d0                                                                                            &
+              &                /  (1.0d0+moment)                                                                                    &
+              &                /  (2.0d0+moment)                                                                                    &
+              &                *(                                                                                                   &
+              &                  +(2.0d0+moment)*Hypergeometric_2F1([1.0d0,0.5d0*(1.0d0+moment)],[0.5d0*(3.0d0+moment)],-radius**2) &
+              &                  +(2.0d0+moment)*Hypergeometric_2F1([1.0d0,      (1.0d0+moment)],[      (2.0d0+moment)],-radius   ) &
+              &                  +(1.0d0+moment)*Hypergeometric_2F1([1.0d0,0.5d0*(2.0d0+moment)],[0.5d0*(4.0d0+moment)],-radius**2) &
+              &                 )
+      end if
+      return
+    end function radialMomentScaleFree
+
+  end function burkertDensityRadialMoment
+
+  double precision function burkertMassEnclosedBySphere(self,radius) result(mass)
+    !!{RST
+    Computes the mass enclosed within a sphere of given ``radius`` for burkert mass distributions.
+    !!}
+    implicit none
+    class           (massDistributionBurkert), intent(inout), target :: self
+    double precision                         , intent(in   )         :: radius
+    double precision                                                 :: radiusScaleFree
+    
+    radiusScaleFree=+      radius                              &
+         &           /self%scaleLength
+    mass           =+self%densityNormalization                 &
+         &          *self%scaleLength                      **3 &
+         &          *massEnclosedScaleFree(radiusScaleFree)
+    return
+  end function burkertMassEnclosedBySphere
+  
+  double precision function burkertRadiusEnclosingMass(self,mass,massFractional) result(radius)
+    !!{RST
+    Computes the radius enclosing a given mass or mass fraction for burkert mass distributions.
+    !!}    
+    use :: Error, only : Error_Report
+    implicit none
+    class           (massDistributionBurkert), intent(inout), target       :: self
+    double precision                         , intent(in   ), optional     :: mass         , massFractional
+    double precision                         , allocatable  , dimension(:) :: radii
+    double precision                                                       :: massScaleFree, mass_
+    integer                                                                :: i
+
+    mass_=0.0d0
+    if (present(mass)) then
+       mass_=mass
+    else if (present(massFractional)) then
+       call Error_Report('mass is unbounded, so mass fraction is undefined'//{introspection:location})
+    else
+       call Error_Report('either mass or massFractional must be supplied'  //{introspection:location})
+    end if
+    massScaleFree=+     mass_                   &
+         &        /self%densityNormalization    &
+         &        /self%scaleLength         **3
+    do while (.not.self%massScaleFree_%brackets(massScaleFree))
+       call self%massScaleFree_%expand(massScaleFree)
+       radii=self%massScaleFree_%abscissae()
+       do i=1,size(radii)
+          if (self%massScaleFree_%isComputed(i)) cycle
+          call self%massScaleFree_%set(i,massEnclosedScaleFree(radii(i)))
+       end do
+       call self%massScaleFree_%build()
+    end do
+    radius=+self%massScaleFree_%invert(massScaleFree) &
+         & *self%scaleLength
+    return
+  end function burkertRadiusEnclosingMass
+  
+  double precision function burkertRadiusEnclosingDensity(self,density,radiusGuess) result(radius)
+    !!{RST
+    Computes the radius enclosing a given mean density for burkert mass distributions.
+    !!}
+    implicit none
+    class           (massDistributionBurkert), intent(inout), target       :: self
+    double precision                         , intent(in   )               :: density
+    double precision                         , intent(in   ), optional     :: radiusGuess
+    double precision                         , allocatable  , dimension(:) :: radii
+    double precision                                                       :: densityScaleFree
+    integer                                                                :: i
+
+    densityScaleFree=+density                   &
+         &           /self%densityNormalization
+    do while (.not.self%densityScaleFree_%brackets(densityScaleFree))
+       call self%densityScaleFree_%expand(densityScaleFree)
+       radii=self%densityScaleFree_%abscissae()
+       do i=1,size(radii)
+          if (self%densityScaleFree_%isComputed(i)) cycle
+          call self%densityScaleFree_%set(i,densityEnclosedScaleFree(radii(i)))
+       end do
+       call self%densityScaleFree_%build()
+    end do
+    radius=+self%densityScaleFree_%invert(densityScaleFree) &
+         & *self%scaleLength
+    return    
+  end function burkertRadiusEnclosingDensity
+
+  elemental double precision function massEnclosedScaleFree(radius) result(mass)
+    !!{RST
+    Evaluate the mass enclosed by a given radius in a scale-free Burkert mass distribution.
+    !!}
+    use :: Numerical_Constants_Math, only : Pi
+    implicit none
+    double precision, intent(in   ) :: radius
+    ! Below this radius the exact solution below loses accuracy: its terms are of order R while their sum is of order R³, and
+    ! `log(1+R)` is evaluated from an argument which has already been rounded to unity plus an ulp. The series is accurate to
+    ! better than 10⁻¹⁵ up to this radius, and the exact solution to better than 10⁻¹¹ beyond it.
+    double precision, parameter     :: minimumRadiusForExactSolution=1.0d-2
+
+    if (radius < minimumRadiusForExactSolution) then
+       ! Use a series solution for small radii. Since (1-R)(1+R+R²+R³) = 1-R⁴, the density is (1-R)(1+R⁴+R⁸+…), so the mass is
+       ! 4π(R³/3-R⁴/4+R⁷/7-R⁸/8+…).
+       mass   =+4.0d0                   &
+            &  /3.0d0                   &
+            &  *Pi                      &
+            &  *              radius**3 &
+            &  *(                       &
+            &    +1.0d0                 &
+            &    -3.0d0/4.0d0*radius    &
+            &    +3.0d0/7.0d0*radius**4 &
+            &    -3.0d0/8.0d0*radius**5 &
+            &   )
+    else
+       ! Use the exact solution.
+       mass   =+Pi                            &
+            &  *(                             &
+            &    +2.0d0*log (1.0d0+radius   ) &
+            &    +      log (1.0d0+radius**2) &
+            &    -2.0d0*atan(      radius   ) &
+            &   )
+    end if
+    return
+  end function massEnclosedScaleFree
+
+  elemental double precision function densityEnclosedScaleFree(radius) result(density)
+    !!{RST
+    Evaluate the mean enclosed density at a given radius in a scale-free Burkert mass distribution.
+    !!}
+    use :: Numerical_Constants_Math, only : Pi
+    implicit none
+    double precision, intent(in   ) :: radius
+    
+    density=+3.0d0                            &
+         &  /4.0d0                            &
+         &  /Pi                               &
+         &  *massEnclosedScaleFree(radius)    &
+         &  /                      radius **3
+    return
+  end function densityEnclosedScaleFree
+  
+  double precision function burkertRadiusFromSpecificAngularMomentum(self,angularMomentumSpecific) result(radius)
+    !!{RST
+    Computes the radius corresponding to a given specific angular momentum for burkert mass distributions.
+    !!}
+    use :: Numerical_Constants_Astronomical, only : gravitationalConstant_internal
+    implicit none
+    class           (massDistributionBurkert), intent(inout), target       :: self
+    double precision                         , intent(in   )               :: angularMomentumSpecific
+    double precision                         , allocatable  , dimension(:) :: radii
+    double precision                                                       :: angularMomentumSpecificScaleFree
+    integer                                                                :: i
+
+    if (angularMomentumSpecific > 0.0d0) then
+       angularMomentumSpecificScaleFree=+angularMomentumSpecific                 &
+            &                           /sqrt(                                   &
+            &                                 +gravitationalConstant_internal    &
+            &                                 *self%densityNormalization         &
+            &                                )                                   &
+            &                           /      self%scaleLength              **2
+       do while (.not.self%angularMomentumSpecificScaleFree_%brackets(angularMomentumSpecificScaleFree))
+          call self%angularMomentumSpecificScaleFree_%expand(angularMomentumSpecificScaleFree)
+          radii=self%angularMomentumSpecificScaleFree_%abscissae()
+          do i=1,size(radii)
+             if (self%angularMomentumSpecificScaleFree_%isComputed(i)) cycle
+             call self%angularMomentumSpecificScaleFree_%set(i,angularMomentumSpecificEnclosedScaleFree(radii(i)))
+          end do
+          call self%angularMomentumSpecificScaleFree_%build()
+       end do
+       radius=+self%angularMomentumSpecificScaleFree_%invert(angularMomentumSpecificScaleFree) &
+            & *self%scaleLength
+    else
+       radius=+0.0d0
+    end if
+    return    
+  end function burkertRadiusFromSpecificAngularMomentum
+
+  elemental double precision function angularMomentumSpecificEnclosedScaleFree(radius) result(angularMomentumSpecific)
+    !!{RST
+    Evaluate the specific angular momentum at a given radius in a scale-free Burkert mass distribution.
+    !!}
+    implicit none
+    double precision, intent(in   ) :: radius
+    
+    angularMomentumSpecific=+sqrt(                               &
+         &                        +massEnclosedScaleFree(radius) &
+         &                        *                      radius  &
+         &                       )
+    return
+  end function angularMomentumSpecificEnclosedScaleFree
+
+  double precision function burkertVelocityRotationCurveMaximum(self) result(velocity)
+    !!{RST
+    Return the peak velocity in the rotation curve for an burkert mass distribution.
+    !!}
+    use :: Numerical_Constants_Astronomical, only : gravitationalConstant_internal
+    use :: Numerical_Constants_Math        , only : Pi
+    implicit none
+    class           (massDistributionBurkert ), intent(inout) :: self
+    double precision                          , parameter     :: circularVelocityMaximumScaleFree=1.644297750532498d0 ! The circular velocity (in scale-free units) at the peak of the Burkert rotation curve.
+    !                                                                                                                   Numerical value found using Mathematica.
+
+    velocity=+circularVelocityMaximumScaleFree            &
+         &   *sqrt(                                       &
+         &         +self%densityNormalization             &
+         &        )                                       &
+         &   *      self%scaleLength
+    if (.not.self%isDimensionless())                      &
+         & velocity=+velocity                             &
+         &          *sqrt(gravitationalConstant_internal)
+    return
+  end function burkertVelocityRotationCurveMaximum
+
+  double precision function burkertRadiusRotationCurveMaximum(self) result(radius)
+    !!{RST
+    Return the peak velocity in the rotation curve for an burkert mass distribution.
+    !!}
+    implicit none
+    class           (massDistributionBurkert), intent(inout), target :: self
+    ! The radius (in scale-free units) at the peak of the Burkert rotation curve. Numerical value found using Mathematica.
+    double precision                         , parameter             :: radiusCircularVelocityMaximumScaleFree=3.244625724604264d0
+    
+    radius=+radiusCircularVelocityMaximumScaleFree &
+         & *self%scaleLength
+    return
+  end function burkertRadiusRotationCurveMaximum
+
+  logical function burkertPotentialIsAnalytic(self) result(isAnalytic)
+    !!{RST
+    Return that the potential has an analytic form.
+    !!}
+    implicit none
+    class(massDistributionBurkert), intent(inout) :: self
+
+    isAnalytic=.true.
+    return
+  end function burkertPotentialIsAnalytic
+
+  double precision function burkertPotential(self,coordinates,status) result(potential)
+    !!{RST
+    Return the potential at the specified ``coordinates`` in an burkert mass distribution.
+    !!}
+    use :: Coordinates                     , only : assignment(=)
+    use :: Galactic_Structure_Options      , only : structureErrorCodeSuccess     , structureErrorCodeInfinite
+    use :: Numerical_Constants_Astronomical, only : gravitationalConstant_internal
+    use :: Error                           , only : Error_Report
+    implicit none
+    class           (massDistributionBurkert          ), intent(inout), target   :: self
+    class           (coordinate                       ), intent(in   )           :: coordinates
+    type            (enumerationStructureErrorCodeType), intent(  out), optional :: status
+    double precision                                                             :: radiusScaleFree
+    
+    if (present(status)) status=structureErrorCodeSuccess
+    radiusScaleFree=+coordinates%rSpherical () &
+         &          /self       %scaleLength
+    potential=+potentialScaleFree       (radiusScaleFree)    &
+         &    *self%densityNormalization                     &
+         &    *self%scaleLength                          **2
+    if (.not.self%isDimensionless()) potential=+gravitationalConstant_internal &
+         &                                     *potential
+    return
+  end function burkertPotential
+
+  elemental double precision function potentialScaleFree(radius) result(potential)
+    !!{RST
+    Compute the potential in a scale-free Burkert mass distribution.
+    !!}
+    use :: Numerical_Constants_Math, only : Pi
+    implicit none
+    double precision, intent(in   ) :: radius
+    double precision, parameter     :: radiusSmall=1.0d-3
+
+    if (radius < radiusSmall) then
+       ! Use a series solution for very small radii.
+       potential=-             Pi**2           &
+            &    +2.0d0/ 3.0d0*Pi   *radius**2 &
+            &    -1.0d0/ 3.0d0*Pi   *radius**3 &
+            &    +2.0d0/21.0d0*Pi   *radius**6
+    else
+       ! Use the full expression for larger radii.
+       potential=-Pi                                           &
+            &    /radius                                       & 
+            &    *(                                            &
+            &      +2.0d0*(1.0d0+radius)*log (1.0d0+radius   ) &
+            &      +      (1.0d0-radius)*log (1.0d0+radius**2) &
+            &      -2.0d0               *atan(      radius   ) &
+            &      +2.0d0*       radius *atan(1.0d0/radius   ) &
+            &     )
+    end if
+    return
+  end function potentialScaleFree
+
+ double precision function potentialDifferenceScaleFree(radius1,radius2) result(potential)
+    !!{RST
+    Compute the potential difference in a scale-free Burkert mass distribution.
+    !!}
+    use :: Numerical_Constants_Math, only : Pi
+    use :: Numerical_Comparison    , only : Values_Agree
+    implicit none
+    double precision, intent(in   ) :: radius1                            , radius2
+    double precision, parameter     :: radiusSmall                 =1.0d-3
+    double precision, parameter     :: toleranceRelative           =1.0d-3
+    double precision                :: potentialGradientLogarithmic       , radiusDifferenceLogarithmic
+    
+    if (Values_Agree(radius1,radius2,relTol=toleranceRelative) .or. max(radius1,radius2) < radiusSmall) then
+       if (radius1 < radiusSmall) then
+          potentialGradientLogarithmic=-4.0d0/3.0d0/Pi   *radius1**2 &
+               &                       +1.0d0      /Pi   *radius1**3 &
+               &                       -8.0d0/9.0d0/Pi**2*radius1**4
+       else
+          potentialGradientLogarithmic=-(                                              &
+               &                         +                      log (1.0d0+radius1**2) &
+               &                         +2.0d0                *log (1.0d0+radius1   ) &
+               &                         -2.0d0                *atan(      radius1   ) &
+               &                        )                                              &
+               &                       /(                                              &
+               &                         +      (1.0d0-radius1)*log (1.0d0+radius1**2) &
+               &                         +2.0d0*(1.0d0+radius1)*log (1.0d0+radius1   ) &
+               &                         -2.0d0                *atan(      radius1   ) &
+               &                         +2.0d0*       radius1 *atan(1.0d0/radius1   ) &
+               &                        )
+       end if
+       radiusDifferenceLogarithmic=+1.0d0                                 &
+            &                      -radius2                               &
+            &                      /radius1
+       potential                  =+potentialScaleFree          (radius1) &
+            &                      *potentialGradientLogarithmic          &
+            &                      *radiusDifferenceLogarithmic
+    else
+       potential=+potentialScaleFree(radius1) &
+            &    -potentialScaleFree(radius2)
+    end if
+    return
+  end function potentialDifferenceScaleFree
+  
+  double precision function burkertFourierTransform(self,radiusOuter,wavenumber) result(fourierTransform)
+    !!{RST
+    Compute the Fourier transform of the density profile at the given ``wavenumber`` in an Burkert mass distribution.
+    !!}
+    use :: Exponential_Integrals   , only : Exponential_Integral
+    use :: Numerical_Constants_Math, only : Pi
+    implicit none
+    class           (massDistributionBurkert), intent(inout) :: self
+    double precision                         , intent(in   ) :: radiusOuter        , wavenumber
+    double precision                                         :: wavenumberScaleFree, radiusOuterScaleFree
+
+    waveNumberScaleFree =+waveNumber *self%scaleLength
+    radiusOuterScaleFree=+radiusOuter/self%scaleLength
+    fourierTransform    =+dimag(                                                                                                                                                                                                                                                    &
+         &                      +dcmplx(1.0d0,1.0d0)                                                                                                                                                                                                                                &
+         &                      *Pi                                                                                                                                                                                                                                                 &
+         &                      /wavenumberScaleFree                                                                                                                                                                                                                                &
+         &                      *(                                                                                                                                                                                                                                                  &
+         &                        +                     exp(+                    wavenumberScaleFree)*(dcmplx(0.0d0,-1.0d0)*Pi-Exponential_Integral(-                    wavenumberScaleFree)+Exponential_Integral(dcmplx(-1.0d0,      +radiusOuterScaleFree)*wavenumberScaleFree)) &
+         &                        +dcmplx(1.0d0,-1.0d0)*exp(-dcmplx(0.0d0,1.0d0)*wavenumberScaleFree)*(                       +Exponential_Integral(+dcmplx(0.0d0,1.0d0)*wavenumberScaleFree)-Exponential_Integral(dcmplx(+0.0d0,+1.0d0+radiusOuterScaleFree)*wavenumberScaleFree)) &
+         &                        +dcmplx(0.0d0,+1.0d0)*exp(-                    wavenumberScaleFree)*(                       +Exponential_Integral(+                    wavenumberScaleFree)-Exponential_Integral(dcmplx(+1.0d0,      +radiusOuterScaleFree)*wavenumberScaleFree)) &
+         &                       )                                                                                                                                                                                                                                                  &
+         &                     )                                                                                                                                                                                                                                                    &
+         &               /massEnclosedScaleFree(radiusOuterScaleFree)
+    return
+  end function burkertFourierTransform
+  
+  double precision function burkertRadiusFreefall(self,time) result(radius)
+    !!{RST
+    Compute the freefall radius at the given ``time`` in an Burkert mass distribution.
+    !!}
+    use :: Numerical_Constants_Astronomical, only : MpcPerKmPerSToGyr, gravitationalConstant_internal
+    implicit none
+    class           (massDistributionBurkert), intent(inout) :: self
+    double precision                         , intent(in   ) :: time
+    double precision                                         :: timeScaleFree, timeScale
+    
+    timeScale    =+1.0d0/sqrt(                                &
+         &                    +gravitationalConstant_internal &
+         &                    *self%densityNormalization      &
+         &                   )                                &
+         &        *MpcPerKmPerSToGyr
+    timeScaleFree=+time                                       &
+         &        /timeScale
+    if (timeScaleFree <= timeFreefallScaleFreeMinimum) then
+       radius=0.0d0
+       return
+    end if
+    call self%timeFreefallTabulate(timeScaleFree)
+    radius=+self%timeFreefallScaleFree_%invert(timeScaleFree) &
+         & *self%scaleLength
+    return   
+  end function burkertRadiusFreefall
+  
+  double precision function burkertRadiusFreefallIncreaseRate(self,time) result(radiusIncreaseRate)
+    !!{RST
+    Compute the rate of increase of the freefall radius at the given ``time`` in an burkert mass distribution.
+    !!}
+    use :: Numerical_Constants_Astronomical, only : MpcPerKmPerSToGyr, gravitationalConstant_internal
+    implicit none
+    class           (massDistributionBurkert), intent(inout) :: self
+    double precision                         , intent(in   ) :: time
+    double precision                                         :: timeScaleFree, timeScale
+
+    timeScale    =+1.0d0/sqrt(                                &
+         &                    +gravitationalConstant_internal &
+         &                    *self%densityNormalization      &
+         &                   )                                &
+         &        *MpcPerKmPerSToGyr
+    timeScaleFree=+time                                       &
+         &        /timeScale
+    if (timeScaleFree <= timeFreefallScaleFreeMinimum) then
+       radiusIncreaseRate=0.0d0
+       return
+    end if
+    call self%timeFreefallTabulate(timeScaleFree)
+    radiusIncreaseRate=+self%timeFreefallScaleFree_%derivative(timeScaleFree) &
+         &             *self%scaleLength                                      &
+         &             /     timeScale
+    return
+  end function burkertRadiusFreefallIncreaseRate
+  
+  subroutine burkertTimeFreefallTabulate(self,timeScaleFree)
+    !!{RST
+    Tabulate the freefall radius at the given ``time`` in an Burkert mass distribution.
+    !!}
+    use :: Mass_Distributions_Spherical_Utilities, only : Mass_Distribution_Time_Freefall_Tabulate
+    implicit none
+    class           (massDistributionBurkert), intent(inout) :: self
+    double precision                         , intent(in   ) :: timeScaleFree
+
+    call Mass_Distribution_Time_Freefall_Tabulate(self%timeFreefallScaleFree_,timeScaleFree,potentialDifferenceScaleFree,toleranceRelative=1.0d-6)
+    return
+  end subroutine burkertTimeFreefallTabulate
+
+  double precision function burkertEnergyPotential(self,radiusOuter) result(energy)
+    !!{RST
+    Compute the potential energy within a given ``radius`` in a Burkert mass distribution. This is
+
+    .. math::
+
+       W &=& \frac{1}{24} \pi ^2 \left(48 \mathrm{G}G + 48 i \text{Li}_2\left(\left(\frac{1}{2}+\frac{i}{2}\right) (x+1)\right)-48 i \text{Li}_2\left(\left(\frac{1}{2}-\frac{i}{2}\right) (x+1)\right)+48 i \text{Li}_2\left(\frac{i+x}{-i+x}\right)-96 \text{Li}_2\left(\left(-\frac{1}{2}+\frac{i}{2}\right) (-i+x)\right)-96 \text{Li}_2\left(\left(-\frac{1}{2}-\frac{i}{2}\right) (i+x)\right)-48 i \text{Li}_2\left(i \exp(2 i \tan ^{-1}(x))\right)+12 \left(\log ^2\left(x^2+1\right)+4 \log (x) \log \left(x^2+1\right)-4 \log (x+1) \log \left(x^2+1\right)+(2+4 i) \pi  \log \left(x^2+1\right)+\tan ^{-1}(x) \left(4 \log \left(x^2+1\right)+8 \log \left(-\frac{2 i}{x-i}\right)+8 \log \left(1-i \exp(2 i \tan ^{-1}(x))\right)+2 i \pi \right)-4 \log ^2(x+1)-4 \log (x-i) \log ((1-i) (x+1))-4 \log (x+i) \log ((1+i) (x+1))+\log (64) \log (x-i)-4 \log (x) \log (x-i)+4 \log (x+1) \log (x-i)-3 i \pi  \log (x-i)+\log (64) \log (x+i)-4 \log (x) \log (x+i)+4 \log (x+1) \log (x+i)-5 i \pi  \log (x+i)+4 i \log (x+1) \log ((-1-i) (x+i))-4 \tan ^{-1}(x)^2+4 \pi  \log \left(1+\exp(-2 i \tan ^{-1}(x))\right)+2 \pi  \log \left(1-i \exp(2 i \tan ^{-1}(x))\right)-2 \pi  \log \left(\sin \left(\tan ^{-1}(x)+\frac{\pi }{4}\right)\right)-\log (2) (7 \pi +\log (4))\right)-48 i \log ((1+i)-(1-i) x) \log (x+1)-\pi ^2 (14-9 i)\right)
+
+    where :math:`x=r/r_\mathrm{s}` and :math:`\mathrm{G}` is Catalan's constant.
+    !!}
+    use :: Numerical_Constants_Astronomical, only : gravitationalConstant_internal
+    use :: Numerical_Constants_Math        , only : Pi                            , catalan
+    use :: Dilogarithms                    , only : Dilogarithm
+    implicit none
+    class           (massDistributionBurkert), intent(inout) :: self
+    double precision                         , intent(in   ) :: radiusOuter
+    double precision                                         :: radiusOuterScaleFree
+    
+    radiusOuterScaleFree=+     radiusOuter                                                                                                                                                                                         &
+         &               /self%scaleLength
+    energy              =real(                                                                                                                                                                                                     &
+         &                    -gravitationalConstant_internal                                                                                                                                                                      &
+         &                    *self%scaleLength               **5                                                                                                                                                                  &
+         &                    *self%densityNormalization      **2                                                                                                                                                                  &
+         &                    *(                                                                                                                                                                                                   &
+         &                      +Pi**2                                                                                                                                                                                             &
+         &                      *(                                                                                                                                                                                                 &
+         &                        +       48.0d0         *catalan                                                                                                                                                                  &
+         &                        -dcmplx(14.0d0,- 9.0d0)*Pi**2                                                                                                                                                                    &
+         &                        -dcmplx( 0.0d0,+48.0d0)*log(dcmplx(1.0d0,1.0d0)-dcmplx(1.0d0,-1.0d0)*radiusOuterScaleFree)*log(1.0d0+radiusOuterScaleFree)                                                                       &
+         &                        +12.0d0                                                                                                                                                                                          &
+         &                        *(                                                                                                                                                                                               &
+         &                          -4.0d0*atan(radiusOuterScaleFree)**2                                                                                                                                                           &
+         &                          - log(2.0d0)*(7.0d0*Pi + log(4.0d0))                                                                                                                                                           &
+         &                          +4.0d0*Pi*log(1.0d0+                    exp(-2.0d0*dcmplx(0.0d0,1.0d0)*atan(radiusOuterScaleFree)))                                                                                            &
+         &                          +2.0d0*Pi*log(1.0d0-dcmplx(0.0d0,1.0d0)*exp(+2.0d0*dcmplx(0.0d0,1.0d0)*atan(radiusOuterScaleFree)))                                                                                            &
+         &                          - dcmplx(0.0d0,3.0d0)*Pi*log(dcmplx(0.0d0,-1.0d0) +radiusOuterScaleFree)                                                                                                                       &
+         &                          +log   (64.0d0      )   *log(dcmplx(+0.0d0,-1.0d0)+radiusOuterScaleFree)-log(dcmplx(+0.0d0,-1.0d0)       +radiusOuterScaleFree) *       4.0d0          *log(      radiusOuterScaleFree   )     &
+         &                          -dcmplx( 0.0d0,5.0d0)*Pi*log(dcmplx(+0.0d0,+1.0d0)+radiusOuterScaleFree)                                                                                                                       &
+         &                          +log   (64.0d0      )   *log(dcmplx(+0.0d0,+1.0d0)+radiusOuterScaleFree)                                                                                                                       &
+         &                          -              4.0d0     *log(                     +radiusOuterScaleFree)*log(dcmplx(+0.0d0,+1.0d0)       +radiusOuterScaleFree) +       4.0d0                                                 &
+         &                                                                                                   *log(dcmplx(+0.0d0,-1.0d0)       +radiusOuterScaleFree)                        *log(1.0d0+radiusOuterScaleFree   )    &
+         &                          +dcmplx( 0.0d0,4.0d0)    *log(dcmplx(-1.0d0,-1.0d0)                      *   (dcmplx(+0.0d0,+1.0d0)       +radiusOuterScaleFree))                       *log(1.0d0+radiusOuterScaleFree   )    &
+         &                          +              4.0d0     *log(dcmplx(+0.0d0,+1.0d0)+radiusOuterScaleFree)*log(                       1.0d0+radiusOuterScaleFree )-       4.0d0          *log(1.0d0+radiusOuterScaleFree   )**2 &
+         &                          -              4.0d0     *log(dcmplx(+0.0d0,-1.0d0)+radiusOuterScaleFree)*log(dcmplx(+1.0d0,-1.0d0)*(1.0d0+radiusOuterScaleFree))                                                              &
+         &                          -              4.0d0     *log(dcmplx(+0.0d0,+1.0d0)+radiusOuterScaleFree)*log(dcmplx(+1.0d0,+1.0d0)*(1.0d0+radiusOuterScaleFree))+dcmplx(2.0d0,4.0d0)*Pi*log(1.0d0+radiusOuterScaleFree**2)    &
+         &                          +              4.0d0     *log(                      radiusOuterScaleFree)                                                                               *log(1.0d0+radiusOuterScaleFree**2)    &
+         &                          -              4.0d0     *log(       +1.0d0        +radiusOuterScaleFree)                                                                               *log(1.0d0+radiusOuterScaleFree**2)    &
+         &                          +                                                                                                                                                        log(1.0d0+radiusOuterScaleFree**2)**2 &
+         &                          +                                                                                          atan(radiusOuterScaleFree)                                                                          &
+         &                          *(dcmplx(0.0d0,2.0d0)*Pi + 8.0d0*log(1 - dcmplx(0.0d0,1.0d0)*exp(2.0d0*dcmplx(0.0d0,1.0d0)*atan(radiusOuterScaleFree)))                                                                        &
+         &                          +8.0d0*log(dcmplx(0.0d0,-2.0d0)/(dcmplx(0.0d0,-1.0d0)+radiusOuterScaleFree   ))                                                                                                                &
+         &                          +4.0d0*log(       1.0d0                             +radiusOuterScaleFree**2))                                                                                                                 &
+         &                          -2.0d0*Pi*log(sin(Pi/4.0d0+atan(radiusOuterScaleFree)))                                                                                                                                        &
+         &                         )                                                                                                                                                                                               &
+         &                        -dcmplx(0.0d0,48.0d0)*Dilogarithm(dcmplx(0.0d0,1.0d0)*exp(2.0d0*dcmplx(0.0d0,1.0d0)*atan(radiusOuterScaleFree)))                                                                                 &
+         &                        -             96.0d0 *Dilogarithm( dcmplx(-0.5d0,+0.5d0)                      *(dcmplx(0.0d0,-1.0d0)+radiusOuterScaleFree))                                                                      &
+         &                        -             96.0d0 *Dilogarithm( dcmplx(-0.5d0,-0.5d0)                      *(dcmplx(0.0d0,+1.0d0)+radiusOuterScaleFree))                                                                      &
+         &                        +dcmplx(0.0d0,48.0d0)*Dilogarithm((dcmplx(+0.0d0,+1.0d0)+radiusOuterScaleFree)/(dcmplx(0.0d0,-1.0d0)+radiusOuterScaleFree))                                                                      &
+         &                        -dcmplx(0.0d0,48.0d0)*Dilogarithm( dcmplx(+0.5d0,-0.5d0)                      *(             +1.0d0 +radiusOuterScaleFree))                                                                      &
+         &                        +dcmplx(0.0d0,48.0d0)*Dilogarithm( dcmplx(+0.5d0,+0.5d0)                      *(             +1.0d0 +radiusOuterScaleFree))                                                                      &
+         &                       )                                                                                                                                                                                                 &
+         &                     )                                                                                                                                                                                                   &
+         &                    /24.d0                                                                                                                                                                                               &
+         &                   )
+         return
+  end function burkertEnergyPotential
+  
+  subroutine burkertDescriptor(self,descriptor,includeClass,includeFileModificationTimes,parameterName)
+    !!{RST
+    Return an input parameter list descriptor which could be used to recreate this object.
+    !!}
+    use :: Input_Parameters, only : inputParameters, descriptorParameterName
+    implicit none
+    class    (massDistributionBurkert), intent(inout)           :: self
+    type     (inputParameters        ), intent(inout)           :: descriptor
+    logical                           , intent(in   ), optional :: includeClass  , includeFileModificationTimes
+    character(len=*                  ), intent(in   ), optional :: parameterName
+    character(len=18                 )                          :: parameterLabel
+    type     (inputParameters        )                          :: parameters
+
+    if (.not.present(includeClass).or.includeClass) call descriptor%addParameter(descriptorParameterName('massDistribution',parameterName),'Burkert')
+    parameters=descriptor%subparameters(descriptorParameterName('massDistribution',parameterName))
+    write (parameterLabel,'(e17.10)') self%densityNormalization
+    call parameters%addParameter('densityNormalization',trim(adjustl(parameterLabel)))
+    write (parameterLabel,'(e17.10)') self%scaleLength
+    call parameters%addParameter('scaleLength'         ,trim(adjustl(parameterLabel)))
+    return
+  end subroutine burkertDescriptor
+

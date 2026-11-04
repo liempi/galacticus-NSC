@@ -1,0 +1,186 @@
+#!/usr/bin/env python3
+import subprocess
+import sys
+import re
+import h5py
+import numpy as np
+
+# Run models that test reproducibility.
+# Andrew Benson (ported to Python)
+
+# Make output directory.
+subprocess.run("mkdir -p outputs/reproducibility", shell=True)
+
+# Define constants.
+gravitationalConstant = 4.3011827419096073e-9
+
+# Define tests.
+tests = [
+    {
+        "name":           "cooling",
+        "parameters":     "testSuite/parameters/reproducibility/cooling.xml",
+        "outputFileName": "testSuite/outputs/reproducibility/cooling.hdf5",
+        "assertions": [
+            {
+                "name":              "hot halo mass",
+                # Updated when the cosmology function tabulations were pinned to an absolute lattice (#1317). That moved the
+                # abscissae of the expansion factor tabulation, and placed the initial condition of the ordinary differential
+                # equation it solves at a fixed, earlier epoch at which the analytic approximation used for that condition is
+                # more accurate. Both shift interpolated cosmological quantities at the level of their own interpolation error;
+                # this value moved by 6.5 parts per million, just past the 4 part per million tolerance below. That is the
+                # one-time shift anticipated by the issue - the tabulations are deterministic from here on.
+                #
+                # Updated again when the halo mean density tabulation of darkMatterHaloScaleVirialDensityContrastDefinition was
+                # pinned (#1375). That table is interpolated linearly in the logarithm of time at a hundred points per decade, so
+                # it carries an error against the exact density contrast of order one part in ten thousand; moving its abscissae
+                # changes only where in that error a given requested time falls. Measured here, the interpolated mean density went
+                # from 23 parts per million below the exact value to 98 parts per million above it. The virial radius follows the
+                # inverse cube root of that density and moved by 41 parts per million, and this value by 18 parts per million.
+                #
+                # Updated again when the helium mass fraction was allowed to increase with metallicity (#1496). Previously
+                # `Abundances_Helium_Mass_Fraction` clamped its result from above at the primordial value, so helium never
+                # tracked metallicity at all. The hot halo in this model sits at 1.005 times the Solar metallicity, where the
+                # helium mass fraction consequently rises from 0.2486 to 0.2741. The `simple` cooling time is proportional to the
+                # total particle number density at fixed hydrogen density - that is, to the reciprocal of the hydrogen number
+                # fraction - which rises by 0.84%, so the gas cools more slowly, the cooling radius is smaller, and more mass
+                # remains hot. Measured here, this value moved by 425 parts per million. Reverting that one change reproduces the
+                # previous value bit for bit, so it is the sole cause of the shift.
+                "output":            1,
+                "property":          "hotHaloMass",
+                "values":            np.array([8.001306768315475e10]),
+                "toleranceRelative": 4.0e-6,
+            }
+        ],
+    },
+    {
+        "name":           "closedBox",
+        "parameters":     "testSuite/parameters/reproducibility/closedBox.xml",
+        "outputFileName": "testSuite/outputs/reproducibility/closedBox.hdf5",
+        "assertions": [
+            {"name": "gas mass",        "output": 1, "property": "diskMassGas",                 "values": np.array([9.0717953e9]),   "toleranceRelative": 1.0e-2},
+            {"name": "stellar mass",    "output": 1, "property": "diskMassStellar",              "values": np.array([9.0928205e10]), "toleranceRelative": 1.0e-2},
+            {"name": "gas metals",      "output": 1, "property": "diskAbundancesGasMetals",      "values": np.array([9.0717953e8]),  "toleranceRelative": 1.0e-2},
+            {"name": "stellar metals",  "output": 1, "property": "diskAbundancesStellarMetals",  "values": np.array([2.8814957e9]),  "toleranceRelative": 1.0e-2},
+        ],
+    },
+    {
+        "name":           "leakyBox",
+        "parameters":     "testSuite/parameters/reproducibility/leakyBox.xml",
+        "outputFileName": "testSuite/outputs/reproducibility/leakyBox.hdf5",
+        "assertions": [
+            {"name": "gas mass",       "output": 1, "property": "diskMassGas",                 "values": np.array([4.0762204e9]),   "toleranceRelative": 1.1e-2},
+            {"name": "stellar mass",   "output": 1, "property": "diskMassStellar",              "values": np.array([3.5971417e10]), "toleranceRelative": 1.0e-2},
+            {"name": "gas metals",     "output": 1, "property": "diskAbundancesGasMetals",      "values": np.array([2.03811e8]),    "toleranceRelative": 1.0e-2},
+            {"name": "stellar metals", "output": 1, "property": "diskAbundancesStellarMetals",  "values": np.array([4.85624e8]),    "toleranceRelative": 1.0e-2},
+        ],
+    },
+    {
+        "name":           "adiabaticContraction",
+        "parameters":     "testSuite/parameters/reproducibility/adiabaticContraction.xml",
+        "outputFileName": "testSuite/outputs/reproducibility/adiabaticContraction.hdf5",
+        "assertions": [
+            {
+                "name":              "spheroid radius",
+                "output":            1,
+                "property":          "spheroidRadius",
+                "values":            np.array([0.00360702918954165]),
+                "toleranceRelative": 2.0e-4,
+            },
+            {
+                "name":       "spheroid angular momentum",
+                "output":     1,
+                "expression": "(%[spheroidRadius]*%[spheroidVelocity]*%[spheroidMassStellar])/%[spheroidAngularMomentum]",
+                "values":     np.array([0.5]),
+                "toleranceRelative": 2.0e-4,
+            },
+            {
+                "name":       "rotation curve",
+                "output":     1,
+                "expression": "%[rotationCurve{0}]/%[spheroidVelocity]",
+                "values":     np.array([1.0]),
+                "toleranceRelative": 2.0e-4,
+            },
+            {
+                "name":       "initial specific angular momentum",
+                "output":     1,
+                "expression": (
+                    "+np.sqrt(0.84333333)"
+                    "*%[darkMatterOnlyVelocityVirial]"
+                    "/%[spheroidVelocity]"
+                    "*("
+                    "  +%[darkMatterOnlyRadiusVirial]"
+                    "  *("
+                    "    +%[rotationCurve{1}]**2"
+                    "    *%[spheroidRadius]"
+                    "    /gravitationalConstant"
+                    "    /0.83333333"
+                    "   )"
+                    "  /%[basicMass]"
+                    " )"
+                    "/%[spheroidRadius]"
+                ),
+                "values":     np.array([1.0]),
+                "toleranceRelative": 3.0e-3,
+            },
+        ],
+    },
+]
+
+
+def evaluate_expression(expression, nodeData, gravitationalConstant):
+    """Evaluate an expression with %[propertyName] and %[propertyName{index}] substitutions."""
+    # Find all property references.
+    propertyNames = set()
+    for m in re.finditer(r'%\[([a-zA-Z0-9_]+)(?:\{(\d+)\})?\]', expression):
+        propertyNames.add(m.group(1))
+
+    # Load all needed properties.
+    properties = {}
+    for name in propertyNames:
+        properties[name] = nodeData[name][:]
+
+    # Build the substituted expression.
+    expr = expression
+    # Replace indexed references first (more specific pattern).
+    expr = re.sub(
+        r'%\[([a-zA-Z0-9_]+)\{(\d+)\}\]',
+        lambda m: f"properties['{m.group(1)}'][:,{m.group(2)}]",
+        expr
+    )
+    # Replace plain references.
+    expr = re.sub(
+        r'%\[([a-zA-Z0-9_]+)\]',
+        lambda m: f"properties['{m.group(1)}']",
+        expr
+    )
+    return eval(expr)
+
+
+# Run tests.
+for test in tests:
+    print(f"Running test \"{test['name']}\": Galacticus.exe {test['parameters']}")
+    status = subprocess.run(f"cd ..; ./Galacticus.exe {test['parameters']}", shell=True)
+    if status.returncode == 0:
+        with h5py.File(f"../{test['outputFileName']}", "r") as model:
+            outputs = model["Outputs"]
+            for assertion in test["assertions"]:
+                output   = outputs[f"Output{assertion['output']}"]
+                nodeData = output["nodeData"]
+                if "property" in assertion:
+                    values = nodeData[assertion["property"]][:]
+                elif "expression" in assertion:
+                    values = evaluate_expression(assertion["expression"], nodeData, gravitationalConstant)
+                else:
+                    print(f"FAILED: assertion '{assertion['name']}' of reproducibility test '{test['name']}' gives no property or expression to test")
+                    sys.exit(0)
+
+                difference   = np.abs(values - assertion["values"])
+                allowedError = assertion["toleranceRelative"] * np.abs(values)
+                if np.all(difference < allowedError):
+                    print(f"SUCCESS: assertion '{assertion['name']}' of reproducibility test '{test['name']}' passed")
+                else:
+                    print(f"FAILED: assertion '{assertion['name']}' of reproducibility test '{test['name']}' failed")
+                    for i in range(len(difference)):
+                        print(f"\t{values[i]}\t{assertion['values'][i]}\t{difference[i]}\t{allowedError[i]}")
+    else:
+        print(f"FAILED: reproducibility test '{test['name']}' model failed to run")

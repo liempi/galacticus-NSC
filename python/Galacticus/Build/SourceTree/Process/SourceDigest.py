@@ -1,0 +1,559 @@
+"""Processes `sourceDigest` directives: emits a C-interop character array
+declaration bound to the per-build-target MD5 hash symbol (computed by
+the `find_hash` chain in this module), plus the matching
+`use :: ISO_C_Binding, only : C_Char` import.
+
+Also provides `find_hash`, `hash_data_files`, `modification_time`, and
+`update_modification_time` — the Makefile-side helpers used by
+scripts/build/sourceDigests.* to compute per-file and composite MD5
+digests.
+
+Andrew Benson (ported to Python 2026)
+"""
+
+import base64
+import fcntl
+import hashlib
+import logging
+import os
+import re
+
+
+from Galacticus.Build.FortranUtils                            import (
+    get_matching_lines, read_file,
+)
+from Galacticus.Build.SourceTree                    import walk_tree
+from Galacticus.Build.SourceTree.Process            import register_process
+from Galacticus.Build.SourceTree.Parse.Declarations import add_declarations
+from Galacticus.Build.SourceTree.Parse.ModuleUses   import add_uses
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Shared state: per-file digests, composite digests, and mtime caches.
+# ---------------------------------------------------------------------------
+
+_digests            = {}
+_composite_digests  = {}
+_modification_times = {}
+_source_existence   = {}
+
+
+def process_source_digests(tree, options):
+    """Process `sourceDigest` directives in the tree."""
+    for node in walk_tree(tree):
+        if node.get('type') != 'sourceDigest':
+            continue
+        directive = node.setdefault('directive', {})
+        if directive.get('processed'):
+            continue
+        directive['processed'] = True
+
+        name = directive['name']
+        add_declarations(node['parent'], [{
+            'intrinsic':     'character',
+            'type':          'C_Char',
+            'openMP':        False,
+            'attributes':    [
+                'dimension(23)',
+                f'bind(C, name="{name}MD5")',
+            ],
+            'variables':     [name],
+            'variableNames': [name],
+        }])
+        add_uses(node['parent'], {
+            'moduleUse': {
+                'ISO_C_Binding': {
+                    'intrinsic': True,
+                    'only':      {'C_Char': True},
+                },
+            },
+            'moduleOrder': ['ISO_C_Binding'],
+        })
+
+
+register_process('sourceDigests', process_source_digests)
+
+
+# ---------------------------------------------------------------------------
+# Hash-computation helpers (find_hash / hash_data_files / modification_time /
+# update_modification_time).
+# ---------------------------------------------------------------------------
+
+def _b64digest(hasher):
+    """Return the 22-character base64 form of `hasher`, with no trailing '='
+    padding.  Existing `.md5` caches depend on this exact format.
+    """
+    return base64.b64encode(hasher.digest()).rstrip(b'=').decode('ascii')
+
+
+def _source_exists(file_name):
+    """Return whether the source file `file_name` exists, caching repeated lookups.
+
+    `find_hash` probes five suffixes for every object in every dependency
+    list, so the same few thousand paths are tested millions of times in a
+    cold run.  Source files are not created or removed while it runs.
+    """
+    if file_name not in _source_existence:
+        _source_existence[file_name] = os.path.exists(file_name)
+    return _source_existence[file_name]
+
+
+def modification_time(file_name):
+    """Return the mtime of `file_name`, caching repeated lookups.
+
+    Missing files are quietly cached as `None`.
+    """
+    if file_name not in _modification_times:
+        try:
+            _modification_times[file_name] = os.stat(file_name).st_mtime
+        except FileNotFoundError:
+            _modification_times[file_name] = None
+    return _modification_times[file_name]
+
+
+def update_modification_time(file_name):
+    """Overwrite the cached mtime of `file_name` with the current on-disk
+    value, or `None` if the path does not exist.
+    """
+    try:
+        _modification_times[file_name] = os.stat(file_name).st_mtime
+    except FileNotFoundError:
+        _modification_times[file_name] = None
+
+
+def hash_data_files(hasher, files):
+    """Feed the bytes of each data file (found under `$GALACTICUS_DATA_PATH`)
+    into `hasher`, skipping any that don't exist.
+    """
+    data_root = os.environ.get('GALACTICUS_DATA_PATH', '')
+    for leaf in files:
+        data_file = os.path.join(data_root, leaf)
+        if os.path.exists(data_file):
+            with open(data_file, 'rb') as fh:
+                hasher.update(fh.read())
+
+
+_DATA_FILE_RE = re.compile(
+    r'[\"\'](data/[a-zA-Z0-9_\.\-/]+\.(xml|hdf5))[\"\']'
+)
+_STATIC_DATA_RE = re.compile(
+    r'(char\s*\()??\s*galacticusPath\s*'
+    r'\(\s*pathTypeDataStatic\s*\)\s*\)??\/\/\]\s*'
+    r'[\"\']([a-zA-Z0-9_\.\-/]+\.(xml|hdf5))[\"\']'
+)
+
+
+# ---------------------------------------------------------------------------
+# componentBuilder digest coverage
+#
+# The node-component class hierarchy is synthesized from the `<component>`
+# directive files (and their bound-functions sources) by the component
+# generator and grafted into `objects/nodes/_class.p.F90` at preprocess time
+# (Galacticus.Build.SourceTree.Process.ComponentBuilder).  Because the retired
+# `include 'objects.nodes.components.inc'` line no longer exists for
+# `read_file` to follow, `_class.F90`'s digest would otherwise NOT change when a
+# component definition, a bound-functions source, or the generator itself
+# changes — which would let a now-incompatible state file be silently accepted.
+# We therefore fold those inputs into `_class.F90`'s per-file digest (issue #32,
+# digest option 1 plus the generator-source mitigation).
+# ---------------------------------------------------------------------------
+
+_COMPONENT_DIGEST_MAP = None
+
+
+def _component_digest_map():
+    """Return `{componentBuilder-source-path: [extra files ...]}`, cached.
+
+    The key is the componentBuilder-bearing source file as `find_hash` names it
+    (`source/…`); the value lists every file whose content should be folded into
+    that file's digest: the `<component>` directive files, their bound-functions
+    sources, and the component generator's Python modules (excluding the
+    generators' own unit tests).
+    """
+    global _COMPONENT_DIGEST_MAP
+    if _COMPONENT_DIGEST_MAP is not None:
+        return _COMPONENT_DIGEST_MAP
+
+    result = {}
+    build_path     = os.environ.get('BUILDPATH')
+    locations_path = (
+        os.path.join(build_path, 'directiveLocations.xml') if build_path else None
+    )
+    if not (locations_path and os.path.exists(locations_path)):
+        _COMPONENT_DIGEST_MAP = result
+        return result
+
+    from Galacticus.Build            import Catalogs
+    from List.ExtraUtils             import as_array
+    from Galacticus.Build.Directives import extract_directives
+
+    locations     = Catalogs.load(locations_path)
+    builder_files = list(as_array(
+        (locations.get('componentBuilder') or {}).get('file')))
+    if not builder_files:
+        _COMPONENT_DIGEST_MAP = result
+        return result
+
+    exec_path       = os.environ.get('GALACTICUS_EXEC_PATH', '.')
+    component_files = list(as_array(
+        (locations.get('component') or {}).get('file')))
+
+    extras = list(component_files)
+    for component_file in component_files:
+        for directive in extract_directives(component_file, 'component'):
+            functions = directive.get('functions')
+            if functions:
+                # `<functions>` names the (cpp-processed) `.inc`; the hand-written
+                # source is the `.Inc` under `source/`.
+                extras.append(os.path.join(
+                    exec_path, 'source',
+                    re.sub(r'\.inc$', '.Inc', functions),
+                ))
+    generator_root = os.path.join(
+        exec_path, 'python', 'Galacticus', 'Build', 'Components',
+    )
+    for root, _, files in os.walk(generator_root):
+        parts = root.split(os.sep)
+        if '__pycache__' in parts or 'tests' in parts:
+            continue
+        extras.extend(
+            os.path.join(root, name) for name in files if name.endswith('.py')
+        )
+    extras = sorted(set(extras))
+
+    for builder_file in builder_files:
+        key = re.sub(r'^.*/source/', 'source/', builder_file)
+        result[key] = extras
+    _COMPONENT_DIGEST_MAP = result
+    return result
+
+
+def _component_digest_extras(source_file_name):
+    """Extra files folded into `source_file_name`'s digest (empty for any file
+    that does not carry the componentBuilder directive)."""
+    return _component_digest_map().get(source_file_name, ())
+
+
+def _component_extras_fresh(md5_file_name, source_file_name):
+    """False when any componentBuilder extra file is newer than `md5_file_name`
+    (so the stored digest must be recomputed); True otherwise."""
+    md5_time = modification_time(md5_file_name)
+    if md5_time is None:
+        return True
+    for extra in _component_digest_extras(source_file_name):
+        extra_time = modification_time(extra)
+        if extra_time is not None and md5_time <= extra_time:
+            return False
+    return True
+
+
+def _hash_component_extras(hasher, source_file_name):
+    """Fold the raw bytes of every componentBuilder extra file into `hasher`."""
+    for extra in _component_digest_extras(source_file_name):
+        try:
+            with open(extra, 'rb') as fh:
+                hasher.update(fh.read())
+        except OSError:
+            pass
+
+
+def ensure_file_digest(source_file_name, suffix, build_path, *, use_locks,
+                       include_files_excluded, report=False):
+    """Return the per-file MD5 digest of `source_file_name`, reading its
+    `.md5` sidecar when fresh or computing (and writing) it otherwise, and
+    caching the result in the module-level `_digests`.
+
+    Extracted verbatim from the inner loop of `find_hash` so that the
+    per-file digests — which are shared across every type's composite and
+    dominate a cold run's cost — can be pre-computed in parallel: each
+    source file has exactly ONE writer per build, so no intra-run lock is
+    needed. The `flock` (taken when `use_locks`) still serializes concurrent
+    *external* builds sharing a build directory, exactly as before.
+    """
+    if source_file_name in _digests:
+        return _digests[source_file_name]
+
+    stripped = re.sub(r'^source', '', source_file_name)
+    md5_file_name = build_path + stripped + '.md5'
+    md5_lock = open(md5_file_name + '.lock', 'w')
+    try:
+        if use_locks:
+            fcntl.flock(md5_lock, fcntl.LOCK_EX)
+        use_stored = False
+        if (os.path.exists(md5_file_name)
+                and modification_time(md5_file_name)
+                    > modification_time(source_file_name)):
+            use_stored = True
+            if suffix in ('F90', 'Inc'):
+                for match in get_matching_lines(source_file_name,
+                                                _DATA_FILE_RE):
+                    data_file_name = match['submatches'][0]
+                    if not (
+                        os.path.exists(md5_file_name)
+                        and modification_time(md5_file_name)
+                            > modification_time(data_file_name)
+                    ):
+                        use_stored = False
+            # A componentBuilder file also depends on the component directive
+            # files, their bound-functions sources, and the generator sources.
+            if not _component_extras_fresh(md5_file_name, source_file_name):
+                use_stored = False
+        if use_stored:
+            with open(md5_file_name) as md5_fh:
+                digest = md5_fh.readline()
+            if digest:
+                _digests[source_file_name] = digest
+                if report:
+                    logger.info(
+                        f"   => Reading stored hash: "
+                        f"{source_file_name}\t{_digests[source_file_name]}"
+                    )
+            else:
+                use_stored = False
+        if not use_stored:
+            if report:
+                logger.info("   => Computing hash")
+            file_hasher = hashlib.md5()
+            if suffix in ('F90', 'Inc'):
+                text = read_file(
+                    source_file_name,
+                    state='raw',
+                    follow_includes=True,
+                    include_locations=['../source', '../' + build_path],
+                    include_files_excluded=include_files_excluded,
+                    strip_regex=re.compile(r'^\s*!(?!(!\[|\$)).*$'),
+                    strip_leading=True,
+                    strip_trailing=True,
+                    strip_empty=True,
+                )
+                file_hasher.update(text.encode('utf-8', errors='replace'))
+                extra_files = [
+                    m['submatches'][1]
+                    for m in get_matching_lines(source_file_name,
+                                                _STATIC_DATA_RE)
+                ]
+                hash_data_files(file_hasher, extra_files)
+                # For the componentBuilder file, fold in the component directive
+                # files, bound-functions sources, and generator sources (see
+                # `_component_digest_map`); a no-op for every other file.
+                _hash_component_extras(file_hasher, source_file_name)
+                if report:
+                    logger.info(
+                        f"    => Computed hash from: "
+                        f"{source_file_name} {{{', '.join(extra_files)}}}"
+                    )
+            else:
+                with open(source_file_name, 'rb') as raw_fh:
+                    file_hasher.update(raw_fh.read())
+                if report:
+                    logger.info(
+                        f"    => Computed hash from: "
+                        f"{source_file_name} {{RAW}}"
+                    )
+            _digests[source_file_name] = _b64digest(file_hasher)
+            with open(md5_file_name, 'w') as md5_fh:
+                md5_fh.write(_digests[source_file_name])
+            update_modification_time(md5_file_name)
+            if report:
+                logger.info(
+                    f"   => Stored hash: {source_file_name}\t"
+                    f"{_digests[source_file_name]}"
+                )
+    finally:
+        md5_lock.close()
+
+    return _digests.get(source_file_name)
+
+
+def find_hash(file_names, *, use_locks=True, include_files_excluded=None,
+              report=False):
+    """Compute a composite MD5 hash over `file_names` and all their Fortran
+    dependencies, using (and updating) persistent per-file `.md5` / `.md5c`
+    caches under `$BUILDPATH`.
+
+    Parameters
+    ----------
+    file_names : list of str
+        The roots whose composite hash is sought (paths relative to the
+        `source/` directory, e.g. `"objects/function_class.F90"` — the same
+        layout their sidecars have under `$BUILDPATH`).
+    use_locks : bool, default True
+        If True, take an exclusive flock on each `<file>.md5*.lock` sidecar
+        to serialize concurrent builds.
+    include_files_excluded : list of str or None
+        Names of `include` files that `read_file` should NOT follow.
+    report : bool, default False
+        If True, print verbose progress to stdout.
+
+    Returns
+    -------
+    str
+        The 22-character base64 MD5 digest over the union of composite
+        digests of the supplied `file_names`.
+    """
+    if include_files_excluded is None:
+        include_files_excluded = []
+
+    build_path = os.environ['BUILDPATH']
+
+    if report:
+        logger.info("=> Begin computing MD5 hash")
+
+    hasher = hashlib.md5()
+
+    for file_name in file_names:
+        if report:
+            logger.info(f" => Process file: {file_name}")
+
+        if file_name in _composite_digests:
+            hasher.update(_composite_digests[file_name].encode('ascii'))
+            if report:
+                logger.info(
+                    f"  => Use pre-existing composite hash: "
+                    f"{_composite_digests[file_name]}"
+                )
+            continue
+
+        # Compute / load composite digest for this file.
+        composite_hasher     = hashlib.md5()
+        hash_file_name       = re.sub(
+            r'\.F90$', '.md5c',
+            os.path.join(build_path, file_name),
+        )
+        dependency_file_name = re.sub(
+            r'\.F90$', '.d',
+            os.path.join(build_path, file_name),
+        )
+
+        if not os.path.exists(dependency_file_name):
+            continue
+
+        if report:
+            logger.info("  => Processing dependencies")
+
+        composite_lock = open(hash_file_name + '.lock', 'w')
+        try:
+            if use_locks:
+                fcntl.flock(composite_lock, fcntl.LOCK_EX)
+
+            use_stored_composite = os.path.exists(hash_file_name)
+
+            # First pass: decide whether the stored composite is still
+            # current against every source file it covers.
+            if use_stored_composite:
+                with open(dependency_file_name) as dep_fh:
+                    for object_file_name in dep_fh:
+                        object_file_name = object_file_name.rstrip('\n')
+                        source_prefix = re.sub(
+                            r'^' + re.escape(build_path) + r'/(.*)\.o$',
+                            r'source/\1',
+                            object_file_name,
+                        )
+                        if report:
+                            logger.info(f"   => Dependency file: {source_prefix}")
+                        for suffix in ('F90', 'c', 'h', 'Inc', 'cpp'):
+                            source_file_name = f"{source_prefix}.{suffix}"
+                            if not _source_exists(source_file_name):
+                                continue
+                            if report:
+                                logger.info(f"    => Dependency file: {source_file_name}")
+                            # Map the source path to its `.md5` sidecar: strip
+                            # the leading `source` prefix and prepend
+                            # $BUILDPATH.  This mapping must stay stable —
+                            # existing caches were written under it.
+                            stripped = re.sub(
+                                r'^source', '', source_file_name,
+                            )
+                            md5_file_name = build_path + stripped + '.md5'
+                            if source_file_name not in _digests:
+                                if not (
+                                    os.path.exists(md5_file_name)
+                                    and modification_time(hash_file_name)
+                                        > modification_time(md5_file_name)
+                                    and modification_time(md5_file_name)
+                                        > modification_time(source_file_name)
+                                    and _component_extras_fresh(
+                                        md5_file_name, source_file_name)
+                                ):
+                                    use_stored_composite = False
+                                if report:
+                                    if use_stored_composite:
+                                        logger.info(f"     => Can use stored hash: {source_file_name}")
+                                    else:
+                                        logger.info(f"     => Can not use stored hash: {source_file_name}")
+                            else:
+                                if not (
+                                    modification_time(hash_file_name)
+                                    > modification_time(md5_file_name)
+                                ):
+                                    use_stored_composite = False
+                                if report:
+                                    if use_stored_composite:
+                                        logger.info("     => Digest pre-exists")
+                                    else:
+                                        logger.info("     => Digest pre-exists but is outdated")
+
+            # If the composite is still current, read and use it.
+            if use_stored_composite:
+                with open(hash_file_name) as md5_fh:
+                    composite_digest = md5_fh.readline()
+                if composite_digest:
+                    _composite_digests[file_name] = composite_digest
+                    hasher.update(composite_digest.encode('ascii'))
+                    if report:
+                        logger.info(
+                            f"   => Reading stored composite hash:\t"
+                            f"{file_name}\t{hash_file_name}\t"
+                            f"{_composite_digests[file_name]}"
+                        )
+                else:
+                    use_stored_composite = False
+
+            # Otherwise, recompute the composite from scratch.
+            if not use_stored_composite:
+                if report:
+                    logger.info("   => Computing composite hash")
+                with open(dependency_file_name) as dep_fh:
+                    for object_file_name in dep_fh:
+                        object_file_name = object_file_name.rstrip('\n')
+                        source_prefix = re.sub(
+                            r'^' + re.escape(build_path) + r'/(.*)\.o$',
+                            r'source/\1',
+                            object_file_name,
+                        )
+                        for suffix in ('F90', 'c', 'h', 'Inc', 'cpp'):
+                            source_file_name = f"{source_prefix}.{suffix}"
+                            if not _source_exists(source_file_name):
+                                continue
+                            digest = ensure_file_digest(
+                                source_file_name, suffix, build_path,
+                                use_locks=use_locks,
+                                include_files_excluded=include_files_excluded,
+                                report=report,
+                            )
+                            if digest is not None:
+                                composite_hasher.update(digest.encode('ascii'))
+                            else:
+                                raise RuntimeError(
+                                    "find_hash: failed to build digest for "
+                                    f"'{source_file_name}'"
+                                )
+                _composite_digests[file_name] = _b64digest(composite_hasher)
+                hasher.update(_composite_digests[file_name].encode('ascii'))
+                with open(hash_file_name, 'w') as md5_fh:
+                    md5_fh.write(_composite_digests[file_name])
+                update_modification_time(file_name)
+                if report:
+                    logger.info(
+                        f"   => Composite hash stored\t{file_name}\t"
+                        f"{hash_file_name}\t{_composite_digests[file_name]}"
+                    )
+        finally:
+            composite_lock.close()
+
+    final_hash = _b64digest(hasher)
+    if report:
+        logger.info(f"=> MD5 hash: {final_hash}")
+    return final_hash

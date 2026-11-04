@@ -1,0 +1,126 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+!!{RST
+Implements a node branch tip index property extractor.
+!!}
+
+  !![
+  <nodePropertyExtractor name="nodePropertyExtractorIndexBranchTip" docformat="rst">
+   <description>
+   Extracts the stored index of the tip node (earliest progenitor) on the same merger tree branch as a given node. Enables identification of the branch origin and facilitates comparisons of progenitor properties along a given merger tree branch across cosmic time.
+   </description>
+  </nodePropertyExtractor>
+  !!]
+  type, extends(nodePropertyExtractorIntegerScalar) :: nodePropertyExtractorIndexBranchTip
+     !!{RST
+     A node branch tip index property extractor.
+     !!}
+     private
+     integer :: indexBranchTipID
+   contains
+     procedure :: extract     => indexBranchTipExtract
+     procedure :: name        => indexBranchTipName
+     procedure :: description => indexBranchTipDescription
+  end type nodePropertyExtractorIndexBranchTip
+
+  interface nodePropertyExtractorIndexBranchTip
+     !!{RST
+     Constructors for the :galacticus-class:`nodePropertyExtractorIndexBranchTip` property extractor class.
+     !!}
+     module procedure indexBranchTipConstructorParameters
+     module procedure indexBranchTipConstructorInternal
+  end interface nodePropertyExtractorIndexBranchTip
+
+contains
+
+  function indexBranchTipConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`nodePropertyExtractorIndexBranchTip` property extractor class which takes a parameter set as input.
+    !!}
+    use :: Input_Parameters, only : inputParameters
+    implicit none
+    type(nodePropertyExtractorIndexBranchTip)                :: self
+    type(inputParameters                    ), intent(inout) :: parameters
+
+    self=nodePropertyExtractorIndexBranchTip()
+    !![
+    <inputParametersValidate source="parameters"/>
+    !!]
+    return
+  end function indexBranchTipConstructorParameters
+
+  function indexBranchTipConstructorInternal() result(self)
+    !!{RST
+    Internal constructor for the :galacticus-class:`nodePropertyExtractorIndexBranchTip` property extractor class.
+    !!}
+    implicit none
+    type(nodePropertyExtractorIndexBranchTip) :: self
+
+    !![
+    <addMetaProperty component="basic" name="nodeIndexBranchTip" type="longInteger" id="self%indexBranchTipID" isCreator="no"/>
+    !!]
+    return
+  end function indexBranchTipConstructorInternal
+
+  function indexBranchTipExtract(self,node,time,instance)
+    !!{RST
+    Implement a ``indexBranchTip`` node property extractor.
+    !!}
+    use :: Galacticus_Nodes, only : nodeComponentBasic
+    implicit none
+    integer         (kind_int8                          )                          :: indexBranchTipExtract
+    class           (nodePropertyExtractorIndexBranchTip), intent(inout)           :: self
+    type            (treeNode                           ), intent(inout), target   :: node
+    double precision                                     , intent(in   )           :: time
+    type            (multiCounter                       ), intent(inout), optional :: instance
+    class           (nodeComponentBasic                 )               , pointer  :: basic
+    !$GLC attributes unused :: instance, time
+
+    basic                 => node %basic                          (                     )
+    indexBranchTipExtract =  basic%longIntegerRank0MetaPropertyGet(self%indexBranchTipID)
+    return
+  end function indexBranchTipExtract
+
+
+  function indexBranchTipName(self)
+    !!{RST
+    Return the name of the branch tip index property.
+    !!}
+    implicit none
+    type (varying_string                     )                :: indexBranchTipName
+    class(nodePropertyExtractorIndexBranchTip), intent(inout) :: self
+    !$GLC attributes unused :: self
+
+    indexBranchTipName=var_str('nodeIndexBranchTip')
+    return
+  end function indexBranchTipName
+
+  function indexBranchTipDescription(self)
+    !!{RST
+    Return a description of the branch tip index property.
+    !!}
+    implicit none
+    type (varying_string                     )                :: indexBranchTipDescription
+    class(nodePropertyExtractorIndexBranchTip), intent(inout) :: self
+    !$GLC attributes unused :: self
+
+    indexBranchTipDescription=var_str('Index of the node at the tip of this branch.')
+    return
+  end function indexBranchTipDescription

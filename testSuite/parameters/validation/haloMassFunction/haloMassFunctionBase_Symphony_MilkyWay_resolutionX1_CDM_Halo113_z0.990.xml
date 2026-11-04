@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<parameters>
+  <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
+  <formatVersion>2</formatVersion>
+
+  <!-- Output control -->
+  <outputFileName value="testSuite/outputs/validation/haloMassFunction/haloMassFunction_Symphony_MilkyWay_resolutionX1_CDM_Halo113_z0.990.hdf5"/>
+  <outputTimes value="list">
+    <redshifts value="0.990"/>
+  </outputTimes>  
+
+  <!-- Include cosmology and mass function parameters -->
+  <xi:include href="haloMassFunctionParameters.xml"                                                                       xpointer="xpointer(parameters/*)" xmlns:xi="http://www.w3.org/2001/XInclude"/>
+  <xi:include href="../../../../constraints/pipelines/darkMatter/simulation_Symphony_MilkyWay.xml"            xpointer="xpointer(parameters/*)" xmlns:xi="http://www.w3.org/2001/XInclude"/>
+  <xi:include href="../../../../constraints/pipelines/darkMatter/cosmology_Symphony.xml"                                           xpointer="xpointer(parameters/*)" xmlns:xi="http://www.w3.org/2001/XInclude"/>
+  <xi:include href="../../../../constraints/pipelines/darkMatter/powerSpectrumEffective_Symphony.xml"                              xpointer="xpointer(parameters/*)" xmlns:xi="http://www.w3.org/2001/XInclude"/>
+  <xi:include href="haloMassFunction_Symphony.xml"                                 xpointer="xpointer(parameters/*)" xmlns:xi="http://www.w3.org/2001/XInclude"/>
+  <xi:include href="../../../../constraints/pipelines/darkMatter/transferFunction_Symphony_CDM.xml" xpointer="xpointer(parameters/*)" xmlns:xi="http://www.w3.org/2001/XInclude"/>
+
+  <!-- Particle mass at the current resolution -->
+  <massParticleAtResolution value="=[simulation/massParticle/resolutionX1]" ignoreWarnings="true"/>
+
+  <!-- Shared halo-mass-function parameter mappings (detection / -->
+  <!-- perturbation / isolation) referenced by the model by bare name. -->
+  <xi:include href="haloMassFunctionMappings_Symphony_MilkyWay.xml"                             xpointer="xpointer(parameters/*)" xmlns:xi="http://www.w3.org/2001/XInclude"/>
+
+  <!-- Halo environments -->
+  <haloEnvironment value="fixed">
+    <massEnvironment value="11308120296979.918"/>
+    <overdensity     value="-0.45717867422451247"/>
+  </haloEnvironment>
+
+</parameters>

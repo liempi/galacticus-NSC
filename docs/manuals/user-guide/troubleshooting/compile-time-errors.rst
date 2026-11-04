@@ -1,0 +1,256 @@
+Compile-Time Error Messages
+===========================
+
+If you are developing Galacticus (adding new features, or modifying existing ones) it's very likely that you'll eventually run into an error while trying to compile Galacticus. This page lists common types of such compile-time errors, along with guidance on what they mean and how to fix them.
+
+For *run-time* errors (i.e. things that go wrong when you are actually running the compiled executable, ``Galacticus.exe``) you should refer to :doc:`run-time-errors`. For other problems (Galacticus is not performing as you expect, or doing what you want) see the general :doc:`index`.
+
+To use the information on this page, search for an error message that most closely resembles that which you receive when you try to compile your code. Note that, throughout this page, we make use of the commonly used `placeholder names <https://en.wikipedia.org/wiki/Foobar>`_ ``foo``, ``bar``, and ``baz`` to represent the names of variables and functions. Of course, your error message will contain the names of the *actual* variables and functions in Galacticus.
+
+Understanding the general content of error messages
+---------------------------------------------------
+
+Errors from the ``gfortran`` compiler
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+An error message originating from the ``gfortran`` compiler will typically have a form like this:
+
+.. code-block:: text
+
+   source/foo.F90; line 76 [preprocessed line 86]; code 34
+
+      86 |   call bar(baz)
+         |                                  1
+   Error: Symbol 'baz' at (1) has no IMPLICIT type
+   make: *** [work/build/foo.o] Error 1
+
+The first line:
+
+.. code-block:: text
+
+   source/foo.F90; line 76 [preprocessed line 86]; code 34
+
+tells you where the error occurred. In this case, the error occurs in file ``source/foo.F90``, and at (or close to) line ``76`` of that file. Also reported is the error code (``34`` here), which is typically not too useful. You'll also see that this line reports ``preprocessed line 86``. Galacticus first pre-processes any Fortran file from the ``source/`` directory (manipulating the code in a variety of ways), and emits it to a similarly named file in ``work/build/`` with an extension ``.p.F90`` (so, ``source/foo.F90`` is pre-processed to become ``work/build/foo.p.F90``). This part of the error message tells you the corresponding line causing the error in the pre-processed file - which is sometimes useful in tracking down errors that arise as a result of that pre-processing.
+
+The middle part of the error message:
+
+.. code-block:: text
+
+      86 |   call bar(baz)
+         |                                  1
+   Error: Symbol 'baz' at (1) has no IMPLICIT type
+
+shows you the line of code that caused the error, along with the error message itself. Here the compiler is telling us that we're trying to use a symbol (a "symbol" refers to either a variable or a function name) ``baz`` of which it is unaware.
+
+The last line:
+
+.. code-block:: text
+
+   make: *** [work/build/foo.o] Error 1
+
+is simply the ``make`` command telling you that, because an error occurred (in trying to make ``work/build/foo.o`` in this case) it is giving up.
+
+Errors from the pre-processor
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You may also see errors that originate from Galacticus' pre-processor itself.  These appear as Python tracebacks ending with a raised exception; an example is:
+
+.. code-block:: text
+
+   Traceback (most recent call last):
+     ...
+     File "./python/Galacticus/Build/SourceTree/Parse/Directives.py", line 292, in _validate_directive
+       raise RuntimeError(
+   RuntimeError: Parse_Directives: validation of directive 'inputParameter' failed in file foo/bar.F90 at line 90:
+   <string>:3:0:ERROR:SCHEMASV:SCHEMAV_ELEMENT_CONTENT: Element 'defaultValu': This element is not expected. Expected is one of ( source, variable, type, description, cardinality, defaultValue, defaultSource, minimum, maximum, allowedValues ).
+
+These can be identified by the ``python/Galacticus/Build`` path in the traceback, which corresponds to the pre-processor.  In the above, ``_validate_directive`` is the name of the preprocessor function which identified the error, and ``./python/Galacticus/Build/SourceTree/Parse/Directives.py`` is the file in which that function can be found.  The error message itself tells us that an ``inputParameter`` directive (beginning at line 90 of ``source/foo/bar.F90``) contains an element, ``defaultValu``, that is not permitted (here, a misspelling of ``defaultValue``), and lists the elements that are permitted.
+
+Common error messages
+----------------------
+
+Missing (or misnamed) function closer
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   Error: Expecting END FUNCTION statement at (1)
+
+often accompanied by:
+
+.. code-block:: text
+
+   Error: Unclassifiable statement at (1)
+   f951: Error: Unexpected end of file in ‘foo.p.F90’
+
+or
+
+.. code-block:: text
+
+   Error: Expected label ‘foo’ for END FUNCTION statement at (1)
+
+These errors mean that a function (or subroutine, or module, or other code unit) has no matching closer line. An *opener* is a line which begins a code unit, such as ``function foo(a,b,c) result(self)``. Every such opener must have a matching *closer*, in this case ``end function foo``. The pre-processor does not check this, so the error is reported by the compiler.
+
+If these errors occur then either:
+
+#. The closer line is entirely missing. The compiler then treats whatever follows as part of the unit that was never closed, so it typically reports ``Unclassifiable statement`` at the opener of the *next* function or subroutine, ``Expecting END FUNCTION statement`` at each closer line that follows (for example ``end module``), and finally ``Unexpected end of file``; or
+#. The name of the function in the closer is incorrect, e.g. ``end function foob`` does not match ``function foo``, giving the ``Expected label ‘foo’`` error.
+
+(A closer without a name, e.g. ``end function``, is valid Fortran, but Galacticus' style is to always include the name.) Note that the first error reported is often far from the actual problem: the line where the closer is missing is usually just *before* the first ``Unclassifiable statement`` reported.
+
+To fix this error, check that you have a matching ``end`` line in the source file, and that the name of the function/subroutine/module in that ``end`` line matches that in the opener.
+
+Derived-type must be abstract
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   Error: Derived-type ‘foo’ declared at (1) must be ABSTRACT because ‘bar’ is DEFERRED and not overridden
+
+Generally means that the named method, ``bar``, in the derived-type (i.e. ``class``) named ``foo`` has not been given a concrete implementation in the class - so the class can not be a concrete class. The parent class has marked this method as ``deferred`` which means that it provides no implementation of the method, and so can not be a concrete class, and must instead be ``abstract`` (a class which is just a template for other classes, and can not actually be used itself). Any child class of this parent must therefore either provide an implementation of this method, or must itself be marked a being ``abstract``.
+
+Commonly occurs if you forget to implement a function for the method, implemented the function (``baz``) but forget to add a suitable
+
+.. code-block:: fortran
+
+   procedure :: bar => baz
+
+line in the ``class`` definition, or misspelled ``bar`` in this line.
+
+To fix this problem check that you *have* a function in your class implementing this method, that you have the appropriate ``procedure`` line in the ``class`` definition, and that you have spelled the names of the method and function correctly.
+
+Result mismatches
+~~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   procedure :: bar => fooBar; Error: Result mismatch for the overriding procedure ‘bar’ at (1): Rank mismatch in function result (2/1)
+
+This error is telling you that the result returned by the function ``fooBar`` has a different rank than the function associated with method ``bar`` in the parent class. In this specific error ``Rank mismatch in function result (2/1)`` means that our function ``fooBar`` is returning a 2D array, while the parent classes function returned a 1D array. Ranks of function results of method must always match between parent and child classes.
+
+To fix this, change the rank of the function result in the function ``fooBar`` to match that in the parent. For example, in the above, the function result may have been defined using something like:
+
+.. code-block:: fortran
+
+   double precision, allocatable, dimension(:,:) :: fooBar
+
+but should be:
+
+.. code-block:: fortran
+
+   double precision, allocatable, dimension(:) :: fooBar
+
+to match the rank from the parent class.
+
+Private components
+~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   Error: Component ‘foo’ at (1) is a PRIVATE component of ‘bar’
+
+This is often a confusing error message, which can be misleading. Usually, the cause is that you are calling the constructor for some class, but the arguments you are passing to it do not match those of any of the available constructors for that class. (The compiler then assumes that you're trying to default constructor, which simply sets all member variables of the object directly - but you are not! Since the content of the class is marked ``private`` these member variables can not be set, resulting in an error.)
+
+Usually the cause of this error is a mismatch in the arguments you are providing to the constructor call, and those of the actual constructor that you intended to call. The mismatch could be in the number of arguments (i.e. missing one or more arguments, or having an extra argument), an argument with the wrong type, wrong dimension, of other attribute mismatch.
+
+To fix this error, find the constructor function that you intended to call and check carefully that the arguments you are providing in the call to the constructor match those that the constructor function is expecting.
+
+``Parse_Directives`` failed to parse
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   Traceback (most recent call last):
+     ...
+     File "python/Galacticus/Build/Directives.py", line 134, in _parse_xml_block
+       raise RuntimeError(
+   RuntimeError: extract_directives: failed parsing XML while extracting directive 'functionClass' from 'source/star_formation/rates/disks/_class.F90': mismatched tag: line 12, column 2
+   XML content was:
+   <functionClass>
+   <name>starFormationRateDisks</name>
+   <descriptiveName>Rates for star formation in disks.</descriptiveName>
+   <description>Class providing models of rates of star formation in disks.</description>
+   <default>intgrtdSurfaceDensity</default>
+   <method name="rate" >
+   <description>Returns the rate (in units of :math:`\mathrm{M}_\odot` Gyr\ :math:`^{-1}`) for star formation in the disk component of ``node``.</description>
+   <type>double precision</type>
+   <pass>yes</pass>
+   <selfTarget>yes</selfTarget>
+   <argument>type(treeNode), intent(inout), target :: node</argument>
+   </functionClass>
+
+This is an error message from the pre-processor. The pre-processor was attempting to parse a block of XML embedded in a Galacticus source file, but parsing that XML failed. The error message will include the XML that was being parsed (in the above, the section starting ``<functionClass>``), and, below this, the error message reported by the XML parser. In this particular case, the XML parser reports ``mismatched tag at line 12, column 2``. Looking at this line in the block of XML above we see that we have a closing ``</functionClass>`` tag, but this does not match the currently open tag, ``<method>`` - that means we are missing a closing ``</method>`` tag here.
+
+To fix this type of problem, use the error message from the XML parser to help you understand why the XML is syntactically incorrect, and then correct it.
+
+Missing keyword name
+~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   foo=bar(compute=.false.,fast=.false.,baz)
+      |                                 1
+   Error: Missing keyword name in actual argument list at (1)
+
+Here we make a function call and make use of named arguments (e.g. ``compute=.false.`` here - we are naming the argument ``compute`` of the function and assigning it a value, ``=.false.``, which allows us to put the arguments in any order, not just the order that they appear in the function itself). In this case, after the first named argument, *all* arguments must be named. So, the above should be changed to:
+
+.. code-block:: fortran
+
+   foo=bar(compute=.false.,fast=.false.,darkMatterHaloScale_=baz)
+
+for example (assuming that the argument you want to pass ``baz`` to was named ``darkMatterHaloScale_`` in the function itself).
+
+Not a member of the ``functionClass`` structure
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   Galacticus::Build::SourceTree::Process::Constructor::Process_Constructors():meta:26
+    463 |  self%foo=foo
+      |             1
+   Error: ‘foo’ at (1) is not a member of the ‘functionclass’ structure
+
+This error occurs because the object ``self`` is a member of a class that does not contain a variable called ``foo``. This type of error often occurs in constructors, particularly if you include a directive:
+
+.. code-block:: text
+
+   !![
+   <constructorAssign variables="foo"/>
+   !!]
+
+which says to take the argument ``foo`` to this constructor and assign it to a variable named ``foo`` in the object (``self``) being constructed. We typically do this as the value of ``foo`` is something that we later want to use in one of the class' methods.
+
+The solution to this is to add a variable named ``foo`` to the type definition for this class (with the same type and rank as the argument ``foo`` in the constructor).
+
+Internal compiler error
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   internal compiler error: in aarch64_function_arg_alignment, at config/aarch64/aarch64.cc
+
+An "internal compiler error" (ICE) is a bug in the compiler, not in Galacticus, and the message usually names the compiler source file where it happened. Galacticus requires ``gfortran`` 16 or later, and known ICEs in supported versions are worked around in the ``Makefile``: the AArch64 (Apple Silicon) alignment ICE above is avoided by compiling the affected object files at ``-O0`` (see the ``FCFLAGS_AARCH64_ICE_OBJECTS`` variable), and a submodule visibility bug is worked around in ``source/merger_trees/construct/read/importer/_class.F90``. These workarounds are retired as fixed compilers become available (`issue #1239 <https://github.com/galacticusorg/galacticus/issues/1239>`_, `issue #1421 <https://github.com/galacticusorg/galacticus/issues/1421>`_).
+
+If you hit an ICE, first check ``gfortran --version``. If the compiler is supported and the message matches the AArch64 case above but names an object file not yet in ``FCFLAGS_AARCH64_ICE_OBJECTS``, add it to that list and rebuild. Otherwise please report it, including the full ICE text, the compiler version, and the object file being compiled, so that a workaround can be added.
+
+Compiler killed during the build
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   f951: internal compiler error: Killed (program f951)
+   make: *** [work/build/foo.o] Error 137
+
+or a build that stops with ``Error 137`` and no other diagnostic, means the operating system killed the compiler for using too much memory. Compiling the large generated ``*_class`` units at ``-O3`` in parallel is the peak: on a machine with about 16 GB of memory, ``make -j4`` can exceed it. Reduce the number of parallel jobs (``make -j2 Galacticus.exe`` is what the continuous integration uses), or build with link-time optimization disabled (``make -j2 LTO=disabled Galacticus.exe``), which lowers the memory needed at link time. Re-running ``make`` after such a failure continues from where it stopped.
+
+Changes to the pre-processor have no effect
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you edit one of the Python code generators under ``python/Galacticus/Build/`` (or ``scripts/build/preprocess.py`` itself), rebuild, and find that the generated ``work/build/*.p.F90`` files are unchanged, you are using a checkout from before August 2026. Those ``Makefile`` rules did not list the generator sources as prerequisites, so an incremental build reported success while compiling stale generated code (`issue #1395 <https://github.com/galacticusorg/galacticus/issues/1395>`_). Current versions re-run the pre-processor whenever its own sources change. On an older checkout, remove the generated files and rebuild:
+
+.. code-block:: console
+
+   rm -f work/build/*.p.F90 work/build/*.p.Inc
+   make -j2 Galacticus.exe
+
+Only files whose pre-processed output actually differs are recompiled, so this is cheaper than a full ``make clean``.

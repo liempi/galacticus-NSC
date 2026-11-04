@@ -1,7 +1,8 @@
-<?xml version="1.0"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Compute prompt cusp parameters - used in testing the calculation again Sten Delos' implementation. -->
+
 <parameters>
-  <lastModified revision="975fffd5aadf697707003f16bf9b4caee8ebe97d" time="2025-10-22T21:34:03"/>
+  <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
   <formatVersion>2</formatVersion>
   <version>0.9.4</version>
 
@@ -56,7 +57,6 @@
     <cosmologicalMassVariance value="filteredPower">
       <!-- Parameter value is from the Planck Collaboration (2020; A&A, 641, 10) -->
       <!--  specifically the "TT,TE,EE+lowE+lensing" results in Table 2          -->
-      <sigma_8 value="0.8111"/>
       <tolerance value="1.0e-3"/>
       <toleranceTopHat value="3.0e-4"/>
       <nonMonotonicIsFatal value="false"/>
@@ -84,6 +84,10 @@
     </transferFunction>
   </transferFunction>
   <powerSpectrumPrimordialTransferred value="simple"/>
+  <powerSpectrumNormalizer value="sigma8">
+    <sigma_8 value="0.8111"/>
+    <tolerance value="3.0e-4"/>
+  </powerSpectrumNormalizer>
 
   <!-- Structure growth -->
   <linearGrowth value="collisionlessMatter">
@@ -197,6 +201,7 @@
 	<nonAnalyticSolver value="numerical"/>
 	<toleranceRelativeVelocityDispersionMaximum value="0.1"/>
       </darkMatterProfileDMO>
+      <massFunctionSlopeLogarithmic value="-1.8"/>
     </darkMatterProfileScaleRadius>
   </darkMatterProfileScaleRadius>
   
@@ -213,7 +218,6 @@
 	<cosmologicalMassVariance value="filteredPower">
 	  <!-- Parameter value is from the Planck Collaboration (2020; A&A, 641, 10) -->
 	  <!--  specifically the "TT,TE,EE+lowE+lensing" results in Table 2          -->
-	  <sigma_8 value="0.8111"/>
 	  <tolerance value="1.0e-3"/>
 	  
 	  <toleranceTopHat value="3.0e-4"/>
@@ -235,6 +239,11 @@
 	
 	<powerSpectrumPrimordialTransferred value="simple"/>
 	
+	<powerSpectrumNormalizer value="sigma8">
+	  <sigma_8 value="0.8111"/>
+	  <tolerance value="3.0e-4"/>
+	</powerSpectrumNormalizer>
+	
 	<powerSpectrumWindowFunction value="topHat"/>
 	
 	<transferFunction value="CAMB">
@@ -250,7 +259,6 @@
 	<cosmologicalMassVariance value="filteredPower">
 	  <!-- Parameter value is from the Planck Collaboration (2020; A&A, 641, 10) -->
 	  <!--  specifically the "TT,TE,EE+lowE+lensing" results in Table 2          -->
-	  <sigma_8 value="0.8111"/>
 	  <tolerance value="1.0e-3"/>
 	  <toleranceTopHat value="3.0e-4"/>
 	  <nonMonotonicIsFatal value="false"/>
@@ -265,6 +273,10 @@
 	<running value="0.0000"/>
       </powerSpectrumPrimordial>
       <powerSpectrumPrimordialTransferred value="simple"/>
+      <powerSpectrumNormalizer value="sigma8">
+        <sigma_8 value="0.8111"/>
+        <tolerance value="3.0e-4"/>
+      </powerSpectrumNormalizer>
       <powerSpectrumWindowFunction value="sharpKSpace">
 	<normalization value="2.5"/> <!-- Taken from Benson et al. (2013; https://ui.adsabs.harvard.edu/abs/2013MNRAS.428.1774B) - chosen to ensure a match to the location of the turnover in WDM mass functions. -->
       </powerSpectrumWindowFunction>
@@ -349,13 +361,15 @@
       <C value=" 0.800"/>
       <kappa value=" 4.500"/>
       <coefficientScatter value=" 0.195"/>
-    </nodeOperator>    
+      <requireCollapseBeforeHalo value="true"/>
+    </nodeOperator>
     <nodeOperator value="darkMatterProfileScaleInterpolate"/>
     <!-- Spins are computed using the angular momentum random walk model of Benson, Behrens, & Lu     -->
     <!-- (2020; MNRAS; 496; 3371; http://adsabs.harvard.edu/abs/2020MNRAS.496.3371B).                 -->
     <!-- The best fit-value for the mass exponent is taken from here                                  -->
     <!-- https://github.com/galacticusorg/galacticus/wiki/Constraints:-Halo-spins-and-concentrations. -->
     <nodeOperator value="haloAngularMomentumVitvitska2002">
+      <subresolutionAngularMomentumMethod value="original"/>
       <exponentMass value="0.92527794238468"/>
       <darkMatterProfileDMO value="heated">
 	<!-- Dark matter only halo profiles are set to be heated NFW profiles. Where analytic solutions for heated halo -->
@@ -385,6 +399,7 @@
   
   <!-- Merger tree evolution -->
   <mergerTreeEvolver value="threaded">
+    <fractionTimestepSatelliteMinimum value="0.75"/>
     <!-- Standard merger tree evolver with parameters chosen to (somewhat) optimize the evolution. -->
     <timestepHostAbsolute value="1.00"/>
     <timestepHostRelative value="0.10"/>
@@ -430,7 +445,19 @@
   <mergerTreeOutputter value="standard"/>
 
   <!-- setting merger tree operator to output the full tree structure after building it -->
-  <mergerTreeOperator value="assignOrbits"/>
+  <!-- Halos in which no prompt cusp can form are labeled by the `darkMatterProfilePromptCusps` node operator during tree
+       initialization: such halos can not have formed, so they are pruned from the tree here. This must precede the assignment of
+       orbits, so that orbits are assigned only to those halos which remain. -->
+  <mergerTreeOperator value="sequence">
+    <mergerTreeOperator value="pruneByFilter">
+      <preservePrimaryProgenitor value="false"/>
+      <pruneAllProgenitors       value="true" />
+      <galacticFilter value="labeled">
+        <label value="promptCuspUnformed"/>
+      </galacticFilter>
+    </mergerTreeOperator>
+    <mergerTreeOperator value="assignOrbits"/>
+  </mergerTreeOperator>
 
   <!-- Output file -->
   <outputFileName value="testSuite/outputs/testPromptCuspNFW.hdf5"/>

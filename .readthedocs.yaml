@@ -1,0 +1,29 @@
+# ReadTheDocs build configuration for Galacticus.
+# https://docs.readthedocs.io/en/stable/config-file/v2.html
+version: 2
+
+build:
+  os: ubuntu-22.04
+  tools:
+    python: "3.11"
+  apt_packages:
+    # pdftocairo, used to rasterise the figure PDFs to PNG (extractDocsRST.py).
+    - poppler-utils
+    # pandoc, used by nbsphinx to convert the tutorial notebooks' markdown cells.
+    - pandoc
+  commands:
+    # Install the documentation toolchain.
+    - pip install -r docs/requirements.txt
+    # Generate the physics pages, glossary and references from the RST
+    # docstrings embedded in the Fortran source (no compilation required).
+    - PYTHONPATH=python python scripts/doc/extractDocsRST.py source docs
+    # Build the HTML site.
+    - python -m sphinx -b html docs $READTHEDOCS_OUTPUT/html
+    # Package the built site as a single downloadable archive, so that each
+    # version -- in particular, each release -- has a self-contained copy of its
+    # documentation. (Note that commands here do not survive nested quoting, so
+    # this must be a script and not an inline `python -c "..."`.)
+    - python scripts/doc/archiveDocs.py $READTHEDOCS_OUTPUT
+
+sphinx:
+  configuration: docs/conf.py

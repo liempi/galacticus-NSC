@@ -12,18 +12,12 @@ runs:
         echo "GALACTICUS_EXEC_PATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
         echo "GALACTICUS_DATA_PATH=$GITHUB_WORKSPACE/datasets" >> $GITHUB_ENV
         echo "PATH=$PATH:/opt/local/bin:/usr/local/bin" >> $GITHUB_ENV
-        echo "PERL_MM_USE_DEFAULT=1" >> $GITHUB_ENV
         echo "GALACTICUS_EXEC_PATH=`pwd`" >> $GITHUB_ENV
-        echo "FCCOMPILER=gfortran-12" >> $GITHUB_ENV
-        echo "CCOMPILER=gcc-15" >> $GITHUB_ENV
-        echo "CPPCOMPILER=g++-15" >> $GITHUB_ENV
+        echo "FCCOMPILER=gfortran-16" >> $GITHUB_ENV
+        echo "CCOMPILER=gcc-16" >> $GITHUB_ENV
+        echo "CPPCOMPILER=g++-16" >> $GITHUB_ENV
         echo "BUILDPATH=./work/build" >> $GITHUB_ENV
-        if [[ "${ver[0]}" -eq 13 ]]; then
-          # For MacOS 13 force use of the classic linker as the new linker does not support the '-commons' option - see https://trac.macports.org/ticket/68194#comment:15
-          echo "GALACTICUS_FCFLAGS=$GALACTICUS_FCFLAGS -fintrinsic-modules-path /usr/local/finclude -fintrinsic-modules-path /usr/local/include -fintrinsic-modules-path /usr/local/include/gfortran -fintrinsic-modules-path /usr/local/lib/gfortran/modules -L/usr/local/lib -L/opt/local/lib -Wl,-ld_classic" >> $GITHUB_ENV
-        else
-          echo "GALACTICUS_FCFLAGS=$GALACTICUS_FCFLAGS -fintrinsic-modules-path /usr/local/finclude -fintrinsic-modules-path /usr/local/include -fintrinsic-modules-path /usr/local/include/gfortran -fintrinsic-modules-path /usr/local/lib/gfortran/modules -L/usr/local/lib -L/opt/local/lib" >> $GITHUB_ENV
-        fi
+        echo "GALACTICUS_FCFLAGS=$GALACTICUS_FCFLAGS -fintrinsic-modules-path /usr/local/finclude -fintrinsic-modules-path /usr/local/include -fintrinsic-modules-path /usr/local/include/gfortran -fintrinsic-modules-path /usr/local/lib/gfortran/modules -L/usr/local/lib -L/opt/local/lib" >> $GITHUB_ENV
         echo "GALACTICUS_CFLAGS=-I/usr/local/include -I/opt/local/include" >> $GITHUB_ENV
         echo "GALACTICUS_CPPFLAGS=-I/usr/local/include -I/opt/local/include -I/usr/local/include/libqhullcpp" >> $GITHUB_ENV
     - name: Fix broken Apple include file
@@ -32,37 +26,57 @@ runs:
         # This removes syntax not supported by the GCC compiler prior to version 13.3.
         # It should be possible to remove this once a later version of GCC is used.
         # See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=114007
-        if [[ "${OS_VER}" -ge 14 ]]; then
-           sudo sed -E -i~ s/"clang::"/"clang"/g /Library/Developer/CommandLineTools/SDKs/MacOSX${OS_VER}.sdk/usr/include/sys/cdefs.h
-        fi
+        sudo sed -E -i~ s/"clang::"/"clang"/g /Library/Developer/CommandLineTools/SDKs/MacOSX${OS_VER}.sdk/usr/include/sys/cdefs.h
     - name: Install MacPorts
       shell: bash
       run: |
-        if [[ "${OS_VER}" -eq 11 ]]; then
-           macportsversion=2.7.1
-           macportsbase=2.7.1-11-BigSur
-        elif [[ "${OS_VER}" -eq 12 ]]; then
-           macportsversion=2.9.1
-           macportsbase=2.9.1-12-Monterey
-        elif [[ "${OS_VER}" -eq 13 ]]; then
-           macportsversion=2.9.1
-           macportsbase=2.9.1-13-Ventura
-        elif [[ "${OS_VER}" -eq 14 ]]; then
-           macportsversion=2.9.1
-           macportsbase=2.9.1-14-Sonoma
-        elif [[ "${OS_VER}" -eq 15 ]]; then
+        # Each MacPorts base package is built for one macOS release, so this has to name the release the
+        # runner image actually is. Only macOS 15 (Sequoia) is used: the Intel runners -- the reason older
+        # releases were listed here -- have been retired. Add a branch when moving to a newer image.
+        if [[ "${OS_VER}" -eq 15 ]]; then
            macportsversion=2.11.6
            macportsbase=2.11.6-15-Sequoia
         else
-           echo Unknown MacOS version: ${os_ver}
+           echo "Unknown MacOS version: ${OS_VER}"
            exit 1
         fi
-        curl -L https://github.com/macports/macports-base/releases/download/v${macportsversion}/MacPorts-${macportsbase}.pkg --output MacPorts-${macportsbase}.pkg
+        curl -L --fail --retry 5 --retry-all-errors --retry-max-time 120 https://github.com/macports/macports-base/releases/download/v${macportsversion}/MacPorts-${macportsbase}.pkg --output MacPorts-${macportsbase}.pkg
         sudo installer -pkg ./MacPorts-${macportsbase}.pkg -target /
         rm ./MacPorts-${macportsbase}.pkg
-    - name: Install GCC
+    - name: Install GCC 16 (gcc/g++/gfortran)
       shell: bash
-      run: brew install gcc@12
+      run: |
+        # The runner image pre-installs AWS's `aws/tap`, which Galacticus never
+        # uses. Newer Homebrew enforces "tap trust" and warns about it on every
+        # `brew update`. Remove the unused tap to keep CI logs clean. The `|| true`
+        # guards against runner images that don't ship the tap.
+        brew untap aws/tap 2>/dev/null || true
+        # Refresh the formula index first so the versioned `gcc@16` formula and
+        # its current bottle are visible to the install below.
+        brew update
+        # Install GCC 16 via the versioned `gcc@16` formula rather than the
+        # unversioned `gcc`. The unversioned formula tracks whatever Homebrew
+        # calls latest, so when it eventually moves to GCC 17 a bare
+        # `brew install gcc` would stop providing the `gcc-16` binary that
+        # CCOMPILER expects; `gcc@16` pins us deterministically until we choose
+        # to bump. Guard the commands so the common already-current case stays
+        # silent instead of emitting a "gcc@16 <version> already installed"
+        # warning on every build: install only when absent, upgrade only when
+        # actually outdated.
+        if ! brew list --versions gcc@16 >/dev/null 2>&1; then
+          brew install gcc@16
+        elif [[ -n "$(brew outdated gcc@16)" ]]; then
+          brew upgrade gcc@16
+        fi
+        # The runner image pre-installs the unversioned `gcc` formula, which
+        # (while it is still GCC 16) provides the same `gcc-16`/`g++-16`/
+        # `gfortran-16` symlinks as `gcc@16` and would collide with them. Unlink
+        # it (no-op once Homebrew's `gcc` moves to 17 and stops owning `*-16`,
+        # or if the image ever drops it) and force `gcc@16` to own the links so
+        # the `*-16` binaries CCOMPILER/FCCOMPILER/CPPCOMPILER expect resolve to
+        # the pinned toolchain.
+        brew unlink gcc 2>/dev/null || true
+        brew link --overwrite gcc@16
     - name: Install guile
       shell: bash
       run: |
@@ -74,34 +88,41 @@ runs:
     - name: Install libmatheval
       shell: bash
       run: |
-        curl -L https://github.com/galacticusorg/libmatheval/releases/download/latest/libmatheval-1.1.13.tar.gz --output libmatheval-1.1.13.tar.gz
+        curl -L --fail --retry 5 --retry-all-errors --retry-max-time 120 https://github.com/galacticusorg/libmatheval/releases/download/latest/libmatheval-1.1.13.tar.gz --output libmatheval-1.1.13.tar.gz
         tar xvfz libmatheval-1.1.13.tar.gz
         cd libmatheval-1.1.13
         # Patch following the approach used in MacPorts (https://github.com/macports/macports-ports/tree/master/math/libmatheval).
         sed -E -i~ s/"#undef HAVE_SCM_T_BITS"/"#define HAVE_SCM_T_BITS 1"/ config.h.in
         # Set guile paths following the approach used in MacPorts (https://github.com/macports/macports-ports/tree/master/math/libmatheval).
-        CC=gcc-15 PKG_CONFIG=/opt/local/bin/pkg-config GUILE=/opt/local/bin/guile-3.0 GUILE_CONFIG=/opt/local/bin/guile-config-3.0 GUILE_TOOLS=/opt/local/bin/guile-tools-3.0 ./configure --prefix=/usr/local || (cat config.log && false)
+        CC=${CCOMPILER} PKG_CONFIG=/opt/local/bin/pkg-config GUILE=/opt/local/bin/guile-3.0 GUILE_CONFIG=/opt/local/bin/guile-config-3.0 GUILE_TOOLS=/opt/local/bin/guile-tools-3.0 ./configure --prefix=/usr/local || (cat config.log && false)
         make -j3
         sudo make install
         cd ..
         rm -rf libmatheval-1.1.13.tar.gz libmatheval-1.1.13
     - name: Install qhull
       shell: bash
+      # NOTE: `www.qhull.org` presents a certificate which is not valid for that host, so this must be fetched over plain HTTP and
+      # its identity can not be established by TLS. The library built from this archive is linked into the macOS executables which
+      # are notarized and published to users, so anyone able to intercept this connection could otherwise substitute their own
+      # code. The SHA-256 check below is therefore what establishes the integrity of this archive, and must not be removed. If the
+      # pinned version is changed, recompute the hash from a source you trust.
       run: |
-        curl -L http://www.qhull.org/download/qhull-2020-src-8.0.2.tgz --output qhull-2020-src-8.0.2.tgz
+        curl -L --fail --retry 5 --retry-all-errors --retry-max-time 120 http://www.qhull.org/download/qhull-2020-src-8.0.2.tgz --output qhull-2020-src-8.0.2.tgz
+        echo "b5c2d7eb833278881b952c8a52d20179eab87766b00b865000469a45c1838b7e  qhull-2020-src-8.0.2.tgz" | shasum -a 256 -c -
         tar xvfz qhull-2020-src-8.0.2.tgz
         cd qhull-2020.2
-        make -j3 CC=gcc-15 CXX=g++-15
+        make -j3 CC=${CCOMPILER} CXX=${CPPCOMPILER}
         sudo make install
         cd ..
         rm -rf qhull-2020-src-8.0.2.tgz qhull-2020.2
     - name: Install GSL
       shell: bash
       run: |
-        curl -L ftp://ftp.gnu.org/gnu/gsl/gsl-2.6.tar.gz --output gsl-2.6.tar.gz
+        curl -L --fail --retry 5 --retry-all-errors --retry-max-time 120 https://ftp.gnu.org/gnu/gsl/gsl-2.6.tar.gz --output gsl-2.6.tar.gz
+        echo "b782339fc7a38fe17689cb39966c4d821236c28018b6593ddb6fd59ee40786a8  gsl-2.6.tar.gz" | shasum -a 256 -c -
         tar xvfz gsl-2.6.tar.gz
         cd gsl-2.6
-        CC=gcc-15 ./configure --prefix=/usr/local
+        CC=${CCOMPILER} ./configure --prefix=/usr/local
         make -j3
         sudo make install
         cd ..
@@ -109,37 +130,68 @@ runs:
     - name: Install HDF5
       shell: bash
       run: |
-        curl -L https://support.hdfgroup.org/releases/hdf5/v1_14/v1_14_5/downloads/hdf5-1.14.5.tar.gz --output hdf5-1.14.5.tar.gz
-        tar -vxzf hdf5-1.14.5.tar.gz 
-        cd hdf5-1.14.5
-        if [[ "${OS_VER}" -eq 13 ]]; then
-           # For MacOS 13 force use of the classic linker as the new linker does not support the '-commons' option - see https://trac.macports.org/ticket/68194#comment:15
-           CC=gcc-15 CXX=g++-15 FC=gfortran-12 LDFLAGS=-Wl,-ld_classic ./configure --prefix=/usr/local --enable-fortran --enable-build-mode=production
-        else
-           CC=gcc-15 CXX=g++-15 FC=gfortran-12                         ./configure --prefix=/usr/local --enable-fortran --enable-build-mode=production
-        fi
-        make -j3
-        sudo make install
+        # HDF5 2.x is built with CMake: the Autotools build system was removed in HDF5 2.0.
+        curl -L --fail --retry 5 --retry-all-errors --retry-max-time 120 https://github.com/HDFGroup/hdf5/releases/download/2.1.0/hdf5-2.1.0.tar.gz --output hdf5-2.1.0.tar.gz
+        tar -vxzf hdf5-2.1.0.tar.gz
+        cd hdf5-2.1.0
+        # Work around an upstream typo in HDF5 2.1.0: config/lt_vers.am declares the high-level Fortran
+        # shared-library interface version as `LT_HL_F_VERS_INTERFACE1` (stray trailing `1`), so the CMake
+        # build fails to parse it and emits an empty dylib compatibility version (`.0.0`) for
+        # libhdf5_hl_f90cstub. The macOS linker (ld-prime on Apple Silicon / macOS 14+) rejects that
+        # malformed version. Correct the variable name so the compatibility version becomes `320.0.0`.
+        sed -i~ 's/LT_HL_F_VERS_INTERFACE1/LT_HL_F_VERS_INTERFACE/' config/lt_vers.am
+        # Deprecated symbols are disabled to build against the strict HDF5 2.x API surface (Galacticus compiles cleanly against
+        # it). Galacticus caps its own output format at the HDF5 1.14 version, so output remains readable by HDF5 1.14 readers.
+        # The nonstandard _Float16 feature is disabled: on the Homebrew GCC toolchain HDF5's build-time probe for the FLT16_MAX
+        # macro passes but the macro is undeclared when the complex-type conversions in H5Tconv_complex.c are actually compiled,
+        # breaking the build. Galacticus does not use half-precision types, so disabling the feature is safe.
+        # HDF5_BUILD_WITH_INSTALL_NAME=ON gives the installed dylibs absolute install_names (/usr/local/lib/...) rather than
+        # CMake's default @rpath, so Galacticus.exe records absolute paths and dyld can load libhdf5*.dylib at run time without an
+        # LC_RPATH entry. This matches the Autotools HDF5 1.14 behavior Galacticus previously relied on.
+        cmake -S . -B build -G "Unix Makefiles" \
+           -DCMAKE_INSTALL_PREFIX=/usr/local \
+           -DCMAKE_BUILD_TYPE=Release \
+           -DCMAKE_C_COMPILER=${CCOMPILER} \
+           -DCMAKE_CXX_COMPILER=${CPPCOMPILER} \
+           -DCMAKE_Fortran_COMPILER=${FCCOMPILER} \
+           -DBUILD_SHARED_LIBS=ON \
+           -DBUILD_STATIC_LIBS=ON \
+           -DBUILD_TESTING=OFF \
+           -DHDF5_BUILD_FORTRAN=ON \
+           -DHDF5_BUILD_HL_LIB=ON \
+           -DHDF5_BUILD_CPP_LIB=OFF \
+           -DHDF5_BUILD_TOOLS=OFF \
+           -DHDF5_BUILD_EXAMPLES=OFF \
+           -DHDF5_ENABLE_PARALLEL=OFF \
+           -DHDF5_ENABLE_ZLIB_SUPPORT=ON \
+           -DHDF5_ENABLE_SZIP_SUPPORT=OFF \
+           -DHDF5_ENABLE_DEPRECATED_SYMBOLS=OFF \
+           -DHDF5_ENABLE_NONSTANDARD_FEATURE_FLOAT16=OFF \
+           -DHDF5_BUILD_WITH_INSTALL_NAME=ON \
+           -DHDF5_DEFAULT_API_VERSION=v200
+        cmake --build build -j3
+        sudo cmake --install build
         cd ..
-        rm -rf hdf5-1.14.5 hdf5-1.14.5.tar.gz
+        rm -rf hdf5-2.1.0 hdf5-2.1.0.tar.gz
     - name: Install FoX
       shell: bash
       run: |
-        curl -L https://github.com/andreww/fox/archive/refs/tags/4.1.0.tar.gz --output FoX-4.1.0.tar.gz
-        tar xvfz FoX-4.1.0.tar.gz
-        cd fox-4.1.0
-        FC=gfortran-12 ./configure --prefix=/usr/local
+        curl -L --fail --retry 5 --retry-all-errors --retry-max-time 120 https://github.com/galacticusorg/fox/archive/refs/tags/v4.1.4.tar.gz --output FoX-4.1.4.tar.gz
+        tar xvfz FoX-4.1.4.tar.gz
+        cd fox-4.1.4
+        FC=${FCCOMPILER} ./configure --prefix=/usr/local
         make -j3
         sudo make install
         cd ..
-        rm -rf fox-4.1.0 FoX-4.1.0.tar.gz
+        rm -rf fox-4.1.4 FoX-4.1.4.tar.gz
     - name: Install FFTW3
       shell: bash
       run: |
-        curl -L ftp://ftp.fftw.org/pub/fftw/fftw-3.3.4.tar.gz --output fftw-3.3.4.tar.gz
+        curl -L --fail --retry 5 --retry-all-errors --retry-max-time 120 https://www.fftw.org/fftw-3.3.4.tar.gz --output fftw-3.3.4.tar.gz
+        echo "8f0cde90929bc05587c3368d2f15cd0530a60b8a9912a8e2979a72dbe5af0982  fftw-3.3.4.tar.gz" | shasum -a 256 -c -
         tar xvfz fftw-3.3.4.tar.gz
         cd fftw-3.3.4
-        F77=gfortran-12 CC=gcc-15 ./configure --prefix=/usr/local
+        F77=${FCCOMPILER} CC=${CCOMPILER} ./configure --prefix=/usr/local
         make -j4
         sudo make install
         cd ..
@@ -147,84 +199,13 @@ runs:
     - name: Install ANN
       shell: bash
       run: |
-        curl -L http://www.cs.umd.edu/~mount/ANN/Files/1.1.2/ann_1.1.2.tar.gz --output ann_1.1.2.tar.gz
+        curl -L --fail --retry 5 --retry-all-errors --retry-max-time 120 https://www.cs.umd.edu/~mount/ANN/Files/1.1.2/ann_1.1.2.tar.gz --output ann_1.1.2.tar.gz
+        echo "eea03f2e224b66813226d775053316675375dcec45bd263674c052d9324a49a5  ann_1.1.2.tar.gz" | shasum -a 256 -c -
         tar xvfz ann_1.1.2.tar.gz
         cd ann_1.1.2
-        sed -E -i~ s/"C\+\+ = g\+\+"/"C\+\+ = g\+\+\-12"/ Make-config
+        sed -E -i~ "s|C\+\+ = g\+\+|C\+\+ = $CPPCOMPILER|" Make-config
+        sed -E -i~ "s|CFLAGS = \-O3|CFLAGS = \-O3 \-std=gnu\+\+17|" Make-config
         make macosx-g++
         sudo cp bin/* /usr/local/bin/.
         sudo cp lib/* /usr/local/lib/.
         sudo cp -R include/* /usr/local/include/.
-    - name: Install IO::Socket::SSL
-      shell: bash
-      run: |
-        if [[ "${OS_VER}" -ge 14 ]]; then
-           # For OS version 14 and above install OpenSSL and specify the exact version to use.
-           sudo port install openssl11
-           export OPENSSL_PREFIX=/opt/local/libexec/openssl11
-        fi
-        curl -L https://cpan.metacpan.org/authors/id/C/CH/CHRISN/Net-SSLeay-1.94.tar.gz --output Net-SSLeay-1.94.tar.gz
-        tar xvfz Net-SSLeay-1.94.tar.gz
-        cd Net-SSLeay-1.94
-        perl Makefile.PL
-        make -j3
-        sudo make install
-        cd ..
-        curl -L https://cpan.metacpan.org/authors/id/S/SU/SULLR/IO-Socket-SSL-2.098.tar.gz --output IO-Socket-SSL-2.098.tar.gz
-        tar xvfz IO-Socket-SSL-2.098.tar.gz
-        cd IO-Socket-SSL-2.098
-        perl Makefile.PL
-        make -j3
-        sudo make install
-        cd ..
-        curl -L https://cpan.metacpan.org/authors/id/M/MK/MKODERER/Sys-CPU-0.52.tar.gz --output Sys-CPU-0.52.tar.gz
-        tar xvfz Sys-CPU-0.52.tar.gz
-        cd Sys-CPU-0.52
-        perl Makefile.PL
-        make -j3
-        sudo make install
-        cd ..
-    - name: Install CPAN
-      shell: bash
-      run: |
-        sudo perl -MCPAN -e shell
-        sudo perl -MCPAN -e 'install Bundle::CPAN'
-    - name: Install Perl modules
-      shell: bash
-      run: |
-        export CFLAGS=-I/Library/Developer/CommandLineTools/SDKs/MacOSX10.15.sdk/System/Library/Perl/5.18/darwin-thread-multi-2level/CORE
-        sudo perl -MCPAN -e 'force("install","NestedMap")'
-        sudo perl -MCPAN -e 'force("install","Scalar::Util")'
-        sudo perl -MCPAN -e 'force("install","Term::ANSIColor")'
-        sudo perl -MCPAN -e 'force("install","Text::Table")'
-        sudo perl -MCPAN -e 'force("install","ExtUtils::ParseXS")'
-        sudo perl -MCPAN -e 'force("install","Path::Tiny")'
-        sudo perl -MCPAN -e 'force("install","PkgConfig")'
-        sudo perl -MCPAN -e 'force("install","Alien::Base::Wrapper")'
-        sudo perl -MCPAN -e 'force("install","Alien::Libxml2")'
-        sudo perl -MCPAN -e 'force("install","XML::LibXML::SAX")'
-        sudo perl -MCPAN -e 'force("install","XML::LibXML::SAX::Parser")'
-        if [[ "${OS_VER}" -ge 12 ]]; then
-           # For OS versions 12 and above we need to ensure that the ParserDetails.ini is set up.
-           sudo perl -MXML::SAX -e "XML::SAX->add_parser('XML::SAX::PurePerl')->save_parsers()" || true
-           sudo perl -MXML::SAX -e "XML::SAX->add_parser('XML::LibXML::SAX::Parser')->save_parsers()" || true
-           sudo perl -MXML::SAX -e "XML::SAX->add_parser('XML::LibXML::SAX')->save_parsers()" || true
-        fi
-        sudo perl -MCPAN -e 'force("install","XML::SAX::ParserFactory")'
-        sudo perl -MCPAN -e 'force("install","XML::Validator::Schema")'
-        sudo perl -MCPAN -e 'force("install","Text::Template")'
-        sudo perl -MCPAN -e 'force("install","Text::Levenshtein")'
-        sudo perl -MCPAN -e 'force("install","List::Uniq")'
-        sudo perl -MCPAN -e 'force("install","IO::Util")'
-        sudo perl -MCPAN -e 'force("install","Class::Util")'
-        sudo perl -MCPAN -e 'force("install","CGI::Builder")'
-        sudo perl -MCPAN -e 'force("install","Simple")'
-        sudo perl -MCPAN -e 'force("install","Readonly")'
-        sudo perl -MCPAN -e 'force("install","File::Slurp")'
-        sudo perl -MCPAN -e 'force("install","XML::Simple")'
-        sudo perl -MCPAN -e 'force("install","List::MoreUtils")'
-        sudo perl -MCPAN -e 'force("install","Clone")'
-        sudo perl -MCPAN -e 'force("install","IO::Scalar")'
-        sudo perl -MCPAN -e 'force("install","Regexp::Common")'
-        sudo perl -MCPAN -e 'force("install","LaTeX::Encode")'
-        sudo perl -MCPAN -e 'force("install","Sub::Identify")'

@@ -1,0 +1,109 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+  !$ use :: Locks, only : ompLock
+
+  !![
+  <evolveForestsWorkShare name="evolveForestsWorkShareCyclic" docformat="rst">
+   <description>
+   A forest evolution work sharing class implementing static cyclic assignment, where each worker (MPI rank or OpenMP thread) is pre-assigned a contiguous block of forests offset by the worker index and strided by the total worker count. This gives deterministic, reproducible forest-to-worker mapping at the cost of potentially uneven load balancing.
+   </description>
+  </evolveForestsWorkShare>
+  !!]
+  type, extends(evolveForestsWorkShareClass) :: evolveForestsWorkShareCyclic
+     !!{RST
+     Implementation of a forest evolution work sharing class in which forests are assigned by cycling through processes.
+     !!}
+     private
+     !$ type(ompLock )                            :: lock
+     integer(c_size_t), allocatable, dimension(:) :: treeNumber_
+     logical                                      :: utilizeOpenMPThreads, first
+   contains
+     procedure :: forestNumber => cyclicForestNumber
+  end type evolveForestsWorkShareCyclic
+
+  interface evolveForestsWorkShareCyclic
+     !!{RST
+     Constructors for the :galacticus-class:`evolveForestsWorkShareCyclic` forest evolution work sharing class.
+     !!}
+     module procedure cyclicConstructorParameters
+     module procedure cyclicConstructorInternal
+  end interface evolveForestsWorkShareCyclic
+
+contains
+
+  function cyclicConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`evolveForestsWorkShareCyclic` forest evolution work sharing class which takes a parameter set as input.
+    !!}
+    use :: Input_Parameters, only : inputParameters
+    implicit none
+    type(evolveForestsWorkShareCyclic)                :: self
+    type(inputParameters             ), intent(inout) :: parameters
+
+    self=evolveForestsWorkShareCyclic()
+    !![
+    <inputParametersValidate source="parameters"/>
+    !!]
+    return
+  end function cyclicConstructorParameters
+
+  function cyclicConstructorInternal() result(self)
+    !!{RST
+    Internal constructor for the :galacticus-class:`evolveForestsWorkShareCyclic` forest evolution work sharing class.
+    !!}
+    implicit none
+    type(evolveForestsWorkShareCyclic) :: self
+
+    self%first               =.true.
+    self%utilizeOpenMPThreads=.true.
+    !$ self%lock             =ompLock()
+    return
+  end function cyclicConstructorInternal
+
+  function cyclicForestNumber(self,utilizeOpenMPThreads)
+    !!{RST
+    Return the number of the next forest to process.
+    !!}
+    use :: Error, only : Error_Report
+    implicit none
+    integer(c_size_t                    )                :: cyclicForestNumber
+    class  (evolveForestsWorkShareCyclic), intent(inout) :: self
+    logical                              , intent(in   ) :: utilizeOpenMPThreads
+    integer(c_size_t                    )                :: i
+
+    !$ call self%lock%set()
+    if (self%first) then
+       self%utilizeOpenMPThreads=utilizeOpenMPThreads
+       self%first               =.false.
+       allocate(self%treeNumber_(0:self%workerCount(utilizeOpenMPThreads)-1))
+       do i=0,self%workerCount(utilizeOpenMPThreads)-1
+          self%treeNumber_(i)=+i                                      &
+               &              -self%workerCount(utilizeOpenMPThreads) &
+               &              +1_c_size_t
+       end do
+    else
+       if (self%utilizeOpenMPThreads .neqv. utilizeOpenMPThreads) call Error_Report('"cyclic" work share can not support transitions between utilizing/not utilizing OpenMP threads'//{introspection:location})
+    end if
+    !$ call self%lock%unset()
+    self%treeNumber_(self%workerID(utilizeOpenMPThreads))=+self%treeNumber_(self%workerID   (utilizeOpenMPThreads)) &
+         &                                                +                 self%workerCount(utilizeOpenMPThreads)
+    cyclicForestNumber                                   =+self%treeNumber_(self%workerID   (utilizeOpenMPThreads))
+    return
+  end function cyclicForestNumber

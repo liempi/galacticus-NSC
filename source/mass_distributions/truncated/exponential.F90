@@ -1,0 +1,433 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+!+    Contributions to this file made by: Xiaolong Du, Andrew Benson, Claude.
+
+  !!{RST
+  Implements an exponentially truncated spherical mass distribution :cite:t:`kazantzidis_2006`.
+  !!}
+
+  !![
+  <massDistribution name="massDistributionSphericalTruncatedExponential" docformat="rst">
+   <description>
+   Implements an exponentially truncated mass distribution :cite:t:`kazantzidis_2006` in which the density is given by
+
+   .. math::
+
+      \rho(r) = \left\{ \begin{array}{ll} \rho^\prime(r) &amp; \hbox{ if } r &lt; r_\mathrm{min}, \\ \rho^\prime(r_\mathrm{min}) x^\kappa \exp\left(-\frac{x-1}{x_\mathrm{decay}}\right) &amp; \hbox{otherwise,} \end{array} \right.
+
+   where :math:`x = r/r_\mathrm{min}`, :math:`x_\mathrm{decay} = r_\mathrm{decay}/r_\mathrm{min}`, :math:`\rho^\prime(r)` is some other density profile, :math:`r_\mathrm{min}=`\ ``[radiusTruncateMinimum]``, :math:`r_\mathrm{decay}=`\ ``[radiusTruncateDecay]``, and
+
+   .. math::
+
+      \kappa = \frac{r_\mathrm{min}}{r_\mathrm{decay}} + \frac{\mathrm{d}\log \rho^\prime}{\mathrm{d}\log r}(r_\mathrm{min})
+
+   is chosen to ensure that the logarithmic gradient of the density profile is continuous across :math:`r=r_\mathrm{min}`.
+   </description>
+  </massDistribution>
+  !!]
+  type, extends(massDistributionSphericalDecorator) :: massDistributionSphericalTruncatedExponential
+     !!{RST
+     Implementation of an exponentially-truncated spherical mass distribution.
+     !!}
+     private
+     double precision :: radiusTruncateMinimum      , radiusTruncateDecay          , &
+          &              massAtTruncation           , massTotal_                   , &
+          &              densityAtTruncation        , kappa                        , &
+          &              massEnclosedExponentialTerm, massEnclosedGammaFunctionTerm
+     double precision :: radiusMassTotal            =huge(0.0d0)
+   contains
+     final     ::                                    sphericalTruncatedExponentialDestructor
+     procedure :: density                         => sphericalTruncatedExponentialDensity
+     procedure :: densityGradientRadial           => sphericalTruncatedExponentialDensityGradientRadial
+     procedure :: densitySlopeLogarithmicGradient => sphericalTruncatedExponentialDensitySlopeLogarithmicGradient
+     procedure :: massTotal                       => sphericalTruncatedExponentialMassTotal
+     procedure :: densityRadialMoment             => sphericalTruncatedExponentialDensityRadialMoment
+     procedure :: massEnclosedBySphere            => sphericalTruncatedExponentialMassEnclosedBySphere
+     procedure :: radiusEnclosingMass             => sphericalTruncatedExponentialRadiusEnclosingMass
+  end type massDistributionSphericalTruncatedExponential
+
+  interface massDistributionSphericalTruncatedExponential
+     !!{RST
+     Constructors for the :galacticus-class:`massDistributionSphericalTruncatedExponential` mass distribution class.
+     !!}
+     module procedure sphericalTruncatedExponentialConstructorParameters
+     module procedure sphericalTruncatedExponentialConstructorInternal
+  end interface massDistributionSphericalTruncatedExponential
+
+contains
+
+  function sphericalTruncatedExponentialConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`massDistributionSphericalTruncatedExponential` mass distribution class which builds the object from a parameter set.
+    !!}
+    use :: Input_Parameters          , only : inputParameters
+    use :: Galactic_Structure_Options, only : enumerationComponentTypeEncode, enumerationMassTypeEncode
+    implicit none
+    type            (massDistributionSphericalTruncatedExponential)                :: self
+    type            (inputParameters                              ), intent(inout) :: parameters
+    class           (massDistributionClass                        ), pointer       :: massDistribution_
+    type            (varying_string                               )                :: nonAnalyticSolver
+    double precision                                                               :: radiusTruncateMinimum, radiusTruncateDecay         
+    type            (varying_string                               )                :: componentType        , massType
+
+    !![
+    <inputParameter docformat="rst">
+      <name>radiusTruncateMinimum</name>
+      <source>parameters</source>
+      <description>
+      The minimum radius to begin truncating the density profile.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>radiusTruncateDecay</name>
+      <source>parameters</source>
+      <description>
+      The exponential decay scale for truncating the density profile.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>nonAnalyticSolver</name>
+      <defaultValue>var_str('fallThrough')</defaultValue>
+      <source>parameters</source>
+      <description>
+      Selects how solutions are computed when no analytic solution is available.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>componentType</name>
+      <defaultValue>var_str('unknown')</defaultValue>
+      <description>
+      The component type that this mass distribution represents.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>massType</name>
+      <defaultValue>var_str('unknown')</defaultValue>
+      <description>
+      The mass type that this mass distribution represents.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <objectBuilder class="massDistribution" name="massDistribution_" source="parameters"/>
+    !!]
+    select type (massDistribution_)
+    class is (massDistributionSpherical)
+       self=massDistributionSphericalTruncatedExponential(radiusTruncateMinimum,radiusTruncateDecay,enumerationNonAnalyticSolversEncode(char(nonAnalyticSolver),includesPrefix=.false.),massDistribution_,enumerationComponentTypeEncode(componentType,includesPrefix=.false.),enumerationMassTypeEncode(massType,includesPrefix=.false.))
+    class default
+       call Error_Report('a spherically-symmetric mass distribution is required'//{introspection:location})
+    end select
+    !![
+    <inputParametersValidate source="parameters"/>
+    <objectDestructor name="massDistribution_"/>
+    !!]
+    return
+  end function sphericalTruncatedExponentialConstructorParameters
+  
+  function sphericalTruncatedExponentialConstructorInternal(radiusTruncateMinimum,radiusTruncateDecay,nonAnalyticSolver,massDistribution_,componentType,massType) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`massDistributionSphericalTruncatedExponential` mass distribution class.
+    !!}
+    use :: Coordinates    , only : coordinateSpherical                   , assignment(=)
+    use :: Gamma_Functions, only : Gamma_Function_Incomplete_Unnormalized
+    implicit none
+    type            (massDistributionSphericalTruncatedExponential)                          :: self
+    class           (massDistributionSpherical                    ), intent(in   ), target   :: massDistribution_
+    type            (enumerationNonAnalyticSolversType            ), intent(in   )           :: nonAnalyticSolver
+    double precision                                               , intent(in   )           :: radiusTruncateMinimum            , radiusTruncateDecay
+    type            (enumerationComponentTypeType                 ), intent(in   ), optional :: componentType
+    type            (enumerationMassTypeType                      ), intent(in   ), optional :: massType
+    double precision                                               , parameter               :: fractionRadialDecayMaximum=50.0d0
+    type            (coordinateSpherical                          )                          :: coordinatesTruncateMinimum
+    !![
+    <constructorAssign variables="radiusTruncateMinimum, radiusTruncateDecay, nonAnalyticSolver, *massDistribution_, componentType, massType"/>
+    !!]
+
+    coordinatesTruncateMinimum        =[self%radiusTruncateMinimum,0.0d0,0.0d0]
+    self%kappa                        =+self%radiusTruncateMinimum                                                                                                &
+         &                             /self%radiusTruncateDecay                                                                                                  &
+         &                             +self%massDistribution_%densityGradientRadial(                                                                             &
+         &                                                                                       coordinatesTruncateMinimum                                     , &
+         &                                                                           logarithmic=.true.                                                           &
+         &                                                                          )
+    self%massEnclosedExponentialTerm  =+exp                                   (                 self%radiusTruncateMinimum/self%radiusTruncateDecay)              &
+            &  /                                                              (                 self%radiusTruncateMinimum/self%radiusTruncateDecay)**self%kappa
+    self%massEnclosedGammaFunctionTerm=+Gamma_Function_Incomplete_Unnormalized(3.0d0+self%kappa,self%radiusTruncateMinimum/self%radiusTruncateDecay)
+    self%densityAtTruncation          =+self%massDistribution_%density              (                                                                             &
+         &                                                                                       coordinatesTruncateMinimum                                       &
+         &                                                                          )
+    self%massAtTruncation             =+self%massDistribution_%massEnclosedBySphere (                                                                             &
+         &                                                                                       +self%radiusTruncateMinimum                                      &
+         &                                                                          )
+    self%massTotal_                   =+self                  %massEnclosedBySphere (                                                                             &
+         &                                                                                       +self%radiusTruncateMinimum                                      &
+         &                                                                                       +     fractionRadialDecayMaximum                                 &
+         &                                                                                       *self%radiusTruncateDecay                                        &
+         &                                                                          )
+    ! Beyond the radius at which the total mass is evaluated, the mass enclosed is simply the total mass. This is set only after
+    ! the total mass has been computed, since that computation uses the full calculation of the mass enclosed.
+    self%radiusMassTotal              =+self%radiusTruncateMinimum                                                                                                &
+         &                             +     fractionRadialDecayMaximum                                                                                           &
+         &                             *self%radiusTruncateDecay
+    self%dimensionless                = self%massDistribution_%isDimensionless      (                                                                             &
+         &                                                                          )
+    self%componentType                = self%massDistribution_%componentType
+    self%massType                     = self%massDistribution_%massType
+    return
+  end function sphericalTruncatedExponentialConstructorInternal
+
+  subroutine sphericalTruncatedExponentialDestructor(self)
+    !!{RST
+    Destructor for the abstract :galacticus-class:`massDistributionSphericalTruncatedExponential` mass distribution class.
+    !!}
+    implicit none
+    type(massDistributionSphericalTruncatedExponential), intent(inout) :: self
+    
+    !![
+    <objectDestructor name="self%massDistribution_"/>
+    !!]
+    return
+  end subroutine sphericalTruncatedExponentialDestructor
+
+  double precision function sphericalTruncatedExponentialDensity(self,coordinates) result(density)
+    !!{RST
+    Return the density at the specified ``coordinates`` in an exponentially-truncated spherical mass distribution.
+    !!}
+    implicit none
+    class(massDistributionSphericalTruncatedExponential), intent(inout) :: self
+    class(coordinate                                   ), intent(in   ) :: coordinates
+    
+    if (coordinates%rSpherical() <= self%radiusTruncateMinimum) then
+       density=+self%massDistribution_%density(coordinates)
+    else
+       density=+self%densityAtTruncation                   &
+            &  *(                                          &
+            &    +coordinates%rSpherical           ()      &
+            &    /self       %radiusTruncateMinimum        &
+            &   )**self%kappa                              &
+            &  *exp(                                       &
+            &       -(                                     &
+            &         +coordinates%rSpherical           () &
+            &         -self       %radiusTruncateMinimum   &
+            &        )                                     &
+            &       /  self       %radiusTruncateDecay     &
+            &     )
+    end if
+    return
+  end function sphericalTruncatedExponentialDensity
+
+  double precision function sphericalTruncatedExponentialDensitySlopeLogarithmicGradient(self,coordinates) result(densitySlopeLogarithmicGradient)
+    !!{RST
+    Return the logarithmic gradient of the logarithmic density slope in an exponentially-truncated spherical mass
+    distribution.
+
+    Within the truncation radius the distribution is unmodified, so the result is that of the distribution being truncated.
+    Beyond it the density is :math:`\propto (r/r_\mathrm{t})^\kappa \exp[-(r-r_\mathrm{t})/r_\mathrm{decay}]`, whose
+    logarithmic slope is :math:`\kappa - r/r_\mathrm{decay}`, giving a gradient of :math:`-r/r_\mathrm{decay}`.
+    !!}
+    implicit none
+    class           (massDistributionSphericalTruncatedExponential), intent(inout), target :: self
+    class           (coordinate                                   ), intent(in   )         :: coordinates
+
+    if (coordinates%rSpherical() <= self%radiusTruncateMinimum) then
+       densitySlopeLogarithmicGradient=+self%massDistribution_%densitySlopeLogarithmicGradient(coordinates)
+    else
+       densitySlopeLogarithmicGradient=-coordinates%rSpherical         () &
+            &                          /self       %radiusTruncateDecay
+    end if
+    return
+  end function sphericalTruncatedExponentialDensitySlopeLogarithmicGradient
+
+  double precision function sphericalTruncatedExponentialDensityGradientRadial(self,coordinates,logarithmic) result(densityGradient)
+    !!{RST
+    Return the density gradient at the specified ``coordinates`` in an exponentially-truncated spherical mass distribution.
+    !!}
+    use :: Error, only : Error_Report
+    implicit none
+    class           (massDistributionSphericalTruncatedExponential), intent(inout), target   :: self
+    class           (coordinate                                   ), intent(in   )           :: coordinates
+    logical                                                        , intent(in   ), optional :: logarithmic
+    double precision                                                                         :: density
+    !![
+    <optionalArgument name="logarithmic" defaultsTo=".false."/>
+    !!]
+
+    if (coordinates%rSpherical() <= self%radiusTruncateMinimum) then
+       densityGradient=+self%massDistribution_%densityGradientRadial(coordinates,logarithmic)
+    else
+       densityGradient=+self%densityAtTruncation                    &
+            &          *(                                           &
+            &            +coordinates%rSpherical           ()       &
+            &            /self       %radiusTruncateMinimum         &
+            &           )**self%kappa                               &
+            &           *exp(                                       &
+            &                -(                                     &
+            &                  +coordinates%rSpherical           () &
+            &                  -self       %radiusTruncateMinimum   &
+            &                 )                                     &
+            &                /  self       %radiusTruncateDecay     &
+            &               )                                       &
+            &           *(                                          &
+            &             +self       %kappa                        &
+            &             -coordinates%rSpherical         ()        &
+            &             /self       %radiusTruncateDecay          &
+            &            )                                          &
+            &           /  coordinates%rSpherical         ()
+       if (logarithmic_) then
+          density=self%density(coordinates)
+          if (density > 0.0d0) then
+             densityGradient=+            densityGradient              &
+                  &          *coordinates%rSpherical     (           ) &
+                  &          /self       %density        (coordinates)
+          else if (densityGradient /= 0.0d0) then
+             call Error_Report('density is zero, but gradient is non-zero - logarithmic gradient is undefined'//{introspection:location})
+          end if
+       end if
+    end if
+    return
+  end function sphericalTruncatedExponentialDensityGradientRadial
+
+  double precision function sphericalTruncatedExponentialDensityRadialMoment(self,moment,radiusMinimum,radiusMaximum,isInfinite) result(densityRadialMoment)
+    !!{RST
+    Returns a radial density moment, :math:`\int_{r_\mathrm{min}}^{r_\mathrm{max}} \rho(r) r^m \mathrm{d}r`, for an
+    exponentially-truncated spherical mass distribution. Within the truncation radius the moment is that of the distribution
+    being truncated. Beyond it the moment is computed analytically as
+
+    .. math::
+
+       \int_a^b \rho(r) r^m \mathrm{d}r = \rho^\prime(r_\mathrm{min}) r_\mathrm{decay}^{m+1} \mathrm{e}^{x_\mathrm{decay}^{-1}}
+       x_\mathrm{decay}^\kappa \left[ \Gamma\left(m+1+\kappa,\frac{a}{r_\mathrm{decay}}\right) -
+       \Gamma\left(m+1+\kappa,\frac{b}{r_\mathrm{decay}}\right) \right],
+
+    where :math:`\Gamma(s,x)` is the upper incomplete gamma function.
+    !!}
+    use :: Gamma_Functions, only : Gamma_Function_Incomplete_Unnormalized
+    implicit none
+    class           (massDistributionSphericalTruncatedExponential), intent(inout)           :: self
+    double precision                                               , intent(in   )           :: moment
+    double precision                                               , intent(in   ), optional :: radiusMinimum , radiusMaximum
+    logical                                                        , intent(  out), optional :: isInfinite
+    double precision                                                                         :: radiusMinimum_, radiusMaximum_, &
+         &                                                                                      gammaMaximum
+    logical                                                                                  :: isInfinite_
+
+    densityRadialMoment=0.0d0
+    if (present(isInfinite)) isInfinite=.false.
+    radiusMinimum_=0.0d0
+    if (present(radiusMinimum)) radiusMinimum_=radiusMinimum
+    radiusMaximum_=huge(0.0d0)
+    if (present(radiusMaximum)) radiusMaximum_=radiusMaximum
+    if (radiusMaximum_ <= radiusMinimum_) return
+    ! Contribution from within the truncation radius.
+    if (radiusMinimum_ < self%radiusTruncateMinimum) then
+       densityRadialMoment=self%massDistribution_%densityRadialMoment(moment,radiusMinimum=radiusMinimum_,radiusMaximum=min(radiusMaximum_,self%radiusTruncateMinimum),isInfinite=isInfinite_)
+       if (isInfinite_) then
+          densityRadialMoment=0.0d0
+          if (present(isInfinite)) then
+             isInfinite=.true.
+             return
+          else
+             call Error_Report('requested radial density moment is infinite'//{introspection:location})
+          end if
+       end if
+    end if
+    ! Contribution from beyond the truncation radius.
+    if (radiusMaximum_ > self%radiusTruncateMinimum) then
+       if (present(radiusMaximum)) then
+          gammaMaximum=Gamma_Function_Incomplete_Unnormalized(moment+1.0d0+self%kappa,radiusMaximum_/self%radiusTruncateDecay)
+       else
+          gammaMaximum=0.0d0
+       end if
+       densityRadialMoment=+densityRadialMoment                                                                                                         &
+            &              +self%densityAtTruncation                                                                                                    &
+            &              *self%radiusTruncateDecay**(moment+1.0d0)                                                                                    &
+            &              *self%massEnclosedExponentialTerm                                                                                            &
+            &              *(                                                                                                                           &
+            &                +Gamma_Function_Incomplete_Unnormalized(moment+1.0d0+self%kappa,max(radiusMinimum_,self%radiusTruncateMinimum)/self%radiusTruncateDecay) &
+            &                -gammaMaximum                                                                                                              &
+            &               )
+    end if
+    return
+  end function sphericalTruncatedExponentialDensityRadialMoment
+
+  double precision function sphericalTruncatedExponentialMassTotal(self) result(mass)
+    !!{RST
+    Return the total mass in a truncated mass distribution.
+    !!}
+    implicit none
+    class(massDistributionSphericalTruncatedExponential), intent(inout) :: self
+
+    mass=self%massTotal_
+    return
+  end function sphericalTruncatedExponentialMassTotal
+  
+  double precision function sphericalTruncatedExponentialMassEnclosedBySphere(self,radius) result(mass)
+    !!{RST
+    Computes the mass enclosed within a sphere of given ``radius`` for truncatedExponential mass distributions.
+    !!}
+    use :: Gamma_Functions, only : Gamma_Function_Incomplete_Unnormalized
+    implicit none
+    class           (massDistributionSphericalTruncatedExponential), intent(inout), target   :: self
+    double precision                                               , intent(in   )           :: radius
+    
+    if      (radius <= self%radiusTruncateMinimum) then
+       mass   =+self%massDistribution_%massEnclosedBySphere(radius)
+    else if (radius >= self%radiusMassTotal      ) then
+       mass   =+self%massTotal_
+    else
+       mass   =+self%massAtTruncation                                                                      &
+            &  +4.0d0                                                                                      &
+            &  *Pi                                                                                         &
+            &  *self%densityAtTruncation                                                                   &
+            &  *self%radiusTruncateDecay**3                                                                &
+            &  *self%massEnclosedExponentialTerm                                                           &
+            &  *(                                                                                          &
+            &    +self%massEnclosedGammaFunctionTerm                                                       &
+            &    -Gamma_Function_Incomplete_Unnormalized(3.0d0+self%kappa,radius/self%radiusTruncateDecay) &
+            &  )
+    end if
+    return
+  end function sphericalTruncatedExponentialMassEnclosedBySphere
+
+  double precision function sphericalTruncatedExponentialRadiusEnclosingMass(self,mass,massFractional) result(radius)
+    !!{RST
+    Computes the radius enclosing a given mass or mass fraction for truncatedExponential spherical mass distributions.
+    !!}
+    implicit none
+    class           (massDistributionSphericalTruncatedExponential), intent(inout), target   :: self
+    double precision                                               , intent(in   ), optional :: mass , massFractional
+    double precision                                                                         :: mass_
+    
+    if (present(mass)) then
+       mass_  =+     mass
+    else if (present(massFractional)) then
+       mass_  =+     massFractional   &
+            &  *self%massTotal     ()
+    else
+       mass_  =+0.0d0
+       call Error_Report('either `mass` or `massFractional` must be provided'//{introspection:location})
+    end if
+    if (mass_ <= self%massAtTruncation) then
+       radius=self%massDistribution_%radiusEnclosingMass           (mass=mass_)
+    else
+       radius=self                  %radiusEnclosingMassNonAnalytic(mass=mass_)
+    end if    
+    return
+  end function sphericalTruncatedExponentialRadiusEnclosingMass

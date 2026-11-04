@@ -1,8 +1,9 @@
-<?xml version="1.0"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Parameter file for bug #1066052: "Crash due to zero-size spheroids" test case -->
+
 <parameters>
   <formatVersion>2</formatVersion>
-  <lastModified revision="975fffd5aadf697707003f16bf9b4caee8ebe97d" time="2025-10-22T21:34:03"/>
+  <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
 
   <verbosityLevel value="working"/>
   <mergerRemnantSize value="cole2000"/>
@@ -20,6 +21,7 @@
   </mergerTreeConstructor>
   <outputFileName value="testSuite/outputs/bug1066052.hdf5"/>
   <mergerTreeEvolver value="standard">
+    <fractionTimestepSatelliteMinimum value="0.75"/>
     <allTreesExistAtFinalTime value="false"/>
   </mergerTreeEvolver>
 
@@ -33,9 +35,11 @@
     <temperatureCMB value="2.72548"/>
   </cosmologyParameters>
 
-  <cosmologicalMassVariance value="filteredPower">
+  <cosmologicalMassVariance value="filteredPower"/>
+
+  <powerSpectrumNormalizer value="sigma8">
     <sigma_8 value="0.816"/>
-  </cosmologicalMassVariance>
+  </powerSpectrumNormalizer>
 
   <nodePropertyExtractor value="multi">
     <nodePropertyExtractor value="virialProperties"/>
@@ -117,6 +121,7 @@
       <excessHeatDrivesOutflow value="true"/>
       <rateMaximumExpulsion value="1.0"/>
     </nodeOperator>
+    <nodeOperator value="CGMOuterRadiusRamPressureStripping"/>
   </nodeOperator>
 
 </parameters>

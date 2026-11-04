@@ -1,0 +1,77 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+  !!{RST
+  Implements a merger remnant size class which takes no action.
+  !!}
+
+  !![
+  <mergerRemnantSize name="mergerRemnantSizeNull" docformat="rst">
+   <description>
+   A merger remnant size class which does nothing at all. It is useful, for example, when running Galacticus to study dark matter only (i.e. when no galaxy properties are computed).
+   </description>
+  </mergerRemnantSize>
+  !!]
+  type, extends(mergerRemnantSizeClass) :: mergerRemnantSizeNull
+     !!{RST
+     A merger remnant size class which uses takes no action.
+     !!}
+     private
+   contains
+     procedure :: get => nullGet
+  end type mergerRemnantSizeNull
+
+  interface mergerRemnantSizeNull
+     !!{RST
+     Constructors for the :galacticus-class:`mergerRemnantSizeNull` merger remnant size class.
+     !!}
+     module procedure nullConstructorParameters
+  end interface mergerRemnantSizeNull
+
+contains
+
+  function nullConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`mergerRemnantSizeNull` merger remnant size class which takes a parameter list as input.
+    !!}
+    use :: Input_Parameters, only : inputParameters
+    implicit none
+    type(mergerRemnantSizeNull)                :: self
+    type(inputParameters      ), intent(inout) :: parameters
+
+    self=mergerRemnantSizeNull()
+    !![
+    <inputParametersValidate source="parameters"/>
+    !!]
+    return
+  end function nullConstructorParameters
+
+  subroutine nullGet(self,node,radius,velocityCircular,angularMomentumSpecific)
+    !!{RST
+    Do not compute the size of the merger remnant for ``node``.
+    !!}
+    implicit none
+    class           (mergerRemnantSizeNull), intent(inout) :: self
+    type            (treeNode             ), intent(inout) :: node
+    double precision                       , intent(  out) :: radius                 , velocityCircular, &
+         &                                                    angularMomentumSpecific
+    !$GLC attributes unused :: self,node,radius,velocityCircular,angularMomentumSpecific
+
+    return
+  end subroutine nullGet

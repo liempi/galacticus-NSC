@@ -1,8 +1,9 @@
-<?xml version="1.0"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Parameter file for building merger tree files for the Millennium Simulation. -->
+
 <parameters>
   <formatVersion>2</formatVersion>
-  <lastModified revision="975fffd5aadf697707003f16bf9b4caee8ebe97d" time="2025-10-22T21:34:03"/>
+  <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
 
 
   <task value="mergerTreeFileBuilder">
@@ -10,7 +11,6 @@
     <inputFileName value="forests.csv"/>
     <outputFileName value="forests.hdf5"/>
     <outputFormat value="galacticus"/>
-    <source value="unknown"/>
     <massParticle value="8.60e-2"/>
     <!-- Specify that halo masses do include subhalo contributions. (Note that the
 	 expectation is that masses of isolated halos have been derived from
@@ -115,10 +115,7 @@
       <OmegaBaryon value=" 0.045"/>
     </cosmologyParameters>
 
-    <cosmologicalMassVariance value="filteredPower">
-      <sigma_8 value="0.9"/>
-
-    </cosmologicalMassVariance>
+    <cosmologicalMassVariance value="filteredPower"/>
 
     <transferFunction value="CAMB"/>
 
@@ -273,5 +270,10 @@
     </particleProperty>
 
   </task>
+
+
+  <powerSpectrumNormalizer value="sigma8">
+    <sigma_8 value="0.9"/>
+  </powerSpectrumNormalizer>
 
 </parameters>

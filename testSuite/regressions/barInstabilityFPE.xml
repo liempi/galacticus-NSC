@@ -1,8 +1,9 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Model which triggered a floating point exception in the Efstathiou et al. disk instability class -->
+
 <parameters>
   <formatVersion>2</formatVersion>
-  <lastModified revision="975fffd5aadf697707003f16bf9b4caee8ebe97d" time="2025-10-22T21:34:03"/>
+  <lastModified revision="ea6b55717d89e3ac2234e42c78fca7eebcf9e2fc" time="2026-10-30T23:06:35"/>
 
   <!-- Task and work control -->
   <task value="evolveForests">
@@ -52,8 +53,7 @@
   </cosmologyParameters>
 
   <!-- Power spectrum options -->
-  <cosmologicalMassVariance value="filteredPower">
-    <sigma_8 value="0.821"/> 	<!-- Planck 2018; arXiv:1807.06211 -->
+  <cosmologicalMassVariance value="filteredPower"> 	<!-- Planck 2018; arXiv:1807.06211 -->
   </cosmologicalMassVariance>
 
   <transferFunction value="eisensteinHu1999">
@@ -66,6 +66,9 @@
     <running value="0.0000"/> <!-- Planck 2018; arXiv:1807.06211 -->
   </powerSpectrumPrimordial>
   <powerSpectrumPrimordialTransferred value="simple"/>
+  <powerSpectrumNormalizer value="sigma8">
+    <sigma_8 value="0.821"/>
+  </powerSpectrumNormalizer>
 
   <!-- Structure formation options -->
   <linearGrowth value="collisionlessMatter"/>
@@ -135,7 +138,6 @@
     </stellarPopulationSpectraPostprocessor>
   </stellarPopulationSpectraPostprocessorBuilder>
 
-  <stellarSpectraDustAttenuation value="charlotFall2000"/>
 
   <nodePropertyExtractor value="multi">
    
@@ -262,8 +264,8 @@
     <heightToRadialScaleDisk value="0.137"/>
     <surfaceDensityCritical value="200.0"/>
     <surfaceDensityExponent value="0.4"/>
-    <starFormationFrequencyNormalization value="5.25e-10"/>
-    <pressureCharacteristic value="4.54"/>
+    <starFormationFrequencyNormalization value="3.860294117647059e-10"/>
+    <pressureCharacteristic value="3.5e4"/>
     <pressureExponent value="0.92"/>
     
   </starFormationRateSurfaceDensityDisks>
@@ -432,6 +434,7 @@
     </nodeOperator>
     <nodeOperator value="CGMOutflowReincorporation">
       <includeSatellites value="true"/>
+      <outflowToColdMode value="false"/>
     </nodeOperator>
     <nodeOperator value="CGMCoolingHeating">
       <component value="disk"/>
@@ -443,6 +446,7 @@
       <component value="disk"/>
       <coolingFrom value="currentNode"/>
     </nodeOperator>
+    <nodeOperator value="CGMOuterRadiusRamPressureStripping"/>
   </nodeOperator>
   
   <starFormationHistory value="adaptive">

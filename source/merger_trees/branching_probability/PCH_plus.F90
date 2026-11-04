@@ -1,0 +1,351 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+!!{RST
+Implements a merger tree branching probability class using the algorithm of :cite:t:`parkinson_generating_2008` plus an additional term.
+!!}
+
+  use :: Cosmological_Density_Field, only : cosmologicalMassVarianceClass
+  use :: Linear_Growth             , only : linearGrowthClass
+  use :: Tables                    , only : table1DLogarithmicLinear
+
+  !![
+  <mergerTreeBranchingProbability name="mergerTreeBranchingProbabilityPCHPlus" docformat="rst">
+   <description>
+   Merger tree branching probabilities using the algorithm of :cite:t:`parkinson_generating_2008` plus an additional term.
+   </description>
+  </mergerTreeBranchingProbability>
+  !!]
+  type, extends(mergerTreeBranchingProbabilityParkinsonColeHelly) :: mergerTreeBranchingProbabilityPCHPlus
+     !!{RST
+     A merger tree branching probability class using the algorithm of :cite:t:`parkinson_generating_2008` plus an additional term.
+     !!}
+     private
+     double precision                             :: gamma3                      , gamma4       , &
+          &                                          gamma5
+     ! Precomputed exponents for the fused merging-rate × modifier form (see pchPlusProgenitorMassFunctionFactor):
+     !  exponentChildSigma = 2 + γ₁ - 2γ₃ ; exponentDelta = γ₃ - 3/2.
+     double precision                             :: exponentChildSigma          , exponentDelta
+     class           (linearGrowthClass), pointer :: linearGrowth_      => null()
+   contains
+     final     ::                                 pchPlusDestructor
+     procedure :: V                            => pchPlusV
+     procedure :: modifier                     => pchPlusModifier
+     procedure :: progenitorMassFunctionFactor => pchPlusProgenitorMassFunctionFactor
+     procedure :: hypergeometricA              => pchPlusHypergeometricA
+     procedure :: hypergeometricGamma3         => pchPlusHypergeometricGamma3
+     procedure :: computeCommonFactors         => pchPlusComputeCommonFactors
+  end type mergerTreeBranchingProbabilityPCHPlus
+
+  ! Closest approach permitted to γ₃=½, at which the evaluation of the bound integral is indeterminate. At this separation the
+  ! precision lost to the cancellation is of order a part in 10¹³, which is negligible. The tabulated subresolution accretion rate
+  ! suffers a similar cancellation (see `parkinsonColeHellyHypergeometricFactor`): with [precisionHypergeometric]=10⁻⁶ its error at
+  ! this separation is about 2×10⁻⁵, still well inside the tolerance of the tabulation.
+  double precision, parameter :: gamma3ToleranceHalf=1.0d-3
+
+  interface mergerTreeBranchingProbabilityPCHPlus
+     !!{RST
+     Constructors for the :galacticus-class:`mergerTreeBranchingProbabilityPCHPlus` merger tree branching probability class.
+     !!}
+     module procedure pchPlusConstructorParameters
+     module procedure pchPlusConstructorInternal
+  end interface mergerTreeBranchingProbabilityPCHPlus
+
+contains
+
+  function pchPlusConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`mergerTreeBranchingProbabilityPCHPlus` merger tree branching probability class which reads parameters from a provided parameter list.
+    !!}
+    implicit none
+    type            (mergerTreeBranchingProbabilityPCHPlus)                :: self
+    type            (inputParameters                      ), intent(inout) :: parameters
+    class           (cosmologicalMassVarianceClass        ), pointer       :: cosmologicalMassVariance_
+    class           (criticalOverdensityClass             ), pointer       :: criticalOverdensity_
+    class           (linearGrowthClass                    ), pointer       :: linearGrowth_
+    double precision                                                       :: gamma1                       , gamma2            , &
+         &                                                                    G0                           , accuracyFirstOrder, &
+         &                                                                    precisionHypergeometric      , gamma3            , &
+         &                                                                    gamma4                       , gamma5
+    logical                                                                :: hypergeometricTabulate       , cdmAssumptions    , &
+         &                                                                    tolerateRoundOffErrors
+
+    ! Check and read parameters.
+    !![
+    <inputParameter docformat="rst">
+      <name>G0</name>
+      <defaultValue>0.57d0</defaultValue>
+      <description>
+      The parameter :math:`G_0` appearing in the modified merger rate expression of :cite:t:`parkinson_generating_2008`.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>gamma1</name>
+      <defaultValue>0.38d0</defaultValue>
+      <description>
+      The parameter :math:`\gamma_1` appearing in the modified merger rate expression of :cite:t:`parkinson_generating_2008`.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>gamma2</name>
+      <defaultValue>-0.01d0</defaultValue>
+      <description>
+      The parameter :math:`\gamma_2` appearing in the modified merger rate expression of :cite:t:`parkinson_generating_2008`.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>gamma3</name>
+      <defaultValue>0.0d0</defaultValue>
+      <description>
+      The parameter :math:`\gamma_3` appearing in the modified merger rate expression of :cite:t:`parkinson_generating_2008`.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>gamma4</name>
+      <defaultValue>0.0d0</defaultValue>
+      <description>
+      The parameter :math:`\gamma_4` appearing in the modified merger rate expression of :cite:t:`parkinson_generating_2008`.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>gamma5</name>
+      <defaultValue>0.0d0</defaultValue>
+      <description>
+      The parameter :math:`\gamma_5` appearing in the modified merger rate expression of :cite:t:`parkinson_generating_2008`.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>accuracyFirstOrder</name>
+      <defaultValue>0.1d0</defaultValue>
+      <description>
+      Limits the step in :math:`\delta_\mathrm{crit}` when constructing merger trees using the :cite:t:`parkinson_generating_2008` algorithm, so that it never exceeds ``accuracyFirstOrder``\ :math:`\sqrt{2[\sigma^2(M_2/2)-\sigma^2(M_2)]}`.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>precisionHypergeometric</name>
+      <defaultValue>1.0d-6</defaultValue>
+      <description>
+      The fractional precision required in evaluates of hypergeometric functions in the modified Press-Schechter tree branching calculations.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>hypergeometricTabulate</name>
+      <defaultValue>.true.</defaultValue>
+      <description>
+      Specifies whether hypergeometric factors should be precomputed and tabulated in modified Press-Schechter tree branching functions.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>cdmAssumptions</name>
+      <defaultValue>.false.</defaultValue>
+      <description>
+      If true, assume that :math:`\alpha(=-\mathrm{d}\log \sigma/\mathrm{d}\log M)&gt;0` and :math:`\mathrm{d}\alpha/\mathrm{d}M&gt;0` (as is true in the case of :term:`CDM`) when constructing merger trees using the :cite:t:`parkinson_generating_2008`.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>tolerateRoundOffErrors</name>
+      <defaultValue>.false.</defaultValue>
+      <description>
+      If true, round-off errors in integrations of branching probability will be tolerated. This may degrade the accuracy of solutions, but can be unavoidable in models with cut-offs in their power spectra.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <objectBuilder class="cosmologicalMassVariance" name="cosmologicalMassVariance_" source="parameters"/>
+    <objectBuilder class="criticalOverdensity"      name="criticalOverdensity_"      source="parameters"/>
+    <objectBuilder class="linearGrowth"             name="linearGrowth_"             source="parameters"/>
+    !!]
+    self=mergerTreeBranchingProbabilityPCHPlus(G0,gamma1,gamma2,gamma3,gamma4,gamma5,accuracyFirstOrder,precisionHypergeometric,hypergeometricTabulate,cdmAssumptions,tolerateRoundOffErrors,cosmologicalMassVariance_,criticalOverdensity_,linearGrowth_)
+    !![
+    <inputParametersValidate source="parameters"/>
+    <objectDestructor name="cosmologicalMassVariance_"/>
+    <objectDestructor name="criticalOverdensity_"     />
+    <objectDestructor name="linearGrowth_"            />
+    !!]
+    return
+  end function pchPlusConstructorParameters
+
+  function pchPlusConstructorInternal(G0,gamma1,gamma2,gamma3,gamma4,gamma5,accuracyFirstOrder,precisionHypergeometric,hypergeometricTabulate,cdmAssumptions,tolerateRoundOffErrors,cosmologicalMassVariance_,criticalOverdensity_,linearGrowth_) result(self)
+    !!{RST
+    Internal constructor for the :galacticus-class:`mergerTreeBranchingProbabilityPCHPlus` merger tree branching probability class.
+    !!}
+    use :: Display, only : displayGreen, displayReset
+    use :: Error  , only : Error_Report
+    implicit none
+    type            (mergerTreeBranchingProbabilityPCHPlus)                        :: self
+    double precision                                       , intent(in   )         :: gamma1                       , gamma2            , &
+         &                                                                            G0                           , accuracyFirstOrder, &
+         &                                                                            precisionHypergeometric      , gamma3            , &
+         &                                                                            gamma4                       , gamma5
+    logical                                                , intent(in   )         :: hypergeometricTabulate       , cdmAssumptions    , &
+         &                                                                            tolerateRoundOffErrors
+    class           (cosmologicalMassVarianceClass        ), intent(in   ), target :: cosmologicalMassVariance_
+    class           (criticalOverdensityClass             ), intent(in   ), target :: criticalOverdensity_
+    class           (linearGrowthClass                    ), intent(in   ), target :: linearGrowth_
+    !![
+    <constructorAssign variables="gamma3, gamma4, gamma5, *linearGrowth_"/>
+    !!]
+
+    ! Validate.
+    if (cdmAssumptions .and. gamma3 > 1.5d0) call Error_Report('γ₃>³/₂ violates CDM assumptions'//{introspection:location})
+    ! The integral from which the bounds on the branching probability are formed is evaluated through an integration by parts
+    ! which carries a factor 1/(γ₃-½) - see `parkinsonColeHellyBoundIntegral`. The two terms it multiplies cancel as that factor
+    ! diverges, so the result is finite at γ₃=½ but is not computable there, and loses precision in a neighborhood of it.
+    if (abs(gamma3-0.5d0) < gamma3ToleranceHalf) call Error_Report('γ₃=½ cannot be evaluated - displace it slightly'//{introspection:location})
+    ! The tabulated subresolution accretion rate is evaluated close to its singular point through a connection formula which
+    ! fails in the same way at γ₃=-½,-³/₂,… - see `parkinsonColeHellyHypergeometricFactor`.
+    if (hypergeometricTabulate .and. gamma3 < 0.0d0 .and. abs(gamma3-0.5d0-dble(nint(gamma3-0.5d0))) < gamma3ToleranceHalf)                      &
+         & call Error_Report(                                                                                                                    &
+         &                   'γ₃=-½,-³/₂,… cannot be evaluated when tabulating hypergeometric functions'                            //char(10)// &
+         &                   displayGreen()//'HELP:'//displayReset()//' displace γ₃ slightly, or set [hypergeometricTabulate]=false'          // &
+         &                   {introspection:location}                                                                                            &
+         &                  )
+    ! Initialize.
+    self%mergerTreeBranchingProbabilityParkinsonColeHelly=mergerTreeBranchingProbabilityParkinsonColeHelly(G0,gamma1,gamma2,accuracyFirstOrder,precisionHypergeometric,hypergeometricTabulate,cdmAssumptions,tolerateRoundOffErrors,cosmologicalMassVariance_,criticalOverdensity_)
+    ! Precompute the exponents used by the fused merging-rate × modifier form (see pchPlusProgenitorMassFunctionFactor):
+    !  childSigma^{2+γ₁-2γ₃} · (childSigma²-σ_p²)^{γ₃-3/2}.
+    self%exponentChildSigma=+2.0d0+gamma1-2.0d0*gamma3
+    self%exponentDelta     =-1.5d0       +      gamma3
+    return
+  end function pchPlusConstructorInternal
+
+  subroutine pchPlusDestructor(self)
+    !!{RST
+    Destructor for the "pchPlus" merger tree branching probability class.
+    !!}
+    implicit none
+    type(mergerTreeBranchingProbabilityPCHPlus), intent(inout) :: self
+
+    !![
+    <objectDestructor name="self%linearGrowth_"/>
+    !!]
+    return
+  end subroutine pchPlusDestructor
+
+  double precision function pchPlusV(self,massFraction,haloMass)
+    !!{RST
+    The function :math:`V(q)` from :cite:t:`parkinson_generating_2008`.
+    !!}
+    implicit none
+    class           (mergerTreeBranchingProbabilityPCHPlus), intent(inout) :: self
+    double precision                                       , intent(in   ) :: massFraction     , haloMass
+    double precision                                                       :: childSigmaSquared, varianceDifference
+
+    childSigmaSquared =+self%cosmologicalMassVariance_%rootVariance(massFraction*haloMass,self%timeParent)**2
+    ! (childSigma²-σ_p²)^{3/2} written as d·√d to use a square root instead of a general power.
+    varianceDifference=+childSigmaSquared-self%sigmaParentSquared
+    pchPlusV          =+       childSigmaSquared         &
+         &            /(varianceDifference*sqrt(varianceDifference)) &
+         &            *(                         &
+         &              +1.0d0                   &
+         &              -self%sigmaParentSquared &
+         &              /     childSigmaSquared  &
+         &             )**self%gamma3
+    return
+  end function pchPlusV
+
+  double precision function pchPlusModifier(self,childSigma)
+    !!{RST
+    Empirical modification of the progenitor mass function from :cite:t:`parkinson_generating_2008`. The constant factors of :math:`G_0 (\delta_\mathrm{p}/\sigma_\mathrm{p})^{\gamma_2}` and :math:`1/\sigma_\mathrm{p}^{\gamma_1}` are not included here---instead they are included in a multiplicative prefactor by which integrals over this function are multiplied.
+    !!}
+    implicit none
+    class           (mergerTreeBranchingProbabilityPCHPlus), intent(inout) :: self
+    double precision                                       , intent(in   ) :: childSigma
+
+    pchPlusModifier=childSigma**self%gamma1*(1.0d0-self%sigmaParentSquared/childSigma**2)**self%gamma3
+    return
+  end function pchPlusModifier
+
+  double precision function pchPlusProgenitorMassFunctionFactor(self,childSigma,childAlpha)
+    !!{RST
+    Fused evaluation of the merging rate × modifier product appearing in the progenitor mass function. Algebraically
+    combining the base merging rate :math:`\sigma_\mathrm{c}^2/(\sigma_\mathrm{c}^2-\sigma_\mathrm{p}^2)^{3/2}|\alpha|`
+    with the PCH+ modifier :math:`\sigma_\mathrm{c}^{\gamma_1}(1-\sigma_\mathrm{p}^2/\sigma_\mathrm{c}^2)^{\gamma_3}`
+    collapses three general powers to two:
+    :math:`|\alpha|\,\sigma_\mathrm{c}^{2+\gamma_1-2\gamma_3}(\sigma_\mathrm{c}^2-\sigma_\mathrm{p}^2)^{\gamma_3-3/2}`.
+    !!}
+    implicit none
+    class           (mergerTreeBranchingProbabilityPCHPlus), intent(inout) :: self
+    double precision                                       , intent(in   ) :: childSigma       , childAlpha
+    double precision                                                       :: childSigmaSquared
+
+    childSigmaSquared=childSigma**2
+    if (childSigmaSquared > self%sigmaParentSquared .and. childAlpha < 0.0d0) then
+       pchPlusProgenitorMassFunctionFactor=+abs(childAlpha)                                        &
+            &                              *      childSigma **self%exponentChildSigma             &
+            &                              *(childSigmaSquared-self%sigmaParentSquared)**self%exponentDelta
+    else
+       pchPlusProgenitorMassFunctionFactor=+0.0d0
+    end if
+    return
+  end function pchPlusProgenitorMassFunctionFactor
+
+  function pchPlusHypergeometricA(self,gamma) result(a)
+    !!{RST
+    Compute the :math:`a` parameter of the hypergeometric function.
+    !!}
+    implicit none
+    double precision                                       , dimension(2)  :: a
+    class           (mergerTreeBranchingProbabilityPCHPlus), intent(inout) :: self
+    double precision                                       , intent(in   ) :: gamma
+
+    a=[1.5d0-self%gamma3,0.5d0-0.5d0*gamma]
+    return
+  end function pchPlusHypergeometricA
+
+  double precision function pchPlusHypergeometricGamma3(self) result(gamma3)
+    !!{RST
+    Return the additional exponent :math:`\gamma_3` appearing in the progenitor mass function.
+    !!}
+    implicit none
+    class(mergerTreeBranchingProbabilityPCHPlus), intent(inout) :: self
+
+    gamma3=self%gamma3
+    return
+  end function pchPlusHypergeometricGamma3
+
+  subroutine pchPlusComputeCommonFactors(self,deltaParent,time,massHaloParent,node)
+    !!{RST
+    Precomputes some useful factors that are used in the modified Press-Schechter branching integrals.
+    !!}
+    implicit none
+    class           (mergerTreeBranchingProbabilityPCHPlus), intent(inout) :: self
+    double precision                                       , intent(in   ) :: deltaParent, massHaloParent, &
+         &                                                                    time
+    type            (treeNode                             ), intent(inout) :: node
+    double precision                                                       :: modifier
+
+    call self%mergerTreeBranchingProbabilityParkinsonColeHelly%computeCommonFactors(deltaParent,time,massHaloParent,node)
+    modifier                          =+    self%linearGrowth_            %logarithmicDerivativeExpansionFactor(               time) **self%gamma4 &
+         &                             *abs(self%cosmologicalMassVariance_%rootVarianceLogarithmicGradient     (massHaloParent,time))**self%gamma5
+    self%factorG0Gamma2               =+self%factorG0Gamma2                                                                                        &
+         &                             *modifier
+    self%branchingProbabilityPreFactor=+self%branchingProbabilityPreFactor                                                                         &
+         &                             *modifier
+    return
+  end subroutine pchPlusComputeCommonFactors

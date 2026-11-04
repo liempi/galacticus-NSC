@@ -1,8 +1,9 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!-- Compute halo mass function -->
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Compute spin distribution functions -->
+
 <parameters>
   <formatVersion>2</formatVersion>
-  <lastModified revision="975fffd5aadf697707003f16bf9b4caee8ebe97d" time="2025-10-22T21:34:03"/>
+  <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
 
 
   <task value="NBodyAnalyze"/>
@@ -12,8 +13,13 @@
 
   <nbodyOperator value="sequence">
     <nbodyOperator value="addAttributes">
-      <names  value="massParticle redshift timeRecent massMinimum massMaximum particleCountMinimum energyEstimateParticleCountMaximum labelTarget"/>
-      <values value="1.0e9        0.0      0.0        1.0e9       1.0e15      300                  1000.0                             MDPL"       />
+      <names  value="massParticle"/>
+      <values value="1.0e9       "/>
+    </nbodyOperator>
+    <nbodyOperator value="filterProperties"   >
+      <propertyNames value="virialRatio timeSinceFormationFractional"/>
+      <rangeLow      value="0.5         1.25                        "/>
+      <rangeHigh     value="1.5         +infinity                   "/>
     </nbodyOperator>
     <nbodyOperator value="spinDistributionFunction">
       <description                       value=""       />
@@ -21,9 +27,10 @@
       <simulationURL                     value=""       />
       <massMinimum                       value="1.0e+12"/>
       <massMaximum                       value="1.0e+30"/>
+      <massCountPerDecade                value="2"      />
       <spinMinimum                       value="1.0e-03"/>
       <spinMaximum                       value="1.0e+00"/>
-      <spinCountPerDecade                value="25"     />
+      <spinCountPerDecade                value="5"      />
     </nbodyOperator>
   </nbodyOperator>
   

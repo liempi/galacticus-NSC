@@ -1,0 +1,107 @@
+{
+  "entries": [
+    {
+      "counts": {
+        "ansic": 3307,
+        "cpp": 137,
+        "fortran": 253456,
+        "latex": 20956,
+        "perl": 35130,
+        "python": 18318,
+        "sh": 284,
+        "xml": 132163
+      },
+      "sha": "943b094a",
+      "timestamp": "2026-05-08T15:53:47Z"
+    },
+    {
+      "counts": {
+        "ansic": 3307,
+        "cpp": 137,
+        "fortran": 253615,
+        "latex": 20960,
+        "perl": 35130,
+        "python": 18465,
+        "sh": 284,
+        "xml": 132172
+      },
+      "sha": "d5877a89",
+      "timestamp": "2026-06-01T23:06:24Z"
+    },
+    {
+      "counts": {
+        "ansic": 3368,
+        "cpp": 137,
+        "fortran": 284363,
+        "latex": 97,
+        "perl": 212,
+        "python": 33303,
+        "sh": 185,
+        "xml": 125432
+      },
+      "sha": "1cdc7ffb",
+      "timestamp": "2026-07-01T19:09:28Z"
+    },
+    {
+      "counts": {
+        "ansic": 3495,
+        "cpp": 137,
+        "fortran": 280071,
+        "latex": 100,
+        "perl": 212,
+        "python": 36567,
+        "rst": 10780,
+        "sh": 188,
+        "xml": 135335
+      },
+      "sha": "e120d3bf",
+      "timestamp": "2026-08-01T15:58:15Z"
+    },
+    {
+      "counts": {
+        "ansic": 3495,
+        "cpp": 137,
+        "fortran": 291464,
+        "latex": 108,
+        "perl": 212,
+        "python": 39912,
+        "rst": 11204,
+        "sh": 188,
+        "xml": 141345
+      },
+      "sha": "0166a142",
+      "timestamp": "2026-09-01T18:08:15Z"
+    },
+    {
+      "counts": {
+        "ansic": 3495,
+        "cpp": 132,
+        "fortran": 296112,
+        "latex": 108,
+        "perl": 212,
+        "python": 42383,
+        "rst": 12145,
+        "sh": 188,
+        "xml": 145567
+      },
+      "sha": "53612aaa",
+      "timestamp": "2026-10-01T20:05:44Z"
+    },
+    {
+      "counts": {
+        "ansic": 3495,
+        "cpp": 132,
+        "fortran": 311792,
+        "latex": 108,
+        "perl": 212,
+        "python": 49643,
+        "rst": 12680,
+        "sh": 188,
+        "xml": 154958
+      },
+      "sha": "09313778",
+      "timestamp": "2026-11-01T20:49:29Z"
+    }
+  ],
+  "schema_version": 1
+}

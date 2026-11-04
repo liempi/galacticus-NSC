@@ -1,8 +1,9 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Reference structure formation model -->
+
 <parameters>
   <formatVersion>2</formatVersion>
-  <lastModified revision="975fffd5aadf697707003f16bf9b4caee8ebe97d" time="2025-10-22T21:34:03"/>
+  <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
 
   
   <!-- Structure formation options -->
@@ -17,15 +18,48 @@
     </criticalOverdensity>
   </criticalOverdensity>
   <virialDensityContrast value="sphericalCollapseClsnlssMttrCsmlgclCnstnt"/>
-  <haloMassFunction      value="shethTormen"                               >
-    <a             value="0.791"/> <!-- Best fit values from Benson, Ludlow, & Cole (2019, MNRAS, 485, 5010; https://ui.adsabs.harvard.edu/abs/2019MNRAS.485.5010B). -->
-    <normalization value="0.302"/>
-    <p             value="0.218"/>
+  <haloMassFunction value="bhattacharya2011">
+    <!-- Use the halo mass function fit from Benson et al. (2026; https://ui.adsabs.harvard.edu/abs/2026arXiv260612137B). -->
+    <normalization value=" 0.2920432777306117" />
+    <a             value=" 0.8874717611272748" />
+    <b             value=" 1.0905620973309595" />
+    <c             value=" 1.0103625879299312" />
+    <p             value="-0.39553795893448074"/>
+    <q             value=" 0.34829916929729166"/>
+    <!-- These parameters were fit without the redshift dependence of the Bhattacharya et al. (2011) normalization and -->
+    <!-- `a` parameter, so those exponents are set to zero here.                                                       -->
+    <exponentRedshiftA             value="0.0"/>
+    <exponentRedshiftNormalization value="0.0"/>
+    <!-- Provide the mass function with its own cosmological mass variance and window function, consistent with that used in the
+         above paper. Since other aspects of our model are not yet calibrated to this new window function we use it only here (so
+         that it does not influence halo merger rates, concentrations, etc.). -->
+    <cosmologicalMassVariance value="filteredPower">
+      <integrationFailureIsFatal value="true"                               />
+      <monotonicInterpolation    value="true"                               />
+      <nonMonotonicIsFatal       value="false"                              />
+      <tolerance                 value="4.0e-4"                             />
+      <toleranceTopHat           value="2.0e-4"                             />
+    </cosmologicalMassVariance>
+    <powerSpectrumWindowFunction value="ETHOSExtended">
+      <beta0                       value="4.37617861819427"    />
+      <beta1                       value="1.32714608981754"    />
+      <cW0                         value="3.5520004739511197"  />
+      <cW1                         value="0.799910484368869"   />
+      <powerSpectrumSmoothingWidth value="0.66413528260864"    />
+      <wavenumberScaledMinimum     value="0.004589333750479383"/>
+    </powerSpectrumWindowFunction>
+    <!-- Use a non-environmentally-dependent critical overdensity here. -->
+    <criticalOverdensity value="sphericalCollapseClsnlssMttrCsmlgclCnstnt">
+      <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="darkMatterParticleCDM.xml" xpointer="xpointer(parameters/*)" />
+    </criticalOverdensity>
   </haloMassFunction>
   <haloEnvironment value="normal">
-    <!-- Use environmental overdensities drawn from a normal distribution conditioned upon the fact that the region has not exceeded the threshold for collapse on any larger scale (Mo & White; 1996; MNRAS; 282; 347; eqn. 9; https://ui.adsabs.harvard.edu/abs/1996MNRAS.282..347M)-->
-    <!-- Choose an environment radius of 5 Mpc/h as was used by Benson, Ludlow, & Cole (2019, MNRAS, 485, 5010; https://ui.adsabs.harvard.edu/abs/2019MNRAS.485.5010B). -->
-    <radiusEnvironment value="=5.0/([cosmologyParameters::HubbleConstant]/100.0)"/>
+    <!-- Use environmental overdensities drawn from a normal distribution conditioned upon the fact that the region has not exceeded
+	 the threshold for collapse on any larger scale (Mo & White; 1996; MNRAS; 282; 347; eqn. 9;
+	 https://ui.adsabs.harvard.edu/abs/1996MNRAS.282..347M)-->
+    <!-- Choose an environment radius of 5 Mpc/h as was used by Benson, Ludlow, & Cole (2019, MNRAS, 485, 5010;
+         https://ui.adsabs.harvard.edu/abs/2019MNRAS.485.5010B). -->
+    <radiusEnvironment value="=5.0/([cosmologyParameters/HubbleConstant]/100.0)"/>
     <redshift          value=" 0.0"                                              />
     <criticalOverdensity value="sphericalCollapseClsnlssMttrCsmlgclCnstnt" >
       <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="darkMatterParticleCDM.xml" xpointer="xpointer(parameters/*)" />

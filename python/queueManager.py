@@ -1,12 +1,32 @@
-# Provides functionality to manage jobs in queue managers (e.g. SLURM).
-# Andrew Benson (25-February-2025)
+"""Provides functionality to manage jobs in queue managers (e.g. SLURM).
+
+Andrew Benson (25-February-2025)
+"""
 import os
-import sys
 import time
 import re
 import json
 import lxml.etree as ET
 import subprocess
+
+__all__ = ['QueueManager', 'SLURMManager', 'factory', 'translate_job', 'submit_jobs',
+           'submit_job_detached']
+
+# Mapping of job-dict keys to SLURM `#SBATCH` option names.
+_SLURM_OPTION_MAP = {
+    "label":           "job-name"       ,
+    "partition":       "partition"      ,
+    "nodes":           "nodes"          ,
+    "tasksPerNode":    "ntasks-per-node",
+    "cpusPerTask":     "cpus-per-task"  ,
+    "memoryPerThread": "mem-per-cpu"    ,
+    "memory":          "mem"            ,
+    "walltime":        "time"           ,
+    "logOutput":       "output"         ,
+    "logError":        "error"          ,
+    "array":           "array"
+}
+
 
 class QueueManager:
     """Base class for queue managers"""
@@ -22,9 +42,13 @@ def factory(args):
     managerType = None
     for host in hosts:
         name = host.find('name')
+        if name is None or name.text is None:
+            raise ValueError("malformed galacticusConfig.xml: queueManager/host is missing a non-empty <name>")
         match = re.search(name.text,os.environ['HOSTNAME'])
         if match:
             manager = host.find('manager')
+            if manager is None or manager.text is None:
+                raise ValueError(f"malformed galacticusConfig.xml: queueManager/host '{name.text}' is missing a non-empty <manager>")
             managerType = manager.text
     if managerType is None:
         raise Exception(f"No manager defined for this system")
@@ -32,6 +56,8 @@ def factory(args):
     hostConfig = None
     for host in hosts:
         name = host.find('name')
+        if name is None or name.text is None:
+            raise ValueError(f"malformed galacticusConfig.xml: {managerType}/host is missing a non-empty <name>")
         match = re.search(name.text,os.environ['HOSTNAME'])
         if match:
             hostConfig = host
@@ -46,36 +72,111 @@ class SLURMManager(QueueManager):
     """A queue manager that interfaces with SLURM."""
     def __init__(self,config,args):
         super().__init__("SLURM")
-        self.options = {}
+        # Defaults for options which are always used, so that a `galacticusConfig.xml`
+        # host block which omits them (or a caller which passes `None`) does not cause
+        # a `KeyError` part way through submission. `partition` has no default - it is
+        # genuinely optional, and omitting it selects the cluster default partition.
+        self.options = {
+            'jobMaximum'  : 10,
+            'waitOnSubmit': 10,
+            'waitOnActive': 60
+        }
         for option in 'partition',:
-            self.options[option]  = config.find(option).text
+            optionElement = config.find(option)
+            if optionElement is not None:
+                self.options[option]  = config.find(option).text
         for option in 'jobMaximum', 'waitOnSubmit', 'waitOnActive':
-            self.options[option]  = int(config.find(option).text)
-        if args.partition    is not None:
+            optionElement = config.find(option)
+            if optionElement is not None:
+                self.options[option]  = int(config.find(option).text)
+        if 'partition'    in vars(args) and args.partition    is not None:
             self.options['partition'   ] = args.partition
-        if args.jobMaximum   is not None:
+        if 'jobMaximum'   in vars(args) and args.jobMaximum   is not None:
             self.options['jobMaximum'  ] = args.jobMaximum
-        if args.waitOnSubmit is not None:
+        if 'waitOnSubmit' in vars(args) and args.waitOnSubmit is not None:
             self.options['waitOnSubmit'] = args.waitOnSubmit
-        if args.waitOnActive is not None:
+        if 'waitOnActive' in vars(args) and args.waitOnActive is not None:
             self.options['waitOnActive'] = args.waitOnActive
-            
+
+    def _submitOne(self,job):
+        """Prepare a job (defaults, task/memory sizing, launch file) and `sbatch` it.
+
+        Sets ``job['jobID']`` and ``job['state']`` and returns the job ID. Does not
+        wait for or monitor the job. Shared by the blocking ``submitJobs`` and the
+        non-blocking ``submit_detached``.
+        """
+        # Set job defaults.
+        if "partition" not in job and "partition" in self.options:
+            job['partition'] = self.options['partition']
+        # Determine number of tasks such that we do not exceed the available memory.
+        if "memoryPerThread" in job and not "tasksPerNode" in job:
+            optimizeFor    = job['optimizeFor'] if "optimizeFor" in job else "threads"
+            useMemory      = "maximum" if optimizeFor == "threads" else "minimum"
+            memoryFraction = 0.8
+            command        = [ 'sinfo' ]
+            if "partition" in job:
+                command.extend(['--partition', job['partition']])
+            command.append('--json')
+            sinfo = subprocess.run(command, capture_output=True, text=True)
+            if sinfo.returncode != 0:
+                raise Exception("`sinfo` failed")
+            partitionData       = json.loads(sinfo.stdout)
+            job['tasksPerNode'] = 0 if useMemory == "maximum" else 1000000
+            job['cpusPerTask' ] = 1
+            for node in partitionData['sinfo']:
+                countCPUsLimit = min(node['cpus']['maximum'],int(memoryFraction*node['memory'][useMemory]/job['memoryPerThread']))
+                if useMemory == "maximum":
+                    if countCPUsLimit > job['tasksPerNode']:
+                        job['tasksPerNode'] = countCPUsLimit
+                else:
+                    if countCPUsLimit < job['tasksPerNode']:
+                        job['tasksPerNode'] = countCPUsLimit
+        # Create the job submit file.
+        with open(job['launchFile'],"w") as fileBatch:
+            fileBatch.write('#!/bin/bash\n')
+            for option in job:
+                if option in _SLURM_OPTION_MAP:
+                    suffix = "M" if re.match(r"^mem\-",_SLURM_OPTION_MAP[option],) else ""
+                    fileBatch.write(f'#SBATCH --{_SLURM_OPTION_MAP[option]}={job[option]}{suffix}\n')
+            fileBatch.write(f'ulimit -t unlimited\n')
+            fileBatch.write(f'ulimit -c unlimited\n')
+            if "countOpenMPThreads" in job:
+                fileBatch.write(f'export OMP_NUM_THREADS={job["countOpenMPThreads"]}\n')
+            fileBatch.write(f'{job["command"]}\n')
+            fileBatch.write(f'exit\n')
+        print(f'Submitting job "{job["label"]}"')
+        countSubmitAttempts = 0
+        submitSuccess       = False
+        while not submitSuccess and countSubmitAttempts < 10:
+            sbatch = subprocess.run(['sbatch', job['launchFile']], capture_output=True, text=True)
+            if sbatch.returncode == 0:
+                submitSuccess = True
+                # Extract the job ID.
+                match = re.search(r"\d+", sbatch.stdout)
+                if match:
+                    job['jobID'] = match.group(0)
+                    job['state'] = "PENDING"
+                else:
+                    raise Exception(f"`sbatch` command did not return job ID")
+            else:
+                countSubmitAttempts += 1
+                print(f"`sbatch` command failed with return code: {sbatch.returncode}")
+                print(sbatch.stderr)
+                timeSleep = max([1,self.options['waitOnSubmit']])*2**countSubmitAttempts
+                print(f"waiting {timeSleep} s to try again....")
+                time.sleep(timeSleep)
+        if not submitSuccess:
+            raise Exception("`sbatch` command failed after multiple attempts")
+        return job['jobID']
+
+    def submit_detached(self,job):
+        """Prepare and submit a single job, returning its job ID, without waiting."""
+        return self._submitOne(job)
+
     def submitJobs(self,jobs):
         """Submit jobs to a SLURM queue manager and wait for completion."""
         # Define components of SLURM interface,
         activeStates = [ "RUNNING", "PENDING" ]
-        optionMap    = {
-            "label":           "job-name"       ,
-            "partition":       "partition"      , 
-            "nodes":           "nodes"          ,
-            "tasksPerNode":    "ntasks-per-node",
-            "cpusPerTask":     "cpus-per-task"  ,
-            "memoryPerThread": "mem-per-cpu"    ,
-            "memory":          "mem"            ,
-            "walltime":        "time"           ,
-            "logOutput":       "output"         ,
-            "logError":        "error"
-            }
         # Iterate until all jobs are finished.
         activeJobs = {}
         while len(activeJobs) > 0 or len(jobs) > 0:
@@ -97,102 +198,92 @@ class SLURMManager(QueueManager):
                         print(f'Job "{activeJobs[jobID]["label"]}" has started')
                     activeJobs[jobID]['state'] = jobState
                 # Remove jobs that are no longer active.
-                jobIDsToRemove = []
+                jobIDsToRemove = {}
                 for jobID in activeJobs:
                     if jobID not in runningJobs:
-                        jobIDsToRemove.append(jobID)
-                for jobID in jobIDsToRemove:
-                    print(f'Job "{activeJobs[jobID]["label"]}" has finished')
-                    scontrol = subprocess.run(['scontrol', 'show', 'job', jobID, '--json'], capture_output=True, text=True)
-                    if scontrol.returncode == 0:
-                        # Parse the JSON output from scontrol
-                        jobData = json.loads(scontrol.stdout)
-                        try:
-                            activeJobs[jobID]['exitStatus'] = jobData['jobs'][0]['exit_code']['return_code']['number']
-                        except IndexError:
-                            activeJobs[jobID]['exitStatus'] = -2
-                    else:
+                        jobIDsToRemove[jobID] = 1
+                # Get status of all jobs to be removed.
+                sacct = subprocess.run(['sacct', '-j', ",".join(list(jobIDsToRemove.keys())), '--json'], capture_output=True, text=True)
+                if sacct.returncode == 0:
+                    # Parse the JSON output from sacct.
+                    jobsToRemoveData = json.loads(sacct.stdout)
+                    for job in jobsToRemoveData['jobs']:
+                        jobID = str(job['job_id'])
+                        if jobID in jobIDsToRemove:
+                            print(f'Job "{activeJobs[jobID]["label"]}" has finished')
+                            # Store the return code for the job.
+                            try:
+                                activeJobs[jobID]['exitStatus'] = job['exit_code']['return_code']['number']
+                            except IndexError:
+                                activeJobs[jobID]['exitStatus'] = -2
+                            # Perform any "on completion" task.
+                            if 'onCompletion' in activeJobs[jobID]:
+                                activeJobs[jobID]['onCompletion'](activeJobs[jobID])
+                            # Remove the job from the list of active jobs.
+                            del activeJobs[jobID]
+                            # Remove the job ID from the dictionary of jobs to remove.
+                            del jobIDsToRemove[jobID]
+                    # For any remaining jobs in our dictionary of jobs to remove, we got no data from sacct.
+                    for jobID in jobIDsToRemove:
+                        print(f'Job "{activeJobs[jobID]["label"]}" has finished')
                         activeJobs[jobID]['exitStatus'] = -1
-                    if 'onCompletion' in activeJobs[jobID]:
-                        activeJobs[jobID]['onCompletion'](activeJobs[jobID])
-                    del activeJobs[jobID]
+                else:
+                    # `sacct` failed - report this but do not exit - could be a temporary failure.
+                    print(f"`sacct` command failed with return code: {sacct.returncode}")
+                    print(sacct.stderr)
+                    time.sleep(self.options['waitOnActive'])
                 # Decide if we should submit a new job.
-                if len(runningJobs) < self.options['jobMaximum'] and len(jobs) > 0:
+                didSubmit = False
+                countNewSubmits = self.options['jobMaximum']-len(runningJobs)
+                while countNewSubmits > 0 and len(jobs) > 0:
                     # Get the next job.
                     job = jobs.pop()
-                    # Set job defaults.
-                    if "partition" not in job:
-                        job['partition'] = self.options['partition']
-                    # Determine number of tasks such that we do not exceed the available memory.
-                    if "memoryPerThread" in job and not "tasksPerNode" in job:
-                        # Determine if we are optimizing for nodes or for threads.
-                        optimizeFor = job['optimizeFor'] if "optimizeFor" in job else "threads"
-                        # Deterine if we should use the maximum or minimum memory across nodes.
-                        useMemory = None
-                        if optimizeFor == "threads":
-                            useMemory = "maximum"
-                        if optimizeFor == "nodes":
-                            useMemory = "minimum"
-                        # Specify the fraction of memory on a node we will use (i.e. allow some buffer so as not to use all memory).
-                        memoryFraction = 0.8
-                        # Get info on nodes in this partition.
-                        sinfo = subprocess.run(['sinfo', '--partition', job['partition'], '--json'], capture_output=True, text=True)
-                        if sinfo.returncode != 0:
-                            raise Exception("`sinfo` failed")
-                        partitionData = json.loads(sinfo.stdout)
-                        job['tasksPerNode'] = 0 if useMemory == "maximum" else 1000000
-                        job['cpusPerTask' ] = 1
-                        for node in partitionData['sinfo']:
-                            countCPUsLimit = min(node['cpus']['maximum'],int(memoryFraction*node['memory'][useMemory]/job['memoryPerThread']))
-                            if useMemory == "maximum":
-                                if countCPUsLimit > job['tasksPerNode']:
-                                    job['tasksPerNode'] = countCPUsLimit
-                            else:
-                                if countCPUsLimit < job['tasksPerNode']:
-                                    job['tasksPerNode'] = countCPUsLimit
-                    # Create the job submit file.
-                    fileBatch = open(job['launchFile'],"w")
-                    fileBatch.write('#!/bin/bash\n')
-                    for option in job:
-                        if option in optionMap:
-                            suffix = "M" if re.match("^mem\-",optionMap[option],) else ""
-                            fileBatch.write(f'#SBATCH --{optionMap[option]}={job[option]}{suffix}\n')
-                    fileBatch.write(f'ulimit -t unlimited\n')
-                    fileBatch.write(f'ulimit -c unlimited\n')
-                    if "countOpenMPThreads" in job:
-                        fileBatch.write(f'export OMP_NUM_THREADS={job["countOpenMPThreads"]}\n')
-                    fileBatch.write(f'{job["command"]}\n')
-                    fileBatch.write(f'exit\n')
-                    fileBatch.close()
-                    print(f'Submitting job "{job["label"]}"')
-                    countSubmitAttempts = 0
-                    submitSuccess       = False
-                    while not submitSuccess and countSubmitAttempts < 10:
-                        sbatch = subprocess.run(['sbatch', job['launchFile']], capture_output=True, text=True)
-                        if sbatch.returncode == 0:
-                            submitSuccess = True
-                            # Extract the job ID.
-                            match = re.search("\d+", sbatch.stdout)
-                            if match:
-                                job['jobID'] = match.group(0)
-                                job['state'] = "PENDING"
-                                activeJobs[job['jobID']] = job
-                            else:
-                                raise Exception(f"`sbatch` command did not return job ID")
-                        else:
-                            countSubmitAttempts += 1
-                            print(f"`sbatch` command failed with return code: {sbatch.returncode}")
-                            print(sbatch.stderr)
-                            timeSleep = max([1,self.options['waitOnSubmit']])*2**countSubmitAttempts
-                            print(f"waiting {timeSleep} s to try again....")
-                            time.sleep(timeSleep)
-                    if not submitSuccess:
-                        raise Exception("`sbatch` command failed after multiple attempts")
+                    # Prepare and submit it (writes the launch file, sbatch, sets jobID).
+                    self._submitOne(job)
+                    activeJobs[job['jobID']] = job
+                    # Record that we submitted a job.
+                    didSubmit = True
+                    # Decrement the number of new jobs we can submit.
+                    countNewSubmits = countNewSubmits-1
+                    # Wait before submitting a new job.
                     time.sleep(self.options['waitOnSubmit'])
-                elif len(activeJobs) > 0:
+                # If no jobs were submitted, wait before checking again.
+                if not didSubmit:
                     time.sleep(self.options['waitOnActive'])
             else:
                 # `squeue` failed - report this but do not exit - could be a temporary failure.
                 print(f"`squeue` command failed with return code: {squeue.returncode}")
                 print(squeue.stderr)
                 time.sleep(self.options['waitOnActive'])
+
+
+def translate_job(job):
+    """Translate legacy-style job dict keys to queueManager keys."""
+    j = dict(job)
+    if 'ompThreads' in j:
+        j['countOpenMPThreads'] = j.pop('ompThreads')
+    if 'mem' in j:
+        j['memory'] = j.pop('mem')
+    if 'logFile' in j:
+        log = j.pop('logFile')
+        j.setdefault('logOutput', log)
+        j.setdefault('logError',  log)
+    if 'ppn' in j:
+        j['tasksPerNode'] = j.pop('ppn')
+    return j
+
+
+def submit_jobs(manager, jobs):
+    """Submit a list of legacy-style job dicts via the queue manager."""
+    if jobs:
+        manager.submitJobs([translate_job(j) for j in jobs])
+
+
+def submit_job_detached(manager, job):
+    """Submit a single Perl-style job dict without waiting; return its job ID.
+
+    Unlike :func:`submit_jobs`, this does not poll for or wait on completion — it
+    writes the launch file, `sbatch`\\es the job, and returns immediately. Intended
+    for a detached driver that submits, records the job ID, and exits.
+    """
+    return manager.submit_detached(translate_job(job))

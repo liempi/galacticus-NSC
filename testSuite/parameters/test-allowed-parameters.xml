@@ -1,8 +1,9 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Subhalos in WDM -->
+
 <parameters>
   <formatVersion>2</formatVersion>
-  <lastModified revision="975fffd5aadf697707003f16bf9b4caee8ebe97d" time="2025-10-22T21:34:03"/>
+  <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
 
 
   <!-- Verbosity -->
@@ -41,12 +42,14 @@
     <running value="0.0"/>
   </powerSpectrumPrimordial>
   <cosmologicalMassVariance value="filteredPower">
-    <sigma_8 value="0.817"/>
     <monotonicInterpolation value="false"/>
     <powerSpectrumWindowFunction value="sharpKSpace">
       <normalization value="2.5"/>
     </powerSpectrumWindowFunction>
   </cosmologicalMassVariance>
+  <powerSpectrumNormalizer value="sigma8">
+    <sigma_8 value="0.817"/>
+  </powerSpectrumNormalizer>
   <transferFunction value="bode2001">
     <scaleCutOff value="0.08725"/>
     <!-- WARNING: This is expected to trigger a warning -->
@@ -74,11 +77,13 @@
   <darkMatterProfileConcentration value="schneider2015">
     <reference>
       <cosmologicalMassVariance value="filteredPower">
-        <sigma_8 value="0.817"/>
         <powerSpectrumWindowFunction value="sharpKSpace">
           <normalization value="2.5"/>
         </powerSpectrumWindowFunction>
         <powerSpectrumPrimordialTransferred value="simple"/>
+        <powerSpectrumNormalizer value="sigma8">
+          <sigma_8 value="0.817"/>
+        </powerSpectrumNormalizer>
         <transferFunction value="eisensteinHu1999">
           <neutrinoNumberEffective value="3.04"/>
           <neutrinoMassSummed value="0.000"/>
@@ -180,6 +185,7 @@
   </mergerTreeNodeEvolver>
 
   <mergerTreeEvolver value="standard">
+    <fractionTimestepSatelliteMinimum value="0.75"/>
     <timestepHostAbsolute value="1.00"/>
     <timestepHostRelative value="0.10"/>
   </mergerTreeEvolver>
@@ -211,6 +217,10 @@
       <factorReset value="2.0"/>
     </nodeOperator>
     <nodeOperator value="haloAngularMomentumInterpolate"/>
+    <!-- Satellite orbits -->
+    <nodeOperator value="satelliteOrbit">
+      <initializeOnly value="true"/>
+    </nodeOperator>
   </nodeOperator>
 
   <!-- Output options -->

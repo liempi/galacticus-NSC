@@ -1,9 +1,11 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Parameters to compute halo mass functions and subhalo evolution for CDM -->
+
 <!-- No baryonic physics is included - a purely dark matter universe is assumed. -->
+
 <parameters>
   <formatVersion>2</formatVersion>
-  <lastModified revision="975fffd5aadf697707003f16bf9b4caee8ebe97d" time="2025-10-22T21:34:03"/>
+  <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
 
 
   <!-- Set verbosity to show when background work is being performed -->
@@ -55,7 +57,6 @@
   <cosmologicalMassVariance value="filteredPower">
     <!-- Parameter value is from the Planck Collaboration (2020; A&A, 641, 10) -->
     <!--  specifically the "TT,TE,EE+lowE+lensing" results in Table 2          -->
-    <sigma_8 value="0.8111"/>
     <tolerance value="1.0e-3"/>
   </cosmologicalMassVariance>
   <powerSpectrumPrimordial value="powerLaw">
@@ -70,6 +71,9 @@
     <redshift value="100.0"/>
   </transferFunction>
   <powerSpectrumPrimordialTransferred value="simple"/>
+  <powerSpectrumNormalizer value="sigma8">
+    <sigma_8 value="0.8111"/>
+  </powerSpectrumNormalizer>
 
   <!-- Structure growth -->
   <linearGrowth value="collisionlessMatter">
@@ -173,6 +177,7 @@
       <unresolvedEnergy value="0.550000000000000"/>
       <!-- For leaf nodes in the tree we instead set scale radii using a concentration-mass-redshift model, with concentrations limited to a reasonable range. -->
       <darkMatterProfileScaleRadius value="concentration"/>
+      <massFunctionSlopeLogarithmic value="-1.8"/>
     </darkMatterProfileScaleRadius>
   </darkMatterProfileScaleRadius>
   <darkMatterProfileConcentration value="diemerJoyce2019">
@@ -368,6 +373,7 @@
     <!-- https://github.com/galacticusorg/galacticus/wiki/Constraints:-Halo-spins-and-concentrations -->
     <!-- and is offset for fix to Keplerian orbit propagation                                        -->
     <nodeOperator value="haloAngularMomentumVitvitska2002">
+      <subresolutionAngularMomentumMethod value="original"/>
       <exponentMass value="1.92527794238468"/>
     </nodeOperator>
     <nodeOperator value="haloAngularMomentumInterpolate"/>
@@ -386,9 +392,9 @@
     </nodeOperator>
     <nodeOperator value="satelliteDestructionMassThreshold">
       <!-- Subhalos will be removed if they fall below the merger tree mass resolution limit. -->
-      <massDestructionAbsolute           value="=[mergerTreeMassResolution::massResolution]"/>
-      <massDestructionMassInfallFraction value="0.0"                                        />
-      <massDestructionMassTreeFraction   value="0.0"                                        />
+      <massDestructionAbsolute           value="=[mergerTreeMassResolution/massResolution]"/>
+      <massDestructionMassInfallFraction value="0.0"                                       />
+      <massDestructionMassTreeFraction   value="0.0"                                       />
     </nodeOperator>
     <!-- Star formation -->
     <nodeOperator value="starFormationDisks"/>
@@ -453,6 +459,7 @@
       <excessHeatDrivesOutflow value="true"/>
       <rateMaximumExpulsion value="1.0"/>
     </nodeOperator>
+    <nodeOperator value="CGMOuterRadiusRamPressureStripping"/>
   </nodeOperator>
 
   <!-- Merger tree evolution -->
@@ -514,5 +521,7 @@
       <radiusSpecifiers value="stellarMassFraction{0.5}:all:galactic:lineOfSight:1.0"/>
     </nodePropertyExtractor>
   </nodePropertyExtractor>
+  <dynamicalFrictionGaseous value="chandrasekhar1943"/>
+  <kinematicsDistributionInterstellarMedium value="local"/>
 
 </parameters>

@@ -1,0 +1,1174 @@
+#!/usr/bin/env python3
+"""Build-time extractor: embedded RST docstrings -> Sphinx pages.
+
+Scans ``source/*.F90`` for ``!![ … !!]`` directive blocks that carry
+``docformat="rst"`` (written by :mod:`convertDocstringsToRST`) and emits a
+Sphinx documentation tree:
+
+* ``<out>/physics/<family>.rst``  — one page per ``functionClass`` family, with
+  a section per implementation class, its description, and the input parameters
+  declared in the same source file.
+* ``<out>/physics/index.rst``      — a toctree of all family pages.
+* ``<out>/nodeComponents.rst``     — the node component reference, one section
+  per ``<component>`` class and a subsection per implementation, with its
+  properties and the input parameters declared in the same source file.
+* ``<out>/glossary.rst``           — the glossary, from ``docs/Glossary.tex``.
+* ``<out>/references.rst``         — a single project-wide bibliography.
+
+Descriptions are read **straight from the raw source** (not via the directive
+parser, which left-strips each line and would destroy the indentation- and
+blank-line-sensitive RST).  No Fortran compilation is required.
+
+Usage::
+
+    scripts/doc/extractDocsRST.py <sourceDir> <outDir>
+
+Andrew Benson / Galacticus — RST documentation migration (2026).
+"""
+from __future__ import annotations
+
+import html
+import os
+import re
+import subprocess
+import sys
+import textwrap
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Make the in-tree Galacticus Python packages importable.  The doc build sets
+# PYTHONPATH=python; add it explicitly so the extractor also runs stand-alone.
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir, 'python'))
+from latexToRST import (                                       # noqa: E402
+    parse_glossary, glossary_display_map, latex_to_rst,
+)
+from extractContributors import (                              # noqa: E402
+    collect_contributor_names, render_contributors_rst,
+)
+from Galacticus.Parameters.query import resolved_parameters    # noqa: E402
+from Galacticus.Build.SourceTree import parse_code, walk_tree  # noqa: E402
+from Galacticus.Build.SourceTree.Parse.Signatures import (     # noqa: E402
+    arguments_to_rst, is_declaration, normalize_argument, procedure_signature,
+    return_type_to_rst,
+)
+
+
+def _build_catalog(source_dir):
+    """Build the parameter catalog for richer parameter docs (type, allowed
+    values, ranges, inherited parameters).  Returns None and warns on any
+    failure, so the documentation build never depends on it."""
+    os.environ.setdefault(
+        'GALACTICUS_EXEC_PATH',
+        os.path.dirname(os.path.abspath(source_dir)) or '.')
+    try:
+        from Galacticus.Parameters.catalog import build_catalog
+        return build_catalog(source_dir)
+    except Exception as exc:                                    # noqa: BLE001
+        print(f'NOTE: parameter catalog unavailable ({exc}); parameter docs '
+              f'will not include type/range/enumeration enrichment.',
+              file=sys.stderr)
+        return None
+
+# ``!![ … !!]`` directive block.
+_BLOCK_RE = re.compile(r'^[ \t]*!!\[(.*?)^[ \t]*!!\]', re.DOTALL | re.MULTILINE)
+# Root (first) element opening tag of a block.
+_ROOT_RE = re.compile(r'<([A-Za-z][\w]*)((?:\s+[\w:]+="[^"]*")*)\s*/?>')
+# First <description>…</description> inside a block (the class/family/parameter
+# description; nested method/entry descriptions are handled separately).
+_DESC_RE = re.compile(r'<description>(.*?)</description>', re.DOTALL)
+# A <method …>…</method> inside a functionClass block.
+_METHOD_RE = re.compile(r'<method\b([^>]*?)>(.*?)</method>', re.DOTALL)
+# An <entry label="…" [description="…"]/> inside an enumeration block.
+_ENTRY_RE = re.compile(r'<entry\b([^>]*?)/?>')
+_ARG_RE = re.compile(r'<argument>(.*?)</argument>', re.DOTALL)
+# Repeatable leaf directives: a single ``!![ … !!]`` block may declare several
+# of these, so every occurrence must be swept (not just the block's first).
+_INPUT_PARAM_RE = re.compile(r'<inputParameter\b[^>]*>(.*?)</inputParameter>',
+                             re.DOTALL)
+_WORKAROUND_RE = re.compile(r'<workaround\b([^>]*)>(.*?)</workaround>', re.DOTALL)
+
+
+def _attr(attrs: str, name: str) -> str | None:
+    m = re.search(rf'\b{name}="([^"]*)"', attrs)
+    return m.group(1) if m else None
+
+
+def _child(block: str, tag: str) -> str | None:
+    m = re.search(rf'<{tag}>(.*?)</{tag}>', block, re.DOTALL)
+    return m.group(1).strip() if m else None
+
+
+def _extract_methods(block: str) -> list[dict]:
+    """Extract the ``<method>`` entries (name, description, type, arguments)
+    that a ``functionClass`` directive declares for its class interface."""
+    methods = []
+    for m in _METHOD_RE.finditer(block):
+        name = _attr(m.group(1), 'name')
+        if not name:
+            continue
+        inner = m.group(2)
+        dm = _DESC_RE.search(inner)
+        methods.append({
+            'name':        name,
+            'description': dm.group(1) if dm else None,
+            'type':        _child(inner, 'type'),
+            'arguments':   [re.sub(r'\s+', ' ', a).strip()
+                            for a in _ARG_RE.findall(inner)],
+        })
+    return methods
+
+
+# A ``<property>`` inside a ``<component>`` directive's ``<properties>`` block.
+_PROPERTY_RE = re.compile(r'<property>(.*?)</property>', re.DOTALL)
+_ATTRIBUTES_RE = re.compile(r'<attributes\b([^>]*?)/?>')
+_PROP_OUTPUT_RE = re.compile(r'<output\b([^>]*?)/?>')
+
+
+def _extract_component_properties(block: str) -> list[dict]:
+    """Extract the properties a ``<component>`` directive declares.
+
+    Only the ``<properties>`` block is considered, so the ``<output>`` element
+    that may appear at component level (``<output instances="first"/>``) is not
+    mistaken for a property's output specification.
+    """
+    props: list[dict] = []
+    pm = re.search(r'<properties>(.*?)</properties>', block, re.DOTALL)
+    if not pm:
+        return props
+    for m in _PROPERTY_RE.finditer(pm.group(1)):
+        body = m.group(1)
+        name = _child(body, 'name')
+        if not name:
+            continue
+        am = _ATTRIBUTES_RE.search(body)
+        attrs = am.group(1) if am else ''
+        om = _PROP_OUTPUT_RE.search(body)
+        oattrs = om.group(1) if om else None
+        props.append({
+            'name':        name,
+            'type':        _child(body, 'type'),
+            'rank':        _child(body, 'rank'),
+            'isSettable':  _attr(attrs, 'isSettable') == 'true',
+            'isGettable':  _attr(attrs, 'isGettable') == 'true',
+            'isEvolvable': _attr(attrs, 'isEvolvable') == 'true',
+            'isVirtual':   _attr(attrs, 'isVirtual') == 'true',
+            'isDeferred':  _attr(attrs, 'isDeferred'),
+            'isOutput':    oattrs is not None,
+            'units':       _attr(oattrs, 'unitsDescription') if oattrs else None,
+            'comment':     _attr(oattrs, 'comment') if oattrs else None,
+        })
+    return props
+
+
+# A ``<methods>`` block of type-bound procedures (one per implementation).  Each
+# entry is either the short ``<method method="…" description="…"/>`` form or, in
+# the blocks the code generators emit, a ``<method …>`` element wrapping the
+# description and the method's signature.
+_TYPE_METHODS_RE = re.compile(r'<methods\b[^>]*>(.*?)</methods>', re.DOTALL)
+_TYPE_METHOD_RE = re.compile(r'<method\b([^>]*?)(?:/>|>(.*?)</method>)',
+                             re.DOTALL)
+
+
+def _extract_type_methods(text: str) -> list[dict]:
+    """Extract the ``<method>`` entries of every ``<methods>`` block in a file —
+    the methods a concrete implementation's derived type declares, beyond the
+    base-class interface.
+
+    Carries the return type and arguments where the block declares them; where
+    it does not, :func:`_derive_type_method_signatures` recovers them from the
+    procedures the methods are bound to.
+    """
+    out = []
+    for mb in _TYPE_METHODS_RE.finditer(text):
+        for m in _TYPE_METHOD_RE.finditer(mb.group(1)):
+            attrs, inner = m.group(1), m.group(2) or ''
+            name = _attr(attrs, 'method')
+            if not name:
+                continue
+            description = _attr(attrs, 'description')
+            if description is None:
+                # Not stripped here: stripping removes the first line's
+                # indentation but not that of the lines following it, so
+                # `_desc_to_rst` could no longer find the common margin, and a
+                # multi-paragraph description would render as a block quote.
+                dm = _DESC_RE.search(inner)
+                description = dm.group(1) if dm else None
+            out.append({
+                'name':        name,
+                'description': description,
+                'type':        _child(inner, 'type'),
+                'arguments':   [re.sub(r'\s+', ' ', a).strip()
+                                for a in _ARG_RE.findall(inner)],
+            })
+    return out
+
+
+# Type-bound procedure bindings, as declared in a derived type's ``contains``
+# section: a plain binding (with or without a ``=> target``), a deferred binding
+# naming its abstract interface, and a generic binding.
+_BINDING_RE = re.compile(
+    r'^[ \t]*procedure\b([^:\n(]*)::[ \t]*([A-Za-z0-9_]+)'
+    r'[ \t]*(?:=>[ \t]*([A-Za-z0-9_]+))?[ \t]*$', re.MULTILINE | re.IGNORECASE)
+_DEFERRED_BINDING_RE = re.compile(
+    r'^[ \t]*procedure[ \t]*\([ \t]*([A-Za-z0-9_]+)[ \t]*\)([^:\n]*)::'
+    r'[ \t]*([A-Za-z0-9_]+)', re.MULTILINE | re.IGNORECASE)
+_GENERIC_BINDING_RE = re.compile(
+    r'^[ \t]*generic\b[^:\n]*::[ \t]*(.+?)[ \t]*=>[ \t]*(.+?)[ \t]*$',
+    re.MULTILINE | re.IGNORECASE)
+# The derived type a ``<methods>`` block documents runs from its ``type``
+# statement to the matching ``end type``.  The negative lookahead keeps a
+# ``type(…) :: …`` declaration from being mistaken for a type definition.
+_TYPE_OPEN_RE = re.compile(r'^[ \t]*type\b(?![ \t]*\()[^\n]*$',
+                           re.MULTILINE | re.IGNORECASE)
+_TYPE_CLOSE_RE = re.compile(r'^[ \t]*end[ \t]+type\b', re.MULTILINE | re.IGNORECASE)
+
+
+def _binding_region(text: str, start: int, end: int) -> str:
+    """Return the derived-type body enclosing the ``<methods>`` block spanning
+    ``start``–``end``, so that only that type's bindings are read."""
+    opens = [m.start() for m in _TYPE_OPEN_RE.finditer(text, 0, start)]
+    close = _TYPE_CLOSE_RE.search(text, end)
+    return text[opens[-1] if opens else start: close.end() if close else len(text)]
+
+
+def _bindings(region: str) -> dict[str, tuple[str, bool]]:
+    """Map each method name in a derived-type body to the procedure it binds to
+    and whether the binding passes the object (``nopass`` bindings do not)."""
+    bindings: dict[str, tuple[str, bool]] = {}
+    for m in _BINDING_RE.finditer(region):
+        attributes, name, target = m.group(1), m.group(2), m.group(3)
+        bindings[name.lower()] = (target or name,
+                                  'nopass' not in attributes.lower())
+    for m in _DEFERRED_BINDING_RE.finditer(region):
+        # A deferred binding names the abstract interface that declares the
+        # signature; that interface stands in for the (absent) procedure.
+        interface, attributes, name = m.group(1), m.group(2), m.group(3)
+        bindings.setdefault(name.lower(),
+                            (interface, 'nopass' not in attributes.lower()))
+    for m in _GENERIC_BINDING_RE.finditer(region):
+        # A generic binding may cover several specific procedures; the first
+        # stands for the signature, which is as much as can be said of a name
+        # that deliberately has more than one.
+        name, targets = m.group(1), m.group(2)
+        first = targets.split(',')[0].strip()
+        resolved = bindings.get(first.lower())
+        bindings.setdefault(name.strip().lower(),
+                            resolved if resolved else (first, True))
+    return bindings
+
+
+def _derive_type_method_signatures(text: str, path: str,
+                                   methods: list[dict]) -> None:
+    """Fill in the return type and arguments of type-bound methods, in place.
+
+    Hand-written ``<methods>`` blocks declare only a name and a description, so
+    the signature is recovered from the procedure each method is bound to: the
+    file is parsed, and each binding followed to its procedure's declarations.
+    Methods whose binding or procedure cannot be found (an abstract class whose
+    procedures are generated at build time, a name assembled by the generic
+    preprocessor) keep just their description.
+
+    A file's ``<methods>`` blocks are treated together, as the extracted methods
+    themselves are: where a file declares several types, a method name they share
+    resolves to the binding of the last of them.
+    """
+    if all(m.get('type') or m.get('arguments') for m in methods):
+        return
+    region = ''
+    for mb in _TYPE_METHODS_RE.finditer(text):
+        region += _binding_region(text, mb.start(), mb.end())
+    bindings = _bindings(region)
+    if not bindings:
+        return
+    try:
+        tree = parse_code(text, name=path, instrument=False)
+    except Exception as exc:                                    # noqa: BLE001
+        print(f'warning: could not parse {path} for method signatures: {exc}',
+              file=sys.stderr)
+        return
+    procedures = {node['name'].lower(): node for node in walk_tree(tree)
+                  if node['type'] in ('function', 'subroutine')
+                  and node.get('name')}
+    for method in methods:
+        if method.get('type') or method.get('arguments'):
+            continue
+        binding = bindings.get(html.unescape(method['name']).lower())
+        if binding is None:
+            continue
+        target, passes_object = binding
+        procedure = procedures.get(target.lower())
+        if procedure is None:
+            continue
+        return_type, arguments = procedure_signature(
+            procedure, skip_passed_object=passes_object)
+        method['type']      = return_type
+        method['arguments'] = arguments
+
+
+def _extract_entries(block: str) -> list[dict]:
+    """Extract ``<entry label="…" description="…"/>`` items of an enumeration."""
+    entries = []
+    for m in _ENTRY_RE.finditer(block):
+        label = _attr(m.group(1), 'label')
+        if label is None:
+            continue
+        entries.append({'label': label,
+                        'description': _attr(m.group(1), 'description')})
+    return entries
+
+
+def _desc_to_rst(raw: str | None, glsmap: dict) -> str:
+    """Dedent a raw ``<description>`` body and pass it through the converter.
+
+    The body is already RST (converted in the source).  It is XML-entity
+    escaped there (so the build's directive parser accepts it), so we unescape
+    it back to plain RST and dedent.  It is *not* re-converted from LaTeX — that
+    already happened in the source.
+    """
+    if not raw:
+        return ''
+    return _process_figures(
+        textwrap.dedent(html.unescape(raw).strip('\n')).strip('\n'))
+
+
+# Build-time figure handling: each ``.. figure:: <path>.pdf`` (the figure's
+# \includegraphics path, relative to doc/) is rasterised to a PNG under
+# <out>/_figures and rewritten to a web path.  Set by main().
+_FIGURES_DIR: str | None = None
+_FIGURE_CACHE: dict[str, str | None] = {}
+
+
+def _process_figures(text: str) -> str:
+    if _FIGURES_DIR is None:
+        return text
+
+    def repl(m: re.Match) -> str:
+        path = m.group(1).strip()
+        if not path.lower().endswith('.pdf'):
+            return m.group(0)
+        pdf = os.path.normpath(os.path.join('docs', path))  # figure PDFs live under docs/
+        if pdf not in _FIGURE_CACHE:
+            _FIGURE_CACHE[pdf] = _rasterise(pdf)
+        web = _FIGURE_CACHE[pdf]
+        return f'.. figure:: {web}' if web else m.group(0)
+
+    return re.sub(r'\.\. figure:: (\S+)', repl, text)
+
+
+def _rasterise(pdf: str) -> str | None:
+    """PDF -> PNG (150 dpi) under _FIGURES_DIR; returns the web path or None."""
+    if not os.path.isfile(pdf):
+        print(f'warning: figure not found: {pdf}', file=sys.stderr)
+        return None
+    name = re.sub(r'[^A-Za-z0-9_.-]', '_',
+                  os.path.splitext(os.path.basename(pdf))[0])
+    out = os.path.join(_FIGURES_DIR, name)                   # pdftocairo adds .png
+    try:
+        subprocess.run(['pdftocairo', '-png', '-r', '150', '-singlefile',
+                        pdf, out], check=True, capture_output=True)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f'warning: pdftocairo failed for {pdf}: {exc}', file=sys.stderr)
+        return None
+    return f'/_figures/{name}.png'
+
+
+def _heading(text: str, char: str) -> str:
+    return f'{text}\n{char * max(3, len(text))}\n'
+
+
+def _lcfirst(s: str) -> str:
+    return s[:1].lower() + s[1:] if s else s
+
+
+# ---------------------------------------------------------------------------
+# Raw source scan
+# ---------------------------------------------------------------------------
+
+def scan_source(source_dir: str):
+    """Return ``(families, implementations, params_by_file)`` from raw source.
+
+    * ``families``: ``{name: {descriptiveName, description, default}}`` for every
+      ``functionClass``.
+    * ``implementations``: ``{family: [{name, description, file}, …]}`` keyed by
+      the root element name.
+    * ``params_by_file``: ``{file_path: [{name, default, description}, …]}``.
+    * ``methods_by_file``: ``{file_path: [{name, description}, …]}`` — the
+      type-bound methods declared in that file's ``<methods>`` block(s).
+    * ``modules``: ``[{name, file, description, classRef}, …]`` — one per
+      documented module (``classRef`` links class modules to their page).
+    * ``workarounds``: ``[{type, pr, url, issue, description, seeAlso, file},
+      …]``.
+    * ``components``: ``{class: [{name, description, isDefault, extends,
+      properties, file}, …]}`` — the node component implementations.
+    """
+    families: dict[str, dict] = {}
+    by_root: dict[str, list[dict]] = {}
+    params_by_file: dict[str, list[dict]] = {}
+    methods_by_file: dict[str, list[dict]] = {}
+    enumerations: list[dict] = []
+    modules: list[dict] = []
+    workarounds: list[dict] = []
+    components: dict[str, list[dict]] = {}
+    class_by_file: dict[str, str] = {}
+
+    for root, _dirs, files in os.walk(source_dir):
+        for fn in sorted(files):
+            if not fn.endswith('.F90') or fn.startswith('.#'):
+                continue
+            base = os.path.splitext(fn)[0]
+            # Use the full path (not ``base``) as the per-file key: every
+            # pluggable physics class lives in a file literally named
+            # ``_class.F90`` (in a per-class directory), so ``base`` collides
+            # across all 267 of them.  Keying on the path keeps each file's
+            # class/parameter/method docs distinct.
+            path = os.path.join(root, fn)
+            with open(path, encoding='utf-8', errors='replace') as fh:
+                text = fh.read()
+            mmod = re.search(r'(?im)^[ \t]*module[ \t]+([a-z0-9_]+)[ \t]*$', text)
+            module_name = mmod.group(1) if mmod else base
+            # Module-level description: the !!{RST …!!} block right after the
+            # ``module`` line (already RST; not XML-escaped like <description>).
+            # Matched against the rest of the file, not a fixed-size window: the
+            # match is anchored (``re.match`` plus a leading ``\s*``), so it can
+            # still only pick up a block which immediately follows the ``module``
+            # line, but a window would have to reach past the block's *closing*
+            # ``!!}`` for the match to succeed at all — so a header longer than
+            # the window silently dropped its module from the index entirely.
+            # ``dedent`` before ``strip`` so that indentation *within* the block
+            # (code-blocks, nested lists) survives relative to its own margin.
+            if mmod:
+                md = re.match(r'\s*!!\{RST\b(.*?)!!\}',
+                              text[mmod.end():], re.DOTALL)
+                if md and md.group(1).strip():
+                    description = textwrap.dedent(md.group(1)).strip()
+                    modules.append({'name': module_name, 'file': path,
+                                    'description': description})
+            tmeths = _extract_type_methods(text)
+            if tmeths:
+                _derive_type_method_signatures(text, path, tmeths)
+                methods_by_file[path] = tmeths
+            for bm in _BLOCK_RE.finditer(text):
+                block = bm.group(1)
+                if 'docformat="rst"' not in block:
+                    continue
+
+                # Repeatable leaf directives first: a single ``!![ … !!]`` block
+                # routinely declares several <inputParameter> directives (and, in
+                # one case, two <workaround> directives).  Sweep *every*
+                # occurrence — the earlier code processed only the block's first
+                # directive, silently dropping the majority of parameter docs and
+                # any second workaround.
+                for pm in _INPUT_PARAM_RE.finditer(block):
+                    pbody = pm.group(1)
+                    name = _child(pbody, 'name')
+                    if not name:
+                        continue
+                    pdesc = _DESC_RE.search(pbody)
+                    params_by_file.setdefault(path, []).append({
+                        'name':          name,
+                        'default':       _child(pbody, 'defaultValue'),
+                        # Prose gloss on a computed default (e.g. "(I_2/I_3
+                        # where …)"); without it such defaults render as a bare
+                        # Fortran variable name, which tells the reader nothing.
+                        'defaultSource': _child(pbody, 'defaultSource'),
+                        'description':   pdesc.group(1) if pdesc else None,
+                    })
+                for wm in _WORKAROUND_RE.finditer(block):
+                    wattrs, wbody = wm.group(1), wm.group(2)
+                    wdesc = _DESC_RE.search(wbody)
+                    if wdesc is None:
+                        continue
+                    workarounds.append({
+                        'type':        _attr(wattrs, 'type'),
+                        'pr':          _attr(wattrs, 'PR'),
+                        'url':         _attr(wattrs, 'url'),
+                        # Our own issue tracking removal of the workaround, if
+                        # one has been opened (see the workaroundChecker).
+                        'issue':       _attr(wattrs, 'issue'),
+                        'description': wdesc.group(1),
+                        'seeAlso':     [{'type': _attr(s, 'type'),
+                                         'pr':   _attr(s, 'PR'),
+                                         'url':  _attr(s, 'url')}
+                                        for s in re.findall(
+                                            r'<seeAlso\b([^>]*?)/?>', wbody)],
+                        'file':        path,
+                    })
+
+                # Container / root directive (one per block): functionClass,
+                # enumeration, or an implementation class.  inputParameter and
+                # workaround roots are already handled by the sweeps above.
+                rm = _ROOT_RE.search(block)
+                if not rm:
+                    continue
+                rtype, attrs = rm.group(1), rm.group(2)
+                if rtype in ('inputParameter', 'workaround'):
+                    continue
+                desc_m = _DESC_RE.search(block)
+                desc_raw = desc_m.group(1) if desc_m else None
+
+                if rtype == 'functionClass':
+                    name = _child(block, 'name')
+                    if not name:
+                        continue
+                    families[name] = {
+                        'descriptiveName': _child(block, 'descriptiveName') or name,
+                        'description':     desc_raw,
+                        'default':         _child(block, 'default'),
+                        'methods':         _extract_methods(block),
+                    }
+                    class_by_file[path] = name
+                elif rtype == 'component':
+                    cls, name = _child(block, 'class'), _child(block, 'name')
+                    if not cls or not name:
+                        continue
+                    # ``<extends>`` nests its own <class>/<name>; read them from
+                    # that sub-block rather than the component's own.
+                    ext = re.search(r'<extends>(.*?)</extends>', block, re.DOTALL)
+                    components.setdefault(cls, []).append({
+                        'name':        name,
+                        'description': desc_raw,
+                        'isDefault':   (_child(block, 'isDefault') or '') == 'true',
+                        'extends':     _child(ext.group(1), 'name') if ext else None,
+                        'properties':  _extract_component_properties(block),
+                        'file':        path,
+                    })
+                elif rtype == 'enumeration':
+                    name = _child(block, 'name')
+                    if not name:
+                        continue
+                    enumerations.append({
+                        'name':        name,
+                        'description': desc_raw,
+                        'entries':     _extract_entries(block),
+                        'module':      module_name,
+                    })
+                else:
+                    name = _attr(attrs, 'name')
+                    if not name or desc_raw is None:
+                        continue
+                    by_root.setdefault(rtype, []).append({
+                        'name':        name,
+                        'description': desc_raw,
+                        'file':        path,
+                    })
+
+    implementations = {fam: by_root[fam] for fam in by_root if fam in families}
+    enumerations.sort(key=lambda e: e['name'].lower())
+    # Tag each module that is a (page-bearing) functionClass file so the modules
+    # index can link to its physics page.
+    paged = set(implementations)
+    for m in modules:
+        cls = class_by_file.get(m['file'])
+        m['classRef'] = cls if cls in paged else None
+    modules.sort(key=lambda m: m['name'].lower())
+    # The same compiler workaround is applied at many call sites with identical
+    # text; collapse to one entry per (type, PR, description), unioning seeAlso.
+    deduped: dict[tuple, dict] = {}
+    for w in workarounds:
+        key = (w.get('type'), w.get('pr'),
+               ' '.join((w.get('description') or '').split()))
+        entry = deduped.setdefault(key, {**w, 'seeAlso': []})
+        # Only one of a set of identical occurrences need carry the ``issue``
+        # attribute, so keep the first one found rather than the first entry's.
+        if not entry.get('issue') and w.get('issue'):
+            entry['issue'] = w['issue']
+        have = {(s.get('type'), s.get('pr'), s.get('url'))
+                for s in entry['seeAlso']}
+        for s in w.get('seeAlso') or []:
+            if (s.get('type'), s.get('pr'), s.get('url')) not in have:
+                entry['seeAlso'].append(s)
+    workarounds = sorted(deduped.values(),
+                         key=lambda w: (str(w.get('type')), str(w.get('pr'))))
+    for impls in components.values():
+        impls.sort(key=lambda c: c['name'].lower())
+    # NOTE: ``components`` is returned *before* ``workarounds`` so that callers
+    # unpacking the tail (``*_head, workarounds = scan_source(…)``) keep working.
+    return (families, implementations, params_by_file, methods_by_file,
+            enumerations, modules, components, workarounds)
+
+
+# ---------------------------------------------------------------------------
+# Rendering
+# ---------------------------------------------------------------------------
+
+def _range_label(constraints: dict | None) -> str | None:
+    """Render a `{minimum,maximum}` constraint as an inequality string."""
+    if not constraints:
+        return None
+    parts = []
+    minimum = constraints.get('minimum')
+    maximum = constraints.get('maximum')
+    if minimum:
+        parts.append(f'{"≥" if minimum.get("inclusive") else ">"} {minimum["value"]}')
+    if maximum:
+        parts.append(f'{"≤" if maximum.get("inclusive") else "<"} {maximum["value"]}')
+    return ', '.join(parts) or None
+
+
+def _parameter_facets(p: dict) -> list[str]:
+    """Catalog-derived annotations for a parameter: type, cardinality, allowed
+    values, range, and default — shown as a parenthetical after the parameter
+    name."""
+    facets = []
+    ptype = p.get('type')
+    if ptype and ptype != 'unknown':
+        facets.append(ptype)
+    cardinality = p.get('cardinality')
+    if cardinality:
+        facets.append(f'``{cardinality}``')
+    allowed = p.get('allowedValues')
+    if allowed:
+        facets.append('one of ' + ', '.join(f'``{v}``' for v in allowed))
+    rng = _range_label(p.get('constraints'))
+    if rng:
+        facets.append(rng)
+    default = p.get('default')
+    if default is not None and str(default).strip() != '':
+        facets.append(f'default ``{str(default).strip()}``')
+    return facets
+
+
+def render_parameter(p: dict, glsmap: dict) -> str:
+    name = p.get('name', '')
+    # Emitted as written, not collapsed onto one line - as for method
+    # descriptions (see `render_method`).  Most parameter descriptions are a
+    # single paragraph, but some carry several, or a definition list of the
+    # allowed values, which collapsing folded into one run-on paragraph.
+    desc = _desc_to_rst(p.get('description'), glsmap).strip()
+    # Notes appended below start a paragraph of their own where the description
+    # has several, rather than running on from whatever block ends it.
+    separator = '\n\n' if '\n\n' in desc else ' '
+    head = f'``[{name}]``'
+    facets = _parameter_facets(p)
+    if facets:
+        head += ' (' + '; '.join(facets) + ')'
+    # A ``<defaultSource>`` says where a default came from — usually a bare
+    # citation, sometimes a parenthesised note on how a computed default is
+    # derived.  Label it so both read as a sentence rather than running on from
+    # the description.
+    source = p.get('defaultSource')
+    if source:
+        source = re.sub(r'\s*\n\s*', ' ',
+                        _desc_to_rst(source, glsmap)).strip()
+        if source.startswith('(') and source.endswith(')'):
+            source = source[1:-1].strip()
+        if source:
+            if not source.endswith('.'):
+                source += '.'
+            desc = (desc + separator if desc else '') + f'*Default from:* {source}'
+    if p.get('inheritedFrom'):
+        desc = (desc + separator if desc else '') + f'*(inherited from* ``{p["inheritedFrom"]}``\\ *)*'
+    if not desc:
+        return f'* {head}'
+    # Continuation lines are indented to align with the text of the bullet, so
+    # that they remain part of it.
+    return f'* {head} — ' + textwrap.indent(desc, '  ').lstrip(' ')
+
+
+def _implementation_parameters(impl: dict, params_by_file: dict,
+                               catalog: dict | None) -> list[dict]:
+    """Parameters to document for an implementation.
+
+    With a catalog, use its per-implementation resolved set (own + inherited,
+    annotated with type / allowed values / range), preferring the raw
+    source-extracted description for the implementation's own parameters.
+    Without a catalog, fall back to the file-based extraction (no enrichment)."""
+    file_params = params_by_file.get(impl.get('file', ''), [])
+    if catalog is None or impl.get('name') not in catalog.get('implementations', {}):
+        return file_params
+    raw_description = {p['name']: p.get('description') for p in file_params}
+    raw_source = {p['name']: p.get('defaultSource') for p in file_params}
+    resolved = resolved_parameters(catalog, impl['name'])
+    for parameter in resolved:
+        if raw_description.get(parameter['name']) is not None:
+            parameter['description'] = raw_description[parameter['name']]
+        if raw_source.get(parameter['name']) is not None:
+            parameter['defaultSource'] = raw_source[parameter['name']]
+    return resolved
+
+
+def render_method(meth: dict, glsmap: dict) -> list[str]:
+    """Render one method as a definition-list entry: its signature, then its
+    description and one bullet per argument.
+
+    The same rendering serves the class interface and each implementation's own
+    methods, so that a method reads the same wherever it appears.  Both the type
+    and the arguments arrive either as Fortran declarations (hand-written
+    directives) or already in the documentation's argument notation (the
+    generators, and the signatures recovered from source); each is converted
+    only if it needs to be.
+    """
+    signature = f'``{meth["name"]}``'
+    return_type = return_type_to_rst(meth.get('type'))
+    if return_type:
+        signature += f' → {return_type}'
+
+    # The description is already RST (converted in the source); unescape the XML
+    # entities, as for <description> elements.  Emitted as written, not
+    # collapsed onto one line - as for module headers (see `render_modules`).
+    # Collapsing folded any block directive (a ``code-block``, say) into the
+    # surrounding prose as literal text.  The body is the definition of a
+    # definition list, so it is indented as a whole below.
+    description = _desc_to_rst(meth.get('description'), glsmap).strip()
+    body = description or '—'
+    arguments = []
+    for argument in meth.get('arguments') or []:
+        arguments.extend(arguments_to_rst([argument]) if is_declaration(argument)
+                         else [normalize_argument(argument)])
+    if arguments:
+        # One bullet per argument, as a single (tight) list: a blank line
+        # between bullets would render the list loosely spaced.
+        body += '\n\n' + '\n'.join(f'* {argument}' for argument in arguments)
+    return [signature, textwrap.indent(body, '   '), '']
+
+
+def render_family(fam: str, families: dict, implementations: dict,
+                  params_by_file: dict, methods_by_file: dict,
+                  glsmap: dict, catalog: dict | None = None) -> str:
+    directive = families[fam]
+    descriptive = directive.get('descriptiveName', fam)
+    out = [f'.. _physics-{fam}:\n', _heading(descriptive, '=')]
+
+    desc = _desc_to_rst(directive.get('description'), glsmap)
+    if desc:
+        out.append(desc + '\n')
+
+    default = directive.get('default')
+    if default:
+        target = f'{fam}{default[:1].upper()}{default[1:]}'
+        out.append(f'**Default implementation:** ``{target}``\n')
+
+    methods = directive.get('methods') or []
+    if methods:
+        out.append(_heading('Methods', '-'))
+        for meth in methods:
+            out.extend(render_method(meth, glsmap))
+
+    impls = sorted(implementations.get(fam, []),
+                   key=lambda d: str(d.get('name', '')).lower())
+    # (No ``.. contents::`` — the Furo theme provides a right-hand on-page nav
+    # and errors on an explicit local table of contents.)
+
+    for impl in impls:
+        name = impl['name']
+        out.append(f'.. _physics-{name}:\n')
+        out.append(_heading(f'``{name}``', '-'))
+        idesc = _desc_to_rst(impl.get('description'), glsmap)
+        if idesc:
+            out.append(idesc + '\n')
+        if default and f'{fam}{default[:1].upper()}{default[1:]}' == name:
+            out.append('**(Default implementation)**\n')
+        imethods = methods_by_file.get(impl.get('file', ''), [])
+        if imethods:
+            out.append('**Methods**\n')
+            for meth in imethods:
+                out.extend(render_method(meth, glsmap))
+        params = _implementation_parameters(impl, params_by_file, catalog)
+        if params:
+            out.append('**Parameters**\n')
+            for p in params:
+                out.append(render_parameter(p, glsmap))
+            out.append('')
+    return '\n'.join(out) + '\n'
+
+
+def _property_facets(p: dict) -> str:
+    """Render a component property's attributes as a compact annotation."""
+    facets = []
+    ptype = (p.get('type') or '').strip()
+    rank = (p.get('rank') or '').strip()
+    if ptype:
+        facets.append(f'{ptype} rank-{rank}' if rank and rank != '0' else ptype)
+    access = [k for k, f in (('get', 'isGettable'), ('set', 'isSettable'))
+              if p.get(f)]
+    if access:
+        facets.append('/'.join(access) + 'table')
+    if p.get('isEvolvable'):
+        facets.append('evolvable')
+    if p.get('isVirtual'):
+        facets.append('virtual')
+    if p.get('isDeferred'):
+        facets.append(f'deferred {p["isDeferred"]}')
+    return '; '.join(facets)
+
+
+def render_components(components: dict, params_by_file: dict,
+                      glsmap: dict) -> str:
+    """The node component reference: one section per class, one subsection per
+    implementation, with its description, properties, and input parameters."""
+    out = [_heading('Node Component Reference', '='),
+           'Every node component class and its implementations, generated from '
+           'the ``<component>`` directives in the Galacticus source. Components '
+           'hold the state of a :term:`node`; the physics which evolves that '
+           'state is implemented by :galacticus-class:`nodeOperatorClass` '
+           'objects. See :ref:`manual-sec-Components` for an introduction.\n']
+    for cls in sorted(components, key=str.lower):
+        impls = components[cls]
+        out.append(f'.. _component-{cls}:\n')
+        out.append(_heading(f'``{cls}``', '-'))
+        out.append(
+            f'Selected with the ``[component{cls[:1].upper()}{cls[1:]}]`` '
+            f'parameter; implementation parameters are given inside that '
+            f'element.\n')
+        for impl in impls:
+            name = impl['name']
+            out.append(f'.. _component-{cls}-{name}:\n')
+            out.append(_heading(f'``{name}``', '~'))
+            desc = _desc_to_rst(impl.get('description'), glsmap)
+            if desc:
+                out.append(desc + '\n')
+            notes = []
+            if impl.get('isDefault'):
+                notes.append('**(Default implementation)**')
+            if impl.get('extends'):
+                notes.append(
+                    f'Extends :ref:`{impl["extends"]} '
+                    f'<component-{cls}-{impl["extends"]}>`.')
+            if notes:
+                out.append(' '.join(notes) + '\n')
+            props = impl.get('properties') or []
+            if props:
+                out.append('**Properties**\n')
+                for p in props:
+                    facets = _property_facets(p)
+                    head = f'* ``{p["name"]}``'
+                    if facets:
+                        head += f' ({facets})'
+                    comment = (p.get('comment') or '').strip()
+                    if comment:
+                        head += f' — {html.unescape(comment)}'
+                        units = (p.get('units') or '').strip()
+                        if units:
+                            head += f' [{units}]'
+                    out.append(head)
+                out.append('')
+            params = params_by_file.get(impl.get('file', ''), [])
+            if params:
+                out.append('**Parameters**\n')
+                for p in params:
+                    out.append(render_parameter(p, glsmap))
+                out.append('')
+    return '\n'.join(out) + '\n'
+
+
+def render_glossary(glossary: dict, glsmap: dict) -> str:
+    # Deduplicate by display name; keep the longest description on collision.
+    by_name: dict[str, str] = {}
+    for entry in glossary.values():
+        name = entry['name']
+        desc = entry.get('description', '')
+        if name not in by_name or len(desc) > len(by_name[name]):
+            by_name[name] = desc
+
+    out = [_heading('Glossary', '='), '.. glossary::\n']
+    for name in sorted(by_name, key=str.lower):
+        desc_rst = latex_to_rst(by_name[name], glsmap).strip()
+        # Glossary definitions are single-paragraph prose; keep them tidy.
+        desc_rst = re.sub(r'\s*\n\s*', ' ', desc_rst) or '—'
+        out.append(textwrap.indent(name, '   '))
+        out.append(textwrap.indent(desc_rst, '      '))
+        out.append('')
+    return '\n'.join(out) + '\n'
+
+
+def render_enumerations(enumerations: list[dict], glsmap: dict) -> str:
+    out = [_heading('Enumerations', '='),
+           'Enumerated types defined in the Galacticus source code.\n']
+    # Enumeration names are not globally unique (several modules define their
+    # own e.g. ``propertyType``); disambiguate any repeated name by appending
+    # its defining module so the headings (and Sphinx anchors) stay distinct.
+    name_counts: dict[str, int] = {}
+    for en in enumerations:
+        name_counts[en['name']] = name_counts.get(en['name'], 0) + 1
+    for en in enumerations:
+        title = f'``{en["name"]}``'
+        if name_counts[en['name']] > 1:
+            title += f' ({en.get("module") or "?"})'
+        out.append(_heading(title, '-'))
+        # Emitted as written, not collapsed onto one line, so that a description
+        # of several paragraphs keeps them (see `render_method`).
+        desc = _desc_to_rst(en.get('description'), glsmap).strip()
+        if desc:
+            out.append(desc + '\n')
+        entries = en.get('entries') or []
+        if entries:
+            out.append('**Values**\n')
+            for e in entries:
+                ed = e.get('description')
+                if ed:
+                    ed = re.sub(r'\s*\n\s*', ' ', latex_to_rst(ed, glsmap)).strip()
+                    out.append(f'* ``{e["label"]}`` — {ed}')
+                else:
+                    out.append(f'* ``{e["label"]}``')
+            out.append('')
+    return '\n'.join(out) + '\n'
+
+
+def render_modules(modules: list[dict]) -> str:
+    """A reference index of every documented source module + its header docs."""
+    out = [_heading('Modules', '='),
+           'Every documented Fortran module in the Galacticus source, with the '
+           'documentation embedded in its header.  Modules implementing a '
+           'pluggable physics class link to that class.\n']
+    for m in modules:
+        # Emitted as written, not collapsed onto one line.  Nearly every header
+        # is a single sentence, for which the two are identical; but a handful
+        # carry several paragraphs, and three carry a ``code-block``, which
+        # collapsing folded into the surrounding prose as literal ``.. code-block::``
+        # text.  The body becomes the definition of a definition list, so it is
+        # indented as a whole below.
+        body = m['description'].strip() or '—'
+        if m.get('classRef'):
+            body += f'\n\nSee :ref:`physics-{m["classRef"]}`.'
+        # Emit a stable per-module anchor (``module-<name>``, lower-cased) so
+        # cross-references elsewhere (manuals, docstrings) can link to a module
+        # by name.  These replace the dead links into the retired Source PDF.
+        out.append(f'.. _module-{m["name"].lower()}:')
+        out.append('')
+        out.append(f'``{m["name"]}``')
+        out.append(textwrap.indent(body, '   '))
+        out.append('')
+    return '\n'.join(out) + '\n'
+
+
+def _issue_link(issue: str) -> str:
+    """Render an ``issue`` attribute (a bare number, or a full URL) as a link."""
+    issue = html.unescape(issue)
+    if re.fullmatch(r'#?\d+', issue):
+        number = issue.lstrip('#')
+        return (f'`issue #{number} '
+                f'<https://github.com/galacticusorg/galacticus/issues/{number}>`_')
+    return f'`issue <{issue}>`_'
+
+
+def render_workarounds(workarounds: list[dict], glsmap: dict) -> str:
+    """A developer reference of the compiler workarounds documented in source."""
+    def link(typ, pr, url):
+        label = ' '.join(x for x in (typ, f'PR {pr}' if pr else None) if x)
+        label = label or 'reference'
+        url = html.unescape(url) if url else None
+        return f'`{label} <{url}>`_' if url else label
+
+    out = [_heading('Source-Code Workarounds', '='),
+           'Workarounds for compiler bugs and limitations, documented inline in '
+           'the Galacticus source.\n']
+    for w in workarounds:
+        body = textwrap.dedent(_desc_to_rst(w.get('description'), glsmap)).strip()
+        body = body or '—'
+        for s in w.get('seeAlso') or []:
+            body += ('\n\nSee also: '
+                     + link(s.get('type'), s.get('pr'), s.get('url')) + '.')
+        issue = w.get('issue')
+        if issue:
+            body += ('\n\nRemoval of this workaround is tracked by '
+                     + _issue_link(issue) + '.')
+        out.append(link(w.get('type'), w.get('pr'), w.get('url')))
+        out.append(textwrap.indent(body, '   '))
+        out.append('')
+    return '\n'.join(out) + '\n'
+
+
+# ``<constant …/>`` directives in the source define the physical/mathematical/…
+# constants.  The build's code generator also emits these as ``*.constants.xml``,
+# but the same data is in the source directives, so we read those directly — no
+# compiled build needed.
+_CONSTANT_RE = re.compile(r'<constant\b([^>]*?)/?>')
+_CONSTANT_GROUPS = {
+    'astrophysical': 'Astrophysical constants',
+    'atomic':        'Atomic physics constants',
+    'physical':      'Physical constants',
+    'math':          'Mathematical constants',
+    'units':         'Units',
+    'prefixes':      'SI prefixes',
+    'GSL':           'GNU Scientific Library constants',
+    'Kernel':        'Kernel constants',
+    'misc':          'Miscellaneous constants',
+}
+
+
+def scan_constants(source_dir: str) -> list[dict]:
+    constants = []
+    for root, _dirs, files in os.walk(source_dir):
+        for fn in sorted(files):
+            if not fn.endswith('.F90') or fn.startswith('.#'):
+                continue
+            with open(os.path.join(root, fn), encoding='utf-8',
+                      errors='replace') as fh:
+                text = fh.read()
+            for m in _CONSTANT_RE.finditer(text):
+                attrs = {k: html.unescape(v)
+                         for k, v in re.findall(r'(\w+)="([^"]*)"', m.group(1))}
+                if 'variable' in attrs:
+                    constants.append(attrs)
+    return constants
+
+
+def _format_constant_value(value: str) -> str:
+    value = re.sub(r'd([+\-0-9]+)$', r'e\1', value)   # Fortran d-exponent -> e
+    value = re.sub(r'_[_a-zA-Z0-9]+$', '', value)     # strip Fortran kind suffix
+    return value
+
+
+def render_constants(constants: list[dict], glsmap: dict) -> str:
+    """A reference of the constants defined via ``<constant>`` source directives."""
+    groups: dict[str, list[dict]] = {}
+    for c in constants:
+        for g in (c.get('group') or 'misc').split(':'):
+            groups.setdefault(g if g in _CONSTANT_GROUPS else 'misc', []).append(c)
+
+    out = [_heading('Constants', '='),
+           'Physical, mathematical and astrophysical constants available in the '
+           'Galacticus source (defined via ``<constant>`` directives). Constants '
+           'whose value is provided by the GNU Scientific Library note the GSL '
+           'symbol rather than a literal value.\n']
+    for g in sorted(groups, key=lambda k: _CONSTANT_GROUPS[k].lower()):
+        out.append(_heading(_CONSTANT_GROUPS[g], '-'))
+        for c in sorted(groups[g], key=lambda c: c.get('variable', '').lower()):
+            term = f'``{c["variable"]}``'
+            if c.get('value'):
+                term += f' = ``{_format_constant_value(c["value"])}``'
+            if c.get('symbol'):
+                term += f' (:math:`{c["symbol"]}`)'
+            units = c.get('units', '')
+            if units and units != 'dimensionless':
+                # A few units carry LaTeX — either math (e.g.
+                # ``$\mathrm{rad}/^\circ$``) or a bare text-mode macro with no
+                # math at all (``\AA/m``); convert both so they render rather
+                # than appear verbatim.
+                if '$' in units or '\\' in units:
+                    units = re.sub(r'\s+', ' ',
+                                   latex_to_rst(units, glsmap)).strip()
+                term += f' [{units}]'
+            desc = re.sub(r'\s*\n\s*', ' ',
+                          latex_to_rst(c.get('description', ''), glsmap)).strip()
+            extras = []
+            if c.get('gslSymbol'):
+                extras.append(f'value from GSL ``{c["gslSymbol"]}``')
+            if c.get('reference'):
+                # References are LaTeX — often a bare ``\cite{…}`` — so convert
+                # them, except when they label an explicit URL (then the text is
+                # the link text and must stay literal). Links are anonymous
+                # (``__``), since many constants share a link text (the same
+                # reference, or "more") but not a URL, which docutils otherwise
+                # reports as a duplicate target.
+                extras.append(
+                    f'`{c["reference"]} <{c["referenceURL"]}>`__'
+                    if c.get('referenceURL') else
+                    re.sub(r'\s*\n\s*', ' ',
+                           latex_to_rst(c['reference'], glsmap)).strip())
+            if c.get('externalDescription'):
+                extras.append(f'`more <{c["externalDescription"]}>`__')
+            body = (desc or '—') + ('\n\n' + '; '.join(extras) if extras else '')
+            out.append(term)
+            out.append(textwrap.indent(body, '   '))
+            out.append('')
+    return '\n'.join(out) + '\n'
+
+
+def render_physics_index(families: dict, implementations: dict) -> str:
+    fams = sorted((f for f in families if f in implementations),
+                  key=lambda f: families[f].get('descriptiveName', f).lower())
+    out = [_heading('Physics Classes', '='),
+           'Documentation for each pluggable physics class, generated from the '
+           'source code.\n',
+           '.. toctree::\n   :maxdepth: 1\n']
+    for fam in fams:
+        out.append(f'   {fam}')
+    return '\n'.join(out) + '\n'
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+def main() -> int:
+    if len(sys.argv) != 3:
+        print('Usage: extractDocsRST.py <sourceDir> <outDir>', file=sys.stderr)
+        return 1
+    source_dir, out_dir = sys.argv[1], sys.argv[2]
+
+    global _FIGURES_DIR
+    _FIGURES_DIR = os.path.join(out_dir, '_figures')
+    os.makedirs(_FIGURES_DIR, exist_ok=True)
+
+    glossary = parse_glossary(os.path.join('docs', 'Glossary.tex'))
+    glsmap = glossary_display_map(glossary)
+
+    (families, implementations, params_by_file, methods_by_file, enumerations,
+     modules, components, workarounds) = scan_source(source_dir)
+
+    # Build the parameter catalog to enrich parameter docs (type, allowed values,
+    # ranges, inherited parameters); degrades gracefully to None.
+    catalog = _build_catalog(source_dir)
+
+    physics_dir = os.path.join(out_dir, 'physics')
+    os.makedirs(physics_dir, exist_ok=True)
+
+    for fam in implementations:
+        page = render_family(fam, families, implementations,
+                             params_by_file, methods_by_file, glsmap, catalog)
+        with open(os.path.join(physics_dir, f'{fam}.rst'), 'w',
+                  encoding='utf-8') as fh:
+            fh.write(page)
+
+    with open(os.path.join(physics_dir, 'index.rst'), 'w',
+              encoding='utf-8') as fh:
+        fh.write(render_physics_index(families, implementations))
+
+    with open(os.path.join(out_dir, 'nodeComponents.rst'), 'w',
+              encoding='utf-8') as fh:
+        fh.write(render_components(components, params_by_file, glsmap))
+
+    with open(os.path.join(out_dir, 'glossary.rst'), 'w',
+              encoding='utf-8') as fh:
+        fh.write(render_glossary(glossary, glsmap))
+
+    with open(os.path.join(out_dir, 'enumerations.rst'), 'w',
+              encoding='utf-8') as fh:
+        fh.write(render_enumerations(enumerations, glsmap))
+
+    with open(os.path.join(out_dir, 'references.rst'), 'w',
+              encoding='utf-8') as fh:
+        # Only the works actually cited in the documentation — not the whole
+        # (400+ entry) Galacticus.bib database.
+        fh.write(_heading('References', '=') +
+                 '\n.. bibliography::\n   :filter: cited\n')
+
+    with open(os.path.join(out_dir, 'modules.rst'), 'w',
+              encoding='utf-8') as fh:
+        fh.write(render_modules(modules))
+
+    with open(os.path.join(out_dir, 'workarounds.rst'), 'w',
+              encoding='utf-8') as fh:
+        fh.write(render_workarounds(workarounds, glsmap))
+
+    constants = scan_constants(source_dir)
+    with open(os.path.join(out_dir, 'constants.rst'), 'w',
+              encoding='utf-8') as fh:
+        fh.write(render_constants(constants, glsmap))
+
+    # Regenerate the Acknowledgments contributor list from the source markers
+    # (included by manuals/user-guide/acknowledgments.rst).
+    contributors = collect_contributor_names(
+        os.path.dirname(os.path.abspath(source_dir)))
+    with open(os.path.join(out_dir, 'manuals', 'user-guide', 'contributors.rst'),
+              'w', encoding='utf-8') as fh:
+        fh.write(render_contributors_rst(contributors))
+
+    n_impl = sum(len(v) for v in implementations.values())
+    n_meth = sum(len(f.get('methods') or []) for f in families.values())
+    impl_files = {i.get('file') for v in implementations.values() for i in v}
+    n_tmeth = sum(len(m) for f, m in methods_by_file.items() if f in impl_files)
+    n_comp = sum(len(v) for v in components.values())
+    print(f'Wrote {len(implementations)} physics pages ({n_impl} '
+          f'implementations, {n_meth} interface + {n_tmeth} type methods), '
+          f'{len(components)} component classes ({n_comp} implementations), '
+          f'{len(enumerations)} enumerations, {len(modules)} modules, '
+          f'{len(workarounds)} workarounds, {len(constants)} constants, glossary '
+          f'({len(glossary)} entries), references, '
+          f'{len(contributors)} contributors.', file=sys.stderr)
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

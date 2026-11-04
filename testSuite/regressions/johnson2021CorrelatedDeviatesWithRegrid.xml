@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Apply the Johnson et al. (2021) concentration model to a tree which has been regridded onto
      uniform timesteps. The Johnson et al. model uses correlated deviates to perform a random
      walk in concentration in poorly-resolved tree branches, with a correlation coefficient that
@@ -7,8 +7,9 @@
      which caused a failure in Cholesky decomposition. This cases is now explictly handled such
      that nodes with identical masses to their primary progenitor are not included in the
      Cholesky decomposition. -->
+
 <parameters>
-  <lastModified revision="564b5abb588ea45f2aee8782032b868791899765" time="2026-02-20T03:21:30"/>
+  <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
   <lastModified/>
   <formatVersion>2</formatVersion>
   <version>0.9.4</version>
@@ -123,7 +124,6 @@
   <cosmologicalMassVariance value="filteredPower">
     <!-- Parameter value is from the Planck Collaboration (2020; A&A, 641, 10) -->
     <!--  specifically the "TT,TE,EE+lowE+lensing" results in Table 2          -->
-    <sigma_8   value="0.8111"/>
     <tolerance value="1.0e-3"/>
   </cosmologicalMassVariance>
   <powerSpectrumPrimordial value="powerLaw">
@@ -139,6 +139,9 @@
     <darkMatterParticle value="CDM"/>
   </transferFunction>
   <powerSpectrumPrimordialTransferred value="simple"/>
+  <powerSpectrumNormalizer value="sigma8">
+    <sigma_8 value="0.8111"/>
+  </powerSpectrumNormalizer>
 
   <!-- Structure growth -->
   <linearGrowth value="collisionlessMatter">
@@ -237,6 +240,7 @@
       <unresolvedEnergy value="0.550000000000000"/>
       <!-- For leaf nodes in the tree we instead set scale radii using a concentration-mass-redshift model, with concentrations limited to a reasonable range. -->
       <darkMatterProfileScaleRadius value="concentration"/>
+      <massFunctionSlopeLogarithmic value="-1.8"/>
     </darkMatterProfileScaleRadius>
   </darkMatterProfileScaleRadius>
   <darkMatterProfileConcentration value="diemerJoyce2019">
@@ -279,7 +283,6 @@
       <sigmaRatioLow          value="+0.07458 +0.09040 +0.06981"/>
     </virialOrbit>
   </virialOrbit>
-  <satelliteOrbitStoreOrbitalParameters value="true"/>
 
   <!-- Orbiting model of satellites -->
   <!-- Values taken from Yang et al. (2020; MNRAS; 498; 3902; http://adsabs.harvard.edu/abs/2020MNRAS.498.3902Y) approximately
@@ -366,7 +369,6 @@
   <starFormationRateSurfaceDensityDisks value="blitz2006">
     
     
-    <useTabulation                 value="true"/>
   </starFormationRateSurfaceDensityDisks>
   <starFormationRateSpheroids value="timescale">
     <starFormationTimescale value="dynamicalTime">
@@ -405,7 +407,7 @@
   </accretionDisks>
 
   <!-- Black hole options -->
-  <blackHoleBinaryMergers value="rezzolla2008"/>
+  <blackHoleBinaryMerger value="rezzolla2008"/>
   <!-- Galaxy merger options -->
   <mergerMassMovements value="simple">
     <destinationGasMinorMerger value="spheroid"/>
@@ -429,6 +431,7 @@
     <!-- The best fit-value for the mass exponent is taken from here                                  -->
     <!-- https://github.com/galacticusorg/galacticus/wiki/Constraints:-Halo-spins-and-concentrations. -->
     <nodeOperator value="haloAngularMomentumVitvitska2002">
+      <subresolutionAngularMomentumMethod value="original"/>
       <exponentMass value="0.92527794238468"/>
     </nodeOperator>
     <nodeOperator value="haloAngularMomentumInterpolate"/>
@@ -447,8 +450,8 @@
     </nodeOperator>
     <nodeOperator value="satelliteDestructionMassThreshold" >
       <!-- Subhalos will be removed if they fall below the merger tree mass resolution limit. -->
-      <massDestructionAbsolute           value="=[mergerTreeMassResolution::massResolution]"/>
-      <massDestructionMassInfallFraction value="0.0"                                        />
+      <massDestructionAbsolute           value="=[mergerTreeMassResolution/massResolution]"/>
+      <massDestructionMassInfallFraction value="0.0"                                       />
     </nodeOperator>
     <!-- CGM -->
     <!--<nodeOperator value="CGMChemistry">
@@ -487,36 +490,22 @@
       <fractionMassFormation value="0.5"/>
     </nodeOperator>
     <nodeOperator value="uniqueIDBranchTip"/>
-  <nodeOperator value="blackHolesAccretion"/>
-
-  <nodeOperator value="blackHolesWinds"/>
-
-  <nodeOperator value="CGMAccretion">
-
-  <allowNegativeCGMMass value="true"/>
-
-  <angularMomentumAlwaysGrows value="false"/>
-
-  </nodeOperator>
-
-  <nodeOperator value="CGMOutflowReincorporation">
-
-  <includeSatellites value="true"/>
-
-  </nodeOperator>
-
-  <nodeOperator value="CGMCoolingHeating">
-
-  <component value="disk"/>
-
-  <coolingFrom value="currentNode"/>
-
-  <excessHeatDrivesOutflow value="true"/>
-
-  <rateMaximumExpulsion value="1.0"/>
-
-  </nodeOperator>
-
+    <nodeOperator value="blackHolesAccretion"/>
+    <nodeOperator value="blackHolesWinds"/>
+    <nodeOperator value="CGMAccretion">
+      <allowNegativeCGMMass value="true"/>
+      <angularMomentumAlwaysGrows value="false"/>
+    </nodeOperator>
+    <nodeOperator value="CGMOutflowReincorporation">
+      <includeSatellites value="true"/>
+    </nodeOperator>
+    <nodeOperator value="CGMCoolingHeating">
+      <component value="disk"/>
+      <coolingFrom value="currentNode"/>
+      <excessHeatDrivesOutflow value="true"/>
+      <rateMaximumExpulsion value="1.0"/>
+    </nodeOperator>
+    <nodeOperator value="CGMOuterRadiusRamPressureStripping"/>
   </nodeOperator>
 
   <mergerTreeOperator value="regridTimes">
@@ -579,5 +568,7 @@
     <nodePropertyExtractor value="indicesTree"    />
     <nodePropertyExtractor value="treeWeight"     />
   </nodePropertyExtractor>
+  <dynamicalFrictionGaseous value="chandrasekhar1943"/>
+  <kinematicsDistributionInterstellarMedium value="local"/>
 
 </parameters>

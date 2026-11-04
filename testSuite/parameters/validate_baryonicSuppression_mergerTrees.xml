@@ -1,14 +1,15 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Merger tree parameters for the baryonic suppression validation model. -->
+
 <parameters>
   <formatVersion>2</formatVersion>
-  <lastModified revision="d4bf2d8db876eb8e44d94e1672bc36a6ea8135cc" time="2025-09-03T18:23:58"/>
+  <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
 
   <!-- Task -->
   <task value="multi">
     <task value="haloMassFunction"  >
-      <haloMassMinimum value="1.0e05"/>
-      <haloMassMaximum value="1.0e12"/>
+      <massHaloMinimum value="1.0e05"/>
+      <massHaloMaximum value="1.0e12"/>
       <pointsPerDecade value="10"    />
     </task>
     <task value="evolveForests"/>
@@ -90,6 +91,7 @@
 	  </darkMatterProfileConcentration>
 	</darkMatterProfileScaleRadius>
       </darkMatterProfileScaleRadius>
+      <massFunctionSlopeLogarithmic value="-1.8"/>
     </darkMatterProfileScaleRadius>
   </darkMatterProfileScaleRadius>
 

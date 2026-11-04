@@ -1,9 +1,11 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Parameters for spin and concentration distribution function constraints -->
+
 <!-- 29-April-2021                                                           -->
+
 <parameters>
   <formatVersion>2</formatVersion>
-  <lastModified revision="975fffd5aadf697707003f16bf9b4caee8ebe97d" time="2025-10-22T21:34:03"/>
+  <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
 
 
   <!-- Task control -->
@@ -40,10 +42,11 @@
     <running             value="0.00"/>
   </powerSpectrumPrimordial>
   <powerSpectrumPrimordialTransferred value="simple"       />
-  <powerSpectrumWindowFunction        value="ETHOS"        />
-  <cosmologicalMassVariance           value="filteredPower" >
+  <powerSpectrumNormalizer value="sigma8">
     <sigma_8 value="0.8228"/>
-  </cosmologicalMassVariance>
+  </powerSpectrumNormalizer>
+  <powerSpectrumWindowFunction        value="ETHOS"        />
+  <cosmologicalMassVariance value="filteredPower"/>
   
   <!-- Structure formation options -->
   <linearGrowth          value="collisionlessMatter"/>
@@ -157,7 +160,7 @@
     <nodeOperator value="darkMatterProfileScaleInterpolate"/>
     <nodeOperator value="haloAngularMomentumVitvitska2002"  >
       <exponentMass value="1.9253"/>
-      <useOriginalSubresolutionMethod value="false"/>
+      <subresolutionAngularMomentumMethod value="massScaled"/>
     </nodeOperator>
     <nodeOperator value="haloAngularMomentumInterpolate"   />
     <nodeOperator value="nodeMajorMergerTime"              />

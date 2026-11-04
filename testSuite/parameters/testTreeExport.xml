@@ -1,7 +1,8 @@
-<?xml version="1.0"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Parameters for default Roman model. -->
+
 <parameters>
-  <lastModified revision="e4897b4d895b215ba5092568a0b8a86a93dab836" time="2025-12-01T22:22:32"/>
+  <lastModified revision="ea6b55717d89e3ac2234e42c78fca7eebcf9e2fc" time="2026-10-30T23:06:59"/>
   <formatVersion>2</formatVersion>
   <version>0.9.4</version>
 
@@ -18,11 +19,10 @@
     <temperatureCMB value=" 2.72548"/>
   </cosmologyParameters>
   <simulation ignoreWarnings="true">
-    <massParticle value="=1.2e9/([cosmologyParameters::HubbleConstant]/100.0)" ignoreWarnings="true"/>
+    <massParticle value="=1.2e9/([cosmologyParameters/HubbleConstant]/100.0)" ignoreWarnings="true"/>
   </simulation>
   <!-- Power spectrum options -->
   <cosmologicalMassVariance value="filteredPower">
-    <sigma_8 value="0.8147"/>
     <tolerance value="3.0e-4"/>
     <toleranceTopHat value="3.0e-4"/>
     <nonMonotonicIsFatal value="false"/>
@@ -41,6 +41,10 @@
     <running value="0.0000"/>
   </powerSpectrumPrimordial>
   <powerSpectrumPrimordialTransferred value="simple"/>
+  <powerSpectrumNormalizer value="sigma8">
+    <sigma_8 value="0.8147"/>
+    <tolerance value="3.0e-4"/>
+  </powerSpectrumNormalizer>
 
   <!-- Structure formation options -->
   <linearGrowth value="collisionlessMatter"/>
@@ -194,7 +198,7 @@
   <hotHaloRamPressureStripping value="font2008">
     <solverFailureIsFatal value="false"/>
   </hotHaloRamPressureStripping>
-  <hotHaloRamPressureForce value="relativePosition"/>
+  <hotHaloRamPressureForce value="orbitalPosition"/>
   <hotHaloRamPressureTimescale value="ramPressureAcceleration"/>
   
   <!-- Galactic structure solver options -->
@@ -207,8 +211,7 @@
   <!-- Star formation rate options -->
   <starFormationRateDisks value="intgrtdSurfaceDensity"/>
   <starFormationRateSurfaceDensityDisks value="blitz2006">
-    <starFormationFrequencyNormalization value="1.432e-9"/>
-    <useTabulation value="true"/>
+    <starFormationFrequencyNormalization value="1.0529411764705882e-09"/>
   </starFormationRateSurfaceDensityDisks>
   <starFormationRateSpheroids value="timescale">
     <starFormationTimescale value="dynamicalTime">
@@ -324,7 +327,7 @@
     <nodeOperator value="barInstability">
       <galacticDynamicsBarInstability value="efstathiou1982">
         <fractionAngularMomentumRetainedSpheroid value="0.2"/>
-        <fractionAngularMomentumRetainedDisk value="=1.0-[.::fractionAngularMomentumRetainedSpheroid]"/>
+        <fractionAngularMomentumRetainedDisk value="=1.0-[./fractionAngularMomentumRetainedSpheroid]"/>
         <stabilityThresholdGaseous value="0.7"/>
         <stabilityThresholdStellar value="1.1"/>
       </galacticDynamicsBarInstability>
@@ -370,15 +373,16 @@
     <correlationMassExponent value="1.000e0"/>
     <correlationNormalization value="1.000e0"/>
     <correlationRedshiftExponent value="0.000e0"/>
-    <massParticle value="=[simulation::massParticle]"/>
+    <massParticle value="=[simulation/massParticle]"/>
   </nbodyHaloMassError>
   <sigmaThreshold value="5.0"/>
 </nodeOperator>
 
     <nodeOperator value="positionInterpolated">
-      <lengthBox value="=[geometryLightcone::lengthReplication]*(([cosmologyParameters::HubbleConstant]/100.0)^[geometryLightcone::lengthHubbleExponent])*([geometryLightcone::lengthUnitsInSI]/3.08567758e+22)"/>
+      <lengthBox value="=[geometryLightcone/lengthReplication]*(([cosmologyParameters/HubbleConstant]/100.0)^[geometryLightcone/lengthHubbleExponent])*([geometryLightcone/lengthUnitsInSI]/3.08567758e+22)"/>
       <wrapPeriodic value="false"/>
     </nodeOperator>
+    <nodeOperator value="CGMOuterRadiusRamPressureStripping"/>
   </nodeOperator>
   <starFormationHistory value="fixedAges">
       <ageMinimum value="0.001"/>
@@ -566,7 +570,7 @@
       <ageLimit value="0.01"/>
       </hiiRegionEscapeFraction>
     </nodePropertyExtractor>
-    <nodePropertyExtractor value="lmnstyEmssnLineAGN">
+    <nodePropertyExtractor value="luminosityEmissionLineAGN">
       <densityHydrogen value="1.0d3"/>
       <lineNames value="balmerAlpha6565 balmerBeta4863 balmerDelta4103 balmerGamma4342 nitrogenII6550 nitrogenII6585 oxygenII3727 oxygenII3730 oxygenIII4933 oxygenIII4960 oxygenIII5008 paschenAlpha18756 paschenBeta12822 sulfurII6718 sulfurII6733 sulfurIII9071 sulfurIII9533"/>
       <indexSpectralShortWavelength value="-1.7"/>

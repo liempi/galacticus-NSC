@@ -1,11 +1,15 @@
-<?xml version="1.0"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Regression test case for Bug #711424 - "Floating exception when -->
+
 <!-- tracking elements with noninstantaneous recycling" -->
+
 <!-- Andrew Benson -->
+
 <!-- 01-February-2011 -->
+
 <parameters>
   <formatVersion>2</formatVersion>
-  <lastModified revision="975fffd5aadf697707003f16bf9b4caee8ebe97d" time="2025-10-22T21:34:03"/>
+  <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
 
   <cosmologyParameters value="simple">
     <OmegaMatter value="0.2725"/>
@@ -106,11 +110,14 @@
       <excessHeatDrivesOutflow value="true"/>
       <rateMaximumExpulsion value="1.0"/>
     </nodeOperator>
+    <nodeOperator value="CGMOuterRadiusRamPressureStripping"/>
   </nodeOperator>
 
-  <cosmologicalMassVariance value="filteredPower">
+  <cosmologicalMassVariance value="filteredPower"/>
+
+  <powerSpectrumNormalizer value="sigma8">
     <sigma_8 value="0.807"/>
-  </cosmologicalMassVariance>
+  </powerSpectrumNormalizer>
 
   <darkMatterProfileDMO value="NFW"/>
   <stellarPopulationSpectra value="FSPS"/>
@@ -220,7 +227,7 @@
     <velocitySuppressionReionization value="30.0"/>
   </accretionHalo>
   <stellarPopulationProperties value="noninstantaneous"/>
-  <outputFileName value="testSuite/outputs/regressions/test.hdf5"/>
+  <outputFileName value="testSuite/outputs/regressions/test711424.hdf5"/>
   <componentSatellite value="standard"/>
 
   <initialMassFunction value="salpeter1955"/>
@@ -236,6 +243,7 @@
   </coolingInfallTorque>
 
   <mergerTreeEvolver value="standard">
+    <fractionTimestepSatelliteMinimum value="0.75"/>
     <timestepHostRelative value="0.1"/>
     <timestepHostAbsolute value="1"/>
   </mergerTreeEvolver>

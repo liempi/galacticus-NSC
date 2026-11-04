@@ -2,7 +2,7 @@ name: 'PR-Checks'
 on:
   workflow_dispatch:
   pull_request:
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened, synchronize, ready_for_review]
     branches:
       - master
 concurrency:
@@ -11,12 +11,15 @@ concurrency:
 defaults:
   run:
     shell: bash
+permissions:
+  contents: read
 jobs:
   # Validate YAML
   Validate-YAML:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: "Set environmental variables"
         run: |
           echo "GALACTICUS_EXEC_PATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
@@ -29,15 +32,25 @@ jobs:
           sudo apt install -y yamllint
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v47
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
         with:
           files: |
             **/*.yml
+          safe_output: false
+      # NOTE: the names of the files changed by the pull request are passed in through the environment, and never interpolated
+      # into the script text with `${{ }}`: they are chosen by whoever opened the pull request, and git permits characters in
+      # them which are special to the shell. `set -f` prevents a name containing a glob character being expanded. Because the
+      # names are passed through the environment rather than interpolated, the escaping which `changed-files` applies by
+      # default is unnecessary here, and actively harmful - it inserts backslashes into names containing (for example) a
+      # colon, so that the file can no longer be opened. It is therefore disabled via `safe_output: false`.
       - name: Validate any YAML files
+        env:
+          CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
         run: |
+          set -f
           status=0
-          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
-            if yamllint $file; then
+          for file in ${CHANGED_FILES}; do
+            if yamllint "$file"; then
               echo "YAML $file is valid"
             else
               echo "YAML $file is invalid"
@@ -45,11 +58,39 @@ jobs:
             fi
           done
           exit $status
-  # Validate XML
-  Validate-XML:
+  # Check documentation links
+  Check-Documentation-Links:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+        with:
+          files: |
+            **/*.md
+            **/*.rst
+          safe_output: false
+      - name: Check for links to retired PDF manuals
+        env:
+          CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+        run: |
+          set -f
+          status=0
+          for file in ${CHANGED_FILES}; do
+            if grep -nE 'releases/download/[^)]*Galacticus_[A-Za-z]+\.pdf' "$file"; then
+              echo "::error file=$file::Link to a retired Galacticus_*.pdf manual found in $file - link to the ReadTheDocs documentation (https://galacticus.readthedocs.io) instead."
+              status=1
+            fi
+          done
+          exit $status
+  # Validate XML
+  Validate-XML:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: "Set environmental variables"
         run: |
           echo "GALACTICUS_EXEC_PATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
@@ -62,16 +103,20 @@ jobs:
           sudo apt install -y libxml2-utils
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v47
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
         with:
           files: |
             **/*.xml
+          safe_output: false
       - name: Validate any XML files
+        env:
+          CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
         run: |
+          set -f
           status=0
-          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+          for file in ${CHANGED_FILES}; do
             echo "Validating XML file: $file"
-            if xmllint --noout $file; then
+            if xmllint --noout "$file"; then
               echo "XML $file is valid"
             else
               echo "XML $file is invalid"
@@ -79,92 +124,134 @@ jobs:
             fi
           done
           exit $status
-  # Validate Perl scripts
-  Validate-Perl-Scripts:
+  # Validate Python scripts
+  Validate-Python-Scripts:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     container: ghcr.io/galacticusorg/buildenv:latest
     steps:
-      - uses: actions/checkout@v6
-      - name: Check out repository analysis-perl
-        uses: actions/checkout@v6
-        with:
-          repository: galacticusorg/analysis-perl
-          path: analysis-perl
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: "Set environmental variables"
         run: |
           echo "GALACTICUS_EXEC_PATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
-          echo "GALACTICUS_ANALYSIS_PERL_PATH=$GITHUB_WORKSPACE/analysis-perl" >> $GITHUB_ENV
-      - name: Mark directory safe        
+      - name: Mark directory safe
         run: |
           git config --global --add safe.directory $GALACTICUS_EXEC_PATH
       - name: Get changed scripts
         id: changed-scripts
-        uses: tj-actions/changed-files@v47
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
         with:
           files: |
-            **/*.pl
-      - name: Install tools
+            **/*.py
+          safe_output: false
+      - name: Validate any Python scripts
+        env:
+          CHANGED_FILES: ${{ steps.changed-scripts.outputs.all_changed_files }}
         run: |
-          apt -y update
-          apt install -y libxml-simple-perl
-      - name: Validate any Perl scripts
-        run: |
+          set -f
           status=0
-          for file in ${{ steps.changed-scripts.outputs.all_changed_files }}; do
-            if perl -c $file; then
-              echo "Perl script $file compiles correctly"
+          for file in ${CHANGED_FILES}; do
+            if python3 -m py_compile "$file"; then
+              echo "Python script $file compiles correctly"
             else
-              echo "Perl script $file fails to compile"
-              status=1
-            fi
-            if [[ -x $file ]]; then
-              echo "Perl script $file is executable"
-            else
-              echo "Perl script $file is not executable"
+              echo "Python script $file fails to compile"
               status=1
             fi
           done
           exit $status
-  # Validate Perl modules
-  Validate-Perl-Modules:
+  # Embedded docstrings must be reStructuredText (not the old LaTeX form).
+  Validate-Docstrings-RST:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     container: ghcr.io/galacticusorg/buildenv:latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: "Set environmental variables"
         run: |
           echo "GALACTICUS_EXEC_PATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
-      - name: Mark directory safe        
+      - name: Mark directory safe
         run: |
           git config --global --add safe.directory $GALACTICUS_EXEC_PATH
-      - name: Get changed modules
-        id: changed-modules
-        uses: tj-actions/changed-files@v47
+      - name: Check embedded docstrings are reStructuredText
+        run: |
+          python3 scripts/doc/convertDocstringsToRST.py --check source
+      # The check above proves each docstring has *been converted*; because the
+      # conversion is idempotent it skips regions already marked as RST, so it
+      # cannot see LaTeX surviving *inside* them. This is that check, held to a
+      # baseline that may only shrink as the migration finishes.
+      - name: Check no LaTeX remains inside converted docstrings
+        run: |
+          python3 scripts/doc/convertDocstringsToRST.py --check-residual source
+      # Docstrings and manuals name parameters, classes, implementations, and
+      # bibliography keys in prose. Nothing in the documentation build checks
+      # that those names still exist, so a parameter rename silently leaves the
+      # prose which mentions it pointing at a name the user cannot find.
+      - name: Check documentation names things which exist
+        run: |
+          python3 scripts/aux/docBlockAudit.py --check
+  # Contributor markers must record names only. Everything after the label in a
+  # `!+` marker is parsed as a comma-separated list of contributors, so a
+  # description of what was contributed (by a person or by an AI tool - that
+  # belongs in the commit message) is published in the documentation's
+  # Acknowledgments as if it were a person's name.
+  Validate-Contributor-Markers:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: "Set environmental variables"
+        run: |
+          echo "GALACTICUS_EXEC_PATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+      - name: Mark directory safe
+        run: |
+          git config --global --add safe.directory $GALACTICUS_EXEC_PATH
+      - name: Check contributor markers record names only
+        run: |
+          python3 scripts/doc/extractContributors.py --check $GITHUB_WORKSPACE
+  # Test outcome markers. Every `testSuite/test-*.py` and `testSuite/validate-*.py` script signals its outcome by printing
+  # a `FAILED:`, `SUCCESS:` or `SKIPPED:` marker and exiting zero. The harnesses judge a test by scanning its log for
+  # `FAIL`, so a script with no marker at all, or one whose passing output contains `FAIL`, is silently mis-reported.
+  #
+  # Unlike the source formatters this check is blocking: the suite is fully compliant, so any report is a new drift rather
+  # than a pre-existing one.
+  Validate-Test-Markers:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: "Set environmental variables"
+        run: |
+          echo "GALACTICUS_EXEC_PATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+      - name: Check test scripts against the outcome-marker convention
+        run: |
+          python3 scripts/aux/auditTestMarkers.py --check
+  # Check that every parameter file's `lastModified` revision, and every commit registered in `scripts/aux/migrations.xml`,
+  # is an ancestor of HEAD. These hashes drive parameter migration, and are lost when the branch which recorded them is
+  # rebased or amended before merging - a missing `lastModified` revision makes migration fail, and a missing migration
+  # commit makes that migration silently never fire. The full history is needed, hence `fetch-depth: 0`.
+  Validate-Revisions:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          files: |
-            **/*.pm
-      - name: Install tools
+          fetch-depth: 0
+      - name: "Set environmental variables"
         run: |
-          apt -y update
-          apt install -y libxml-simple-perl
-      - name: Validate any Perl modules
+          echo "GALACTICUS_EXEC_PATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+      - name: Mark directory safe
         run: |
-          status=0
-          for file in ${{ steps.changed-modules.outputs.all_changed_files }}; do
-            if perl -c $file; then
-              echo "Perl module $file compiles correctly"
-            else
-              echo "Perl module $file fails to compile"
-              status=1
-            fi
-          done
-          exit $status
+          git config --global --add safe.directory $GALACTICUS_EXEC_PATH
+      - name: Check parameter file and migration revisions are in the history
+        run: |
+          python3 scripts/aux/auditRevisions.py --check
   # Fortran static analysis
   Fortran-Static-Analysis:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     container: ghcr.io/galacticusorg/buildenv:latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: "Set environmental variables"
         run: |
           echo "GALACTICUS_EXEC_PATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
@@ -173,119 +260,237 @@ jobs:
           git config --global --add safe.directory $GALACTICUS_EXEC_PATH
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v47
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
         with:
           files: |
             **/*.F90
+          safe_output: false
       - name: Perform static analysis on Fortran files
+        env:
+          CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
         run: |
+          set -f
           status=0
-          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
-            if ./scripts/aux/staticAnalyzer.pl $file; then
+          for file in ${CHANGED_FILES}; do
+            if PYTHONPATH=$GITHUB_WORKSPACE/python python3 scripts/aux/staticAnalyzer.py "$file"; then
               echo "Fortran file $file passes analysis"
             else
-              echo "Fortran file $file fails analysis"              
+              echo "Fortran file $file fails analysis"
               status=1
             fi
           done
           exit $status
-  # Embedded XML and LaTeX checks
-  Embedded-XML-LaTeX:
+  # Source formatting. `use` blocks and variable declaration blocks follow the
+  # column layout described in the developer guide, applied by the formatters in
+  # `scripts/aux/`. Only files touched by the pull request are checked.
+  #
+  # Advisory: this job reports through annotations and never fails. The tree was
+  # not reformatted in one sweep, so most files still predate the formatters;
+  # failing here would force the first change to any of them to carry a
+  # whole-file reformat in the same pull request, mixing it with the substantive
+  # change. Reporting instead lets that reformat be made as a separate
+  # follow-up commit.
+  Check-Source-Formatting:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    container: ghcr.io/galacticusorg/buildenv:latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: "Set environmental variables"
+        run: |
+          echo "GALACTICUS_EXEC_PATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+      - name: Mark directory safe
+        run: |
+          git config --global --add safe.directory $GALACTICUS_EXEC_PATH
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+        with:
+          # Vendored third-party code under `source/external/` is excluded, so
+          # that it stays comparable with its upstream original.
+          files: |
+            source/**/*.F90
+            source/**/*.Inc
+          files_ignore: |
+            source/external/**
+          safe_output: false
+      - name: Check formatting of Fortran sources
+        env:
+          CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+        run: |
+          set -f
+          : > rows.md
+          for file in ${CHANGED_FILES}; do
+            # Deleted or renamed-away files still appear in the changed list.
+            [ -f "$file" ] || continue
+            for tool in formatModuleUses formatDeclarations; do
+              # `run:` executes under `bash -e`, so the exit status has to be
+              # captured somewhere errexit does not apply — a bare call
+              # followed by `case $?` would abort the step on the first
+              # unformatted file, before anything was recorded.
+              rc=0
+              PYTHONPATH=$GITHUB_WORKSPACE/python python3 "scripts/aux/$tool.py" "$file" --check || rc=$?
+              case $rc in
+                0)
+                  ;;
+                1)
+                  printf '| `%s` | differs from the house style | `./scripts/aux/%s.py %s` |\n' \
+                    "$file" "$tool" "$file" >> rows.md
+                  # Annotations are capped at ten of each level per step, so
+                  # the job summary below — not this — is the complete record.
+                  echo "::warning file=$file::Formatting differs from the house style; see the job summary."
+                  ;;
+                *)
+                  # Exit 2 means the tool declined to touch the file — it does
+                  # not round-trip, or reformatting would change what it
+                  # declares or unbalance its preprocessor guards. That is a
+                  # tool limitation rather than a style problem, and needs no
+                  # action from the author.
+                  printf '| `%s` | `%s.py` could not process it; formatting not verified | _none needed_ |\n' \
+                    "$file" "$tool" >> rows.md
+                  ;;
+              esac
+            done
+          done
+          if [ -s rows.md ]; then
+            {
+              printf '## :warning: Source formatting (advisory)\n\n'
+              printf 'The files below differ from the house style. See '
+              printf '[how the formatting is rolled out](https://galacticus.readthedocs.io/en/latest/manuals/developer-guide/editor-setup.html#manual-sec-formattingadoption) '
+              printf 'in the developer guide.\n\n'
+              printf '| File | Finding | To fix |\n|---|---|---|\n'
+              cat rows.md
+              printf '\n**Nothing here blocks this pull request.** Most of the tree predates the\n'
+              printf 'formatters, so the first change to a file often reformats far more lines than\n'
+              printf 'the change itself. If you do reformat, please do it as a separate commit so\n'
+              printf 'that reviewers can read the two apart.\n'
+            } >> $GITHUB_STEP_SUMMARY
+          fi
+          # Advisory only — see the comment on this job.
+          exit 0
+  # Embedded XML directive validation (the LaTeX checks were retired with the
+  # migration of the embedded documentation to reStructuredText).
+  Validate-Embedded-XML:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     container: ghcr.io/galacticusorg/buildenv:latest
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: "Set environmental variables"
         run: |
           echo "GALACTICUS_EXEC_PATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
-          echo "DICTIONARY=en_US" >> $GITHUB_ENV
-      - name: Mark directory safe        
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/python" >> $GITHUB_ENV
+      - name: Mark directory safe
         run: |
           git config --global --add safe.directory $GALACTICUS_EXEC_PATH
       - name: Install tools
         run: |
           apt -y update
-          apt install -y texlive texlive-latex-extra texlive-science texlive-extra-utils hunspell hunspell-en-us libxml-simple-perl libregexp-common-perl libfile-temp-perl
-      - name: Build class information
-        run: |
-          cd $GALACTICUS_EXEC_PATH
-          make -j4 work/build/stateStorables.xml
+          apt install -y python3-lxml
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v47
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
         with:
           files: |
             **/*.F90
             **/*.Inc
-      - name: Perform checks of embedded XML and LaTeX
+          safe_output: false
+      - name: Validate embedded XML directives
+        env:
+          CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
         run: |
+          set -f
           status=0
-          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
-            if ./scripts/aux/embeddedAnalyzer.pl $file warnings.md; then
-              echo "Embedded XML/LaTeX in file $file passes analysis"
+          for file in ${CHANGED_FILES}; do
+            if PYTHONPATH=$GITHUB_WORKSPACE/python python3 scripts/aux/embeddedAnalyzer.py "$file" warnings.md; then
+              echo "Embedded XML in file $file passes validation"
             else
-              echo "Embedded XML/LaTeX in file $file fails analysis"              
+              echo "Embedded XML in file $file fails validation"
               status=1
             fi
           done
           exit $status
+  # Spell-check the reStructuredText documentation.  Fails the build on any
+  # misspelling, and still reports them in the job summary and as a PR comment so
+  # they can be read without opening the log.
+  #
+  # If a flagged word is legitimate — a technical term, or a proper name — add it
+  # to aux/words.dict.  If it is a code identifier appearing in prose, mark it up
+  # as a reStructuredText literal (``likeThis``) instead: that renders it as code
+  # and excludes it from the check, and keeps the dictionary for words.  British
+  # spellings must be corrected, never added to the dictionary; whitelisting them
+  # is what allowed them to accumulate previously.
+  Spell-Check-RST:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents:      read
+      pull-requests: write # required to post the spell-check results as a comment on the pull request
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Full history: `spelling_ignore_contributor_names` in docs/conf.py reads
+          # the contributor names from the git log, so a shallow clone would leave
+          # them unrecognized and flag every one of them.
+          fetch-depth: 0
+      - name: "Set environmental variables"
+        run: |
+          echo "GALACTICUS_EXEC_PATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
+      - name: Mark directory safe
+        run: |
+          git config --global --add safe.directory $GITHUB_WORKSPACE
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: '3.x'
+      - name: Install tools
+        run: |
+          sudo apt -y update
+          # pandoc is required by nbsphinx to convert the tutorial notebooks; without
+          # it the documentation build aborts on the first notebook.  Kept in step
+          # with the list in .readthedocs.yaml.
+          sudo apt install -y enchant-2 aspell aspell-en poppler-utils pandoc
+          pip install -r docs/requirements.txt sphinxcontrib-spelling pyenchant
+      - name: Build documentation and spell-check
+        run: |
+          PYTHONPATH=$GITHUB_WORKSPACE/python python scripts/doc/extractDocsRST.py source docs
+          # The spelling builder exits non-zero when it finds a misspelling, so its
+          # status is recorded rather than acted on here: the reporting steps below
+          # need to run first.  A non-zero status with no `.spelling` output means
+          # the documentation build itself failed, which is fatal immediately.
+          SPHINX_SPELLING=1 python -m sphinx -b spelling docs docs/_spelling && sphinxStatus=0 || sphinxStatus=$?
+          if [ "$sphinxStatus" -ne 0 ] && ! find docs/_spelling -name '*.spelling' -size +0 | grep -q .; then
+            echo "Documentation build failed (sphinx exited $sphinxStatus) with no spelling output."
+            exit "$sphinxStatus"
+          fi
+          if find docs/_spelling -name '*.spelling' -size +0 | grep -q .; then
+            {
+              printf '<details><summary>RST spell-check — misspellings (click to expand)</summary>\n\n'
+              printf 'Correct the spelling, mark a code identifier up as ``likeThis``, or — for a\n'
+              printf 'genuine technical term or proper name — add it to `aux/words.dict`.\n\n```\n'
+              cat $(find docs/_spelling -name '*.spelling') | sort -u
+              printf '```\n\n</details>\n'
+            } > warnings.md
+          fi
       - name: Check file existence
         id: check_files
-        uses: andstor/file-existence-action@v3
+        uses: andstor/file-existence-action@558493d6c74bf472d87c84eab196434afc2fa029 # v3
         with:
           files: warnings.md
       - name: Output to a job summary
         if: steps.check_files.outputs.files_exists == 'true'
         run: |
           cat warnings.md >> $GITHUB_STEP_SUMMARY
-      - name: Comment on the PR if any warnings were found
+      - name: Comment on the PR if any possible misspellings were found
         if: steps.check_files.outputs.files_exists == 'true' && github.event.pull_request.head.repo.full_name == github.repository
         continue-on-error: true
-        uses: thollander/actions-comment-pull-request@v3
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3
         with:
           file-path: warnings.md
-  # Spell check LaTeX files
-  Spell-Check-LaTeX:
-    runs-on: ubuntu-latest
-    container: ghcr.io/galacticusorg/buildenv:latest
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v6
-      - name: "Set environmental variables"
+      - name: Fail if any misspellings were found
+        if: steps.check_files.outputs.files_exists == 'true'
         run: |
-          echo "GALACTICUS_EXEC_PATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
-          echo "DICTIONARY=en_US" >> $GITHUB_ENV
-      - name: Mark directory safe        
-        run: |
-          git config --global --add safe.directory $GALACTICUS_EXEC_PATH
-      - name: Install tools
-        run: |
-          apt -y update
-          apt install -y texlive texlive-latex-extra texlive-science texlive-extra-utils hunspell hunspell-en-us libxml-simple-perl libregexp-common-perl libfile-temp-perl
-      - name: Build class information
-        run: |
-          cd $GALACTICUS_EXEC_PATH
-          make -j4 work/build/stateStorables.xml
-      - name: Get changed files
-        id: changed-files
-        uses: tj-actions/changed-files@v47
-        with:
-          files: |
-            **/*.tex
-      - name: Perform checks of LaTeX files
-        run: |
-          status=0
-          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
-            ./scripts/aux/spellChecker.pl $file warnings.md
-          done
-      - name: Check file existence
-        id: check_files
-        uses: andstor/file-existence-action@v3
-        with:
-          files: warnings.md
-      - name: Comment on the PR if any warnings were found
-        if: steps.check_files.outputs.files_exists == 'true' && github.event.pull_request.head.repo.full_name == github.repository
-        uses: thollander/actions-comment-pull-request@v3
-        with:
-          file-path: warnings.md
+          echo "Documentation spell-check failed; see the job summary for the flagged words."
+          exit 1

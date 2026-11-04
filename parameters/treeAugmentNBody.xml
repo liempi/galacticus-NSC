@@ -1,9 +1,11 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Default parameters for Galacticus v0.9.4 -->
+
 <!-- 30-October-2011                          -->
+
 <parameters>
   <formatVersion>2</formatVersion>
-  <lastModified revision="975fffd5aadf697707003f16bf9b4caee8ebe97d" time="2025-10-22T21:34:03"/>
+  <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
 
 
   <!-- Specify output file name -->
@@ -40,9 +42,10 @@
     <running value="0.000"/>
   </powerSpectrumPrimordial>
   <powerSpectrumPrimordialTransferred value="simple"/>
-  <cosmologicalMassVariance value="filteredPower">
+  <powerSpectrumNormalizer value="sigma8">
     <sigma_8 value="0.9"/>
-  </cosmologicalMassVariance>
+  </powerSpectrumNormalizer>
+  <cosmologicalMassVariance value="filteredPower"/>
 
   <!-- Structure formation options -->
   <linearGrowth value="collisionlessMatter"/>
@@ -66,6 +69,7 @@
     <outputTimeSnapTolerance value="1.0e-3"/>
   </mergerTreeConstructor>
   <mergerTreeEvolver value="standard">
+    <fractionTimestepSatelliteMinimum value="0.75"/>
     <allTreesExistAtFinalTime value="false"/>
     <timestepHostAbsolute value="1.0"/>
     <timestepHostRelative value="0.1"/>
@@ -99,14 +103,14 @@
 
     <mergerTreeOperator value="conditionalMF">
       <outputGroupName value="treeStatisticsInitial"/>
-      <parentMassCount value="2"/>
-      <parentMassMinimum value="1.0e12"/>
-      <parentMassMaximum value="1.0e13"/>
+      <countMassParent value="2"/>
+      <massParentMinimum value="1.0e12"/>
+      <massParentMaximum value="1.0e13"/>
       <massRatioCount value="50"/>
       <massRatioMinimum value="1.0e-2"/>
       <massRatioMaximum value="2.0"/>
-      <parentRedshifts value="0.0 0.0"/>
-      <progenitorRedshifts value="0.5 1.0"/>
+      <redshiftsParent value="0.0 0.0"/>
+      <redshiftsProgenitor value="0.5 1.0"/>
     </mergerTreeOperator>
 
     <mergerTreeOperator value="regridTimes">
@@ -128,7 +132,7 @@
           0.319703  0.279802  0.242469  0.207549  0.174898  0.144383
           0.115883  0.089288  0.064493  0.041403  0.019933  0.000000
 	  "/>
-      <massResolution value="2.36e10"/>
+      <massCutOff value="2.36e10"/>
       <mergerTreeBuilder value="cole2000">
         <accretionLimit value="0.1"/>
         <mergeProbability value="0.1"/>
@@ -140,14 +144,14 @@
 
     <mergerTreeOperator value="conditionalMF">
       <outputGroupName value="treeStatisticsAfterInsertion"/>
-      <parentMassCount value="2"/>
-      <parentMassMinimum value="1.0e12"/>
-      <parentMassMaximum value="1.0e13"/>
+      <countMassParent value="2"/>
+      <massParentMinimum value="1.0e12"/>
+      <massParentMaximum value="1.0e13"/>
       <massRatioCount value="50"/>
       <massRatioMinimum value="1.0e-2"/>
       <massRatioMaximum value="2.0"/>
-      <parentRedshifts value="0.0 0.0"/>
-      <progenitorRedshifts value="0.5 1.0"/>
+      <redshiftsParent value="0.0 0.0"/>
+      <redshiftsProgenitor value="0.5 1.0"/>
     </mergerTreeOperator>
 
   </mergerTreeOperator>

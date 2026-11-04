@@ -1,7 +1,8 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Simple model with molecular cooling, used to test that molecular physics is correctly solved for. -->
+
 <parameters>
-  <lastModified revision="975fffd5aadf697707003f16bf9b4caee8ebe97d" time="2025-10-22T21:34:03"/>
+  <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
 
   <lastModified/>
   <formatVersion>2</formatVersion>
@@ -76,7 +77,6 @@
   <cosmologicalMassVariance value="filteredPower">
     <!-- Parameter value is from the Planck Collaboration (2020; A&A, 641, 10) -->
     <!--  specifically the "TT,TE,EE+lowE+lensing" results in Table 2          -->
-    <sigma_8 value="0.8111"/>
     <tolerance value="1.0e-3"/>
   </cosmologicalMassVariance>
   <powerSpectrumPrimordial value="powerLaw">
@@ -91,6 +91,9 @@
     <redshift value="100.0"/>
   </transferFunction>
   <powerSpectrumPrimordialTransferred value="simple"/>
+  <powerSpectrumNormalizer value="sigma8">
+    <sigma_8 value="0.8111"/>
+  </powerSpectrumNormalizer>
 
   <!-- Structure growth -->
   <linearGrowth value="collisionlessMatter">
@@ -167,6 +170,7 @@
       <unresolvedEnergy value="0.550000000000000"/>
       <!-- For leaf nodes in the tree we instead set scale radii using a concentration-mass-redshift model, with concentrations limited to a reasonable range. -->
       <darkMatterProfileScaleRadius value="concentration"/>
+      <massFunctionSlopeLogarithmic value="-1.8"/>
     </darkMatterProfileScaleRadius>
   </darkMatterProfileScaleRadius>
   <darkMatterProfileConcentration value="diemerJoyce2019">
@@ -302,7 +306,6 @@
   <!-- Star formation rate options -->
   <starFormationRateDisks value="intgrtdSurfaceDensity"/>
   <starFormationRateSurfaceDensityDisks value="blitz2006">
-    <useTabulation value="true"/>
   </starFormationRateSurfaceDensityDisks>
   <starFormationRateSpheroids value="timescale">
     <starFormationTimescale value="dynamicalTime">
@@ -383,6 +386,7 @@
     <!-- The best fit-value for the mass exponent is taken from here                                  -->
     <!-- https://github.com/galacticusorg/galacticus/wiki/Constraints:-Halo-spins-and-concentrations. -->
     <nodeOperator value="haloAngularMomentumVitvitska2002">
+      <subresolutionAngularMomentumMethod value="original"/>
       <exponentMass value="0.92527794238468"/>
       <angularMomentumVarianceSpecific value="0.001"/>
     </nodeOperator>
@@ -402,7 +406,7 @@
     </nodeOperator>
     <nodeOperator value="satelliteDestructionMassThreshold">
       <!-- Subhalos will be removed if they fall below the merger tree mass resolution limit. -->
-      <massDestructionAbsolute value="=[mergerTreeMassResolution::massResolution]"/>
+      <massDestructionAbsolute value="=[mergerTreeMassResolution/massResolution]"/>
       <massDestructionMassInfallFraction value="0.0"/>
     </nodeOperator>
     <!-- CGM -->
@@ -459,6 +463,7 @@
       <excessHeatDrivesOutflow value="true"/>
       <rateMaximumExpulsion value="1.0"/>
     </nodeOperator>
+    <nodeOperator value="CGMOuterRadiusRamPressureStripping"/>
   </nodeOperator>
 
   <!-- Merger tree evolution -->
@@ -530,5 +535,7 @@
       <coolingFunction value="molecularHydrogenGalliPalla"/>
     </nodePropertyExtractor>
   </nodePropertyExtractor>
+  <dynamicalFrictionGaseous value="chandrasekhar1943"/>
+  <kinematicsDistributionInterstellarMedium value="local"/>
 
 </parameters>

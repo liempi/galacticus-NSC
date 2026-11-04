@@ -1,0 +1,388 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+!+    Contributions to this file made by: Andrew Benson, Claude.
+
+!!{RST
+Implements an H\ :math:`\alpha` luminosity function output analysis class for comparison with the :cite:t:`gunawardhana_galaxy_2013` SDSS measurements.
+!!}
+
+
+  !![
+  <outputAnalysis name="outputAnalysisLuminosityFunctionGunawardhana2013SDSS" docformat="rst">
+   <description>
+   Computes the H\ :math:`\alpha` emission line luminosity function for comparison with the SDSS :cite:t:`gunawardhana_galaxy_2013` measurements, with H\ :math:`\alpha` luminosity random/systematic error polynomial coefficients, gravitational lensing source size, and binomial covariance matrix parameters.
+   </description>
+  </outputAnalysis>
+  !!]
+  type, extends(outputAnalysisLuminosityFunctionHalpha) :: outputAnalysisLuminosityFunctionGunawardhana2013SDSS
+     !!{RST
+     An SDSS H\ :math:`\alpha` luminosity function output analysis class for the :cite:t:`gunawardhana_galaxy_2013` analysis.
+     !!}
+     private
+     class           (gravitationalLensingClass), pointer                     :: gravitationalLensing_            => null()
+     double precision                           , allocatable  , dimension(:) :: randomErrorPolynomialCoefficient          , systematicErrorPolynomialCoefficient
+     double precision                                                         :: randomErrorMinimum                        , randomErrorMaximum                  , &
+          &                                                                      sizeSourceLensing
+   contains
+     final :: luminosityFunctionGunawardhana2013SDSSDestructor
+  end type outputAnalysisLuminosityFunctionGunawardhana2013SDSS
+
+  interface outputAnalysisLuminosityFunctionGunawardhana2013SDSS
+     !!{RST
+     Constructors for the :galacticus-class:`outputAnalysisLuminosityFunctionGunawardhana2013SDSS` output analysis class.
+     !!}
+     module procedure luminosityFunctionGunawardhana2013SDSSConstructorParameters
+     module procedure luminosityFunctionGunawardhana2013SDSSConstructorInternal
+  end interface outputAnalysisLuminosityFunctionGunawardhana2013SDSS
+
+contains
+
+  function luminosityFunctionGunawardhana2013SDSSConstructorParameters(parameters) result (self)
+    !!{RST
+    Constructor for the :galacticus-class:`outputAnalysisLuminosityFunctionGunawardhana2013SDSS` output analysis class which takes a parameter set as input.
+    !!}
+    use :: Input_Parameters, only : inputParameter, inputParameters
+    implicit none
+    type            (outputAnalysisLuminosityFunctionGunawardhana2013SDSS)                              :: self
+    type            (inputParameters                                     ), intent(inout)               :: parameters
+    class           (cosmologyFunctionsClass                             ), pointer                     :: cosmologyFunctions_
+    class           (outputTimesClass                                    ), pointer                     :: outputTimes_
+    class           (gravitationalLensingClass                           ), pointer                     :: gravitationalLensing_
+    class           (starFormationHistoryClass                           ), pointer                     :: starFormationHistory_
+    class           (hiiRegionLuminosityFunctionClass                    ), pointer                     :: hiiRegionLuminosityFunction_
+    class           (hiiRegionMassFunctionClass                          ), pointer                     :: hiiRegionMassFunction_
+    class           (hiiRegionDensityDistributionClass                   ), pointer                     :: hiiRegionDensityDistribution_
+    class           (hiiRegionEscapeFractionClass                        ), pointer                     :: hiiRegionEscapeFraction_
+    class           (dustAttenuationClass                                ), pointer                     :: dustAttenuation_
+    double precision                                                      , allocatable  , dimension(:) :: randomErrorPolynomialCoefficient , systematicErrorPolynomialCoefficient
+    integer                                                                                             :: covarianceBinomialBinsPerDecade
+    double precision                                                                                    :: covarianceBinomialMassHaloMinimum, covarianceBinomialMassHaloMaximum   , &
+         &                                                                                                 randomErrorMinimum               , randomErrorMaximum                  , &
+         &                                                                                                 sizeSourceLensing                , toleranceRelative
+    type            (varying_string                                      )                              :: cloudyTableFileName
+
+    ! Check and read parameters.
+    if (parameters%isPresent(    'randomErrorPolynomialCoefficient')) then
+       allocate(    randomErrorPolynomialCoefficient(parameters%count(    'randomErrorPolynomialCoefficient')))
+    else
+       allocate(    randomErrorPolynomialCoefficient(1                                                   ))
+    end if
+    if (parameters%isPresent('systematicErrorPolynomialCoefficient')) then
+       allocate(systematicErrorPolynomialCoefficient(parameters%count('systematicErrorPolynomialCoefficient')))
+    else
+       allocate(systematicErrorPolynomialCoefficient(1                                                   ))
+    end if
+    !![
+    <inputParameter docformat="rst">
+      <name>randomErrorMinimum</name>
+      <source>parameters</source>
+      <variable>randomErrorMinimum</variable>
+      <defaultValue>0.1d0</defaultValue>
+      <description>
+      The minimum random error for SDSS H\ :math:`\alpha` luminosities.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>randomErrorMaximum</name>
+      <source>parameters</source>
+      <variable>randomErrorMaximum</variable>
+      <defaultValue>0.1d0</defaultValue>
+      <description>
+      The minimum random error for SDSS H\ :math:`\alpha` luminosities.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>randomErrorPolynomialCoefficient</name>
+      <source>parameters</source>
+      <variable>randomErrorPolynomialCoefficient</variable>
+      <defaultValue>[0.1d0]</defaultValue>
+      <description>
+      The coefficients of the random error polynomial for SDSS H\ :math:`\alpha` luminosities.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>systematicErrorPolynomialCoefficient</name>
+      <source>parameters</source>
+      <variable>systematicErrorPolynomialCoefficient</variable>
+      <defaultValue>[0.0d0]</defaultValue>
+      <description>
+      The coefficients of the systematic error polynomial for SDSS H\ :math:`\alpha` luminosities.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>sizeSourceLensing</name>
+      <source>parameters</source>
+      <variable>sizeSourceLensing</variable>
+      <defaultValue>2.0d-3</defaultValue>
+      <description>
+      The characteristic source size for gravitational lensing calculations.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>cloudyTableFileName</name>
+      <source>parameters</source>
+      <variable>cloudyTableFileName</variable>
+      <defaultValue>var_str('%DATASTATICPATH%/hiiRegions/emissionLineLuminosities_BC2003_highResolution_imfChabrier.hdf5')</defaultValue>
+      <description>
+      The file of tabulated emission line luminosities to use.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>toleranceRelative</name>
+      <source>parameters</source>
+      <variable>toleranceRelative</variable>
+      <defaultValue>1.0d-3</defaultValue>
+      <description>
+      The relative tolerance used in integration over stellar population spectra when computing line luminosities.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>covarianceBinomialBinsPerDecade</name>
+      <source>parameters</source>
+      <variable>covarianceBinomialBinsPerDecade</variable>
+      <defaultValue>10</defaultValue>
+      <description>
+      The number of bins per decade of halo mass to use when constructing SDSS H\ :math:`\alpha` luminosity function covariance matrices for main branch galaxies.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>covarianceBinomialMassHaloMinimum</name>
+      <source>parameters</source>
+      <variable>covarianceBinomialMassHaloMinimum</variable>
+      <defaultValue>1.0d8</defaultValue>
+      <description>
+      The minimum halo mass to consider when constructing SDSS H\ :math:`\alpha` luminosity function covariance matrices for main branch galaxies.
+      </description>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>covarianceBinomialMassHaloMaximum</name>
+      <source>parameters</source>
+      <variable>covarianceBinomialMassHaloMaximum</variable>
+      <defaultValue>1.0d16</defaultValue>
+      <description>
+      The maximum halo mass to consider when constructing SDSS H\ :math:`\alpha` luminosity function covariance matrices for main branch galaxies.
+      </description>
+    </inputParameter>
+    <objectBuilder class="cosmologyFunctions"           name="cosmologyFunctions_"           source="parameters"/>
+    <objectBuilder class="outputTimes"                  name="outputTimes_"                  source="parameters"/>
+    <objectBuilder class="gravitationalLensing"         name="gravitationalLensing_"         source="parameters"/>
+    <objectBuilder class="starFormationHistory"         name="starFormationHistory_"         source="parameters"/>
+    <objectBuilder class="hiiRegionLuminosityFunction"  name="hiiRegionLuminosityFunction_"  source="parameters"/>
+    <objectBuilder class="hiiRegionMassFunction"        name="hiiRegionMassFunction_"        source="parameters"/>
+    <objectBuilder class="hiiRegionDensityDistribution" name="hiiRegionDensityDistribution_" source="parameters"/>
+    <objectBuilder class="hiiRegionEscapeFraction"      name="hiiRegionEscapeFraction_"      source="parameters"/>
+    <objectBuilder class="dustAttenuation"              name="dustAttenuation_"              source="parameters"/>
+    !!]
+    ! Build the object.
+    self=outputAnalysisLuminosityFunctionGunawardhana2013SDSS(cosmologyFunctions_,gravitationalLensing_,dustAttenuation_,outputTimes_,cloudyTableFileName,toleranceRelative,starFormationHistory_,hiiRegionLuminosityFunction_,hiiRegionMassFunction_,hiiRegionDensityDistribution_,hiiRegionEscapeFraction_,randomErrorMinimum,randomErrorMaximum,randomErrorPolynomialCoefficient,systematicErrorPolynomialCoefficient,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum,sizeSourceLensing)
+    !![
+    <inputParametersValidate source="parameters"/>
+    <objectDestructor name="cosmologyFunctions_"          />
+    <objectDestructor name="outputTimes_"                 />
+    <objectDestructor name="gravitationalLensing_"        />
+    <objectDestructor name="starFormationHistory_"        />
+    <objectDestructor name="hiiRegionLuminosityFunction_" />
+    <objectDestructor name="hiiRegionMassFunction_"       />
+    <objectDestructor name="hiiRegionDensityDistribution_"/>
+    <objectDestructor name="hiiRegionEscapeFraction_"     />
+    <objectDestructor name="dustAttenuation_"             />
+    !!]
+    return
+  end function luminosityFunctionGunawardhana2013SDSSConstructorParameters
+
+  function luminosityFunctionGunawardhana2013SDSSConstructorInternal(cosmologyFunctions_,gravitationalLensing_,dustAttenuation_,outputTimes_,cloudyTableFileName,toleranceRelative,starFormationHistory_,hiiRegionLuminosityFunction_,hiiRegionMassFunction_,hiiRegionDensityDistribution_,hiiRegionEscapeFraction_,randomErrorMinimum,randomErrorMaximum,randomErrorPolynomialCoefficient,systematicErrorPolynomialCoefficient,covarianceBinomialBinsPerDecade,covarianceBinomialMassHaloMinimum,covarianceBinomialMassHaloMaximum,sizeSourceLensing) result (self)
+    !!{RST
+    Constructor for the :galacticus-class:`outputAnalysisLuminosityFunctionGunawardhana2013SDSS` output analysis class for internal use.
+    !!}
+    use :: Cosmology_Functions                   , only : cosmologyFunctionsClass                        , cosmologyFunctionsMatterLambda
+    use :: Cosmology_Parameters                  , only : cosmologyParametersSimple
+    use :: Galactic_Filters                      , only : galacticFilterStellarMass
+    use :: Input_Paths                           , only : inputPath                                      , pathTypeDataStatic
+    use :: Geometry_Surveys                      , only : surveyGeometryGunawardhana2013SDSS
+    use :: Gravitational_Lensing                 , only : gravitationalLensingClass
+    use :: Output_Analysis_Distribution_Operators, only : distributionOperatorList                       , outputAnalysisDistributionOperatorGravitationalLensing, outputAnalysisDistributionOperatorRandomErrorPolynomial, outputAnalysisDistributionOperatorSequence
+    use :: Output_Analysis_Property_Operators    , only : outputAnalysisPropertyOperatorSystematicPolynomial
+    implicit none
+    type            (outputAnalysisLuminosityFunctionGunawardhana2013SDSS)                              :: self
+    class           (cosmologyFunctionsClass                             ), intent(in   ), target       :: cosmologyFunctions_
+    class           (outputTimesClass                                    ), intent(inout), target       :: outputTimes_
+    class           (gravitationalLensingClass                           ), intent(in   ), target       :: gravitationalLensing_
+    class           (dustAttenuationClass                                ), intent(in   ), target       :: dustAttenuation_
+    type            (varying_string                                      ), intent(in   )               :: cloudyTableFileName
+    double precision                                                      , intent(in   )               :: toleranceRelative
+    class           (starFormationHistoryClass                           ), intent(in   ), target       :: starFormationHistory_
+    class           (hiiRegionLuminosityFunctionClass                    ), intent(in   ), target       :: hiiRegionLuminosityFunction_
+    class           (hiiRegionMassFunctionClass                          ), intent(in   ), target       :: hiiRegionMassFunction_
+    class           (hiiRegionDensityDistributionClass                   ), intent(in   ), target       :: hiiRegionDensityDistribution_
+    class           (hiiRegionEscapeFractionClass                        ), intent(in   ), target       :: hiiRegionEscapeFraction_
+    double precision                                                      , intent(in   )               :: randomErrorMinimum                                        , randomErrorMaximum                  , &
+         &                                                                                                 sizeSourceLensing
+    double precision                                                      , intent(in   ), dimension(:) :: randomErrorPolynomialCoefficient                          , systematicErrorPolynomialCoefficient
+    integer                                                               , intent(in   )               :: covarianceBinomialBinsPerDecade
+    double precision                                                      , intent(in   )               :: covarianceBinomialMassHaloMinimum                         , covarianceBinomialMassHaloMaximum
+    type            (galacticFilterStellarMass                           )               , pointer      :: galacticFilter_
+    type            (surveyGeometryGunawardhana2013SDSS                  )               , pointer      :: surveyGeometry_
+    type            (outputAnalysisPropertyOperatorSystematicPolynomial     )               , pointer      :: outputAnalysisPropertyOperator_
+    type            (outputAnalysisDistributionOperatorRandomErrorPolynomial )               , pointer      :: outputAnalysisDistributionOperatorRandomErrorPolynomial_
+    type            (outputAnalysisDistributionOperatorGravitationalLensing       )               , pointer      :: outputAnalysisDistributionOperatorGravitationalLensing_
+    type            (outputAnalysisDistributionOperatorSequence          )               , pointer      :: outputAnalysisDistributionOperator_
+    type            (cosmologyParametersSimple                           )               , pointer      :: cosmologyParametersData
+    type            (cosmologyFunctionsMatterLambda                      )               , pointer      :: cosmologyFunctionsData
+    type            (distributionOperatorList                            )               , pointer      :: distributionOperatorSequence
+    double precision                                                                     , parameter    :: errorPolynomialZeroPoint                            =40.0d0
+    !![
+    <constructorAssign variables="*gravitationalLensing_, randomErrorPolynomialCoefficient, systematicErrorPolynomialCoefficient, randomErrorMinimum, randomErrorMaximum, sizeSourceLensing"/>
+    !!]
+    
+    ! Build a filter which select galaxies with stellar mass 10³M☉ or greater.
+    allocate(galacticFilter_)
+    !![
+    <referenceConstruct object="galacticFilter_" constructor="galacticFilterStellarMass(massThreshold=1.0d3)"/>
+    !!]
+    ! Create cosmological model in which data were analyzed.
+    allocate(cosmologyParametersData)
+    allocate(cosmologyFunctionsData )
+    !![
+    <referenceConstruct object="cosmologyParametersData">
+     <constructor>
+      cosmologyParametersSimple     (                            &amp;
+        &amp;                        OmegaMatter    = 0.30000d0, &amp;
+        &amp;                        OmegaDarkEnergy= 0.70000d0, &amp;
+        &amp;                        HubbleConstant =70.00000d0, &amp;
+        &amp;                        temperatureCMB = 2.72548d0, &amp;
+        &amp;                        OmegaBaryon    = 0.04550d0  &amp;
+        &amp;                       )
+     </constructor>
+    </referenceConstruct>
+    <referenceConstruct object="cosmologyFunctionsData">
+     <constructor>
+      cosmologyFunctionsMatterLambda(                            &amp;
+        &amp;                        cosmologyParametersData     &amp;
+        &amp;                       )
+     </constructor>
+    </referenceConstruct>
+    !!]
+    ! Build the SDSS survey geometry of Gunawardhana et al. (2013).
+    allocate(surveyGeometry_)
+    !![
+    <referenceConstruct object="surveyGeometry_" constructor="surveyGeometryGunawardhana2013SDSS(cosmologyFunctionsData)"/>
+    !!]
+    ! Create property operators.
+    !! Systematic error model.
+    allocate(outputAnalysisPropertyOperator_    )
+    !![
+    <referenceConstruct object="outputAnalysisPropertyOperator_"    constructor="outputAnalysisPropertyOperatorSystematicPolynomial(errorPolynomialZeroPoint,systematicErrorPolynomialCoefficient)"/>
+    !!]
+    ! Build a random error distribution operator.
+    allocate(outputAnalysisDistributionOperatorRandomErrorPolynomial_)
+    !![
+    <referenceConstruct object="outputAnalysisDistributionOperatorRandomErrorPolynomial_">
+     <constructor>
+      outputAnalysisDistributionOperatorRandomErrorPolynomial (                                  &amp;
+        &amp;                                              randomErrorMinimum              , &amp;
+        &amp;                                              randomErrorMaximum              , &amp;
+        &amp;                                              errorPolynomialZeroPoint        , &amp;
+        &amp;                                              randomErrorPolynomialCoefficient  &amp;
+        &amp;                                             )
+     </constructor>
+    </referenceConstruct>
+    !!]
+    ! Build a gravitational lensing distribution operator.
+    allocate(outputAnalysisDistributionOperatorGravitationalLensing_)
+    !![
+    <referenceConstruct object="outputAnalysisDistributionOperatorGravitationalLensing_">
+     <constructor>
+      outputAnalysisDistributionOperatorGravitationalLensing       (                                  &amp;
+        &amp;                                              gravitationalLensing_           , &amp;
+        &amp;                                              outputTimes_                    , &amp;
+        &amp;                                              sizeSourceLensing                 &amp;
+        &amp;                                             )
+     </constructor>
+    </referenceConstruct>
+    !!]
+    ! Construct sequence distribution operator.
+    allocate(distributionOperatorSequence            )
+    allocate(distributionOperatorSequence       %next)
+    allocate(outputAnalysisDistributionOperator_     )
+    distributionOperatorSequence            %operator_   => outputAnalysisDistributionOperatorRandomErrorPolynomial_
+    distributionOperatorSequence       %next%operator_   => outputAnalysisDistributionOperatorGravitationalLensing_
+    !![
+    <referenceConstruct object="outputAnalysisDistributionOperator_">
+     <constructor>
+      outputAnalysisDistributionOperatorSequence          (                                  &amp;
+        &amp;                                              distributionOperatorSequence      &amp;
+        &amp;                                             )
+     </constructor>
+    </referenceConstruct>
+    !!]
+    ! Build the object.
+    self%outputAnalysisLuminosityFunctionHalpha=                                                                                                                      &
+         & outputAnalysisLuminosityFunctionHalpha(                                                                                                                    &
+         &                                  var_str('Gunawardhana2013SDSS'                                                          )                               , &
+         &                                  var_str('H$\alpha$ luminosity function for the Gunawardhana et al. (2013) SDSS analysis')                               , &
+         &                                  char(inputPath(pathTypeDataStatic)//'/observations/luminosityFunctions/hAlphaLuminosityFunctionGunawardhana13SDSS.hdf5'), &
+         &                                  .false.                                                                                                                 , &
+         &                                  cloudyTableFileName                                                                                                     , &
+         &                                  toleranceRelative                                                                                                       , &
+         &                                  galacticFilter_                                                                                                         , &
+         &                                  surveyGeometry_                                                                                                         , &
+         &                                  dustAttenuation_                                                                                                        , &
+         &                                  cosmologyFunctions_                                                                                                     , &
+         &                                  cosmologyFunctionsData                                                                                                  , &
+         &                                  outputAnalysisPropertyOperator_                                                                                         , &
+         &                                  outputAnalysisDistributionOperator_                                                                                     , &
+         &                                  outputTimes_                                                                                                            , &
+         &                                  starFormationHistory_                                                                                                   , &
+         &                                  hiiRegionLuminosityFunction_                                                                                            , &
+         &                                  hiiRegionMassFunction_                                                                                                  , &
+         &                                  hiiRegionDensityDistribution_                                                                                           , &
+         &                                  hiiRegionEscapeFraction_                                                                                                , &
+         &                                  covarianceBinomialBinsPerDecade                                                                                         , &
+         &                                  covarianceBinomialMassHaloMinimum                                                                                       , &
+         &                                  covarianceBinomialMassHaloMaximum                                                                                         &
+         &                                 )
+    ! Clean up.
+    !![
+    <objectDestructor name="surveyGeometry_"                                     />
+    <objectDestructor name="galacticFilter_"                                     />
+    <objectDestructor name="cosmologyParametersData"                             />
+    <objectDestructor name="cosmologyFunctionsData"                              />
+    <objectDestructor name="outputAnalysisPropertyOperator_"                     />
+    <objectDestructor name="outputAnalysisDistributionOperator_"                 />
+    <objectDestructor name="outputAnalysisDistributionOperatorGravitationalLensing_"      />
+    <objectDestructor name="outputAnalysisDistributionOperatorRandomErrorPolynomial_"/>
+    !!]
+    nullify(distributionOperatorSequence)
+    return
+  end function luminosityFunctionGunawardhana2013SDSSConstructorInternal
+
+  subroutine luminosityFunctionGunawardhana2013SDSSDestructor(self)
+    !!{RST
+    Destructor for the :galacticus-class:`outputAnalysisLuminosityFunctionGunawardhana2013SDSS` output analysis class.
+    !!}
+    implicit none
+    type(outputAnalysisLuminosityFunctionGunawardhana2013SDSS), intent(inout) :: self
+
+    !![
+    <objectDestructor name="self%gravitationalLensing_"/>
+    !!]
+    return
+  end subroutine luminosityFunctionGunawardhana2013SDSSDestructor
+  

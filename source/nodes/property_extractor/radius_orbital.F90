@@ -1,0 +1,158 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+!+    Contributions to this file made by: Andrew Benson, Claude.
+
+!!{RST
+Implements an orbital radius output analysis property extractor class.
+!!}
+
+  !![
+  <nodePropertyExtractor name="nodePropertyExtractorRadiusOrbital" docformat="rst">
+   <description>
+   Extracts the current 3D orbital radius of a node: the magnitude of its position relative to the top-level halo of its sub-halo hierarchy, as computed by :galacticus-class:`nodePropertyExtractorPositionOrbital`, for use in analyses of satellite radial distributions and orbital evolution.
+   </description>
+  </nodePropertyExtractor>
+  !!]
+  type, extends(nodePropertyExtractorScalar) :: nodePropertyExtractorRadiusOrbital
+     !!{RST
+     An orbital radius property extractor output analysis class.
+     !!}
+     private
+   contains
+     procedure :: extract     => radiusOrbitalExtract
+     procedure :: name        => radiusOrbitalName
+     procedure :: description => radiusOrbitalDescription
+     procedure :: unitsInSI   => radiusOrbitalUnitsInSI
+     procedure :: units       => radiusOrbitalUnits
+  end type nodePropertyExtractorRadiusOrbital
+
+  interface nodePropertyExtractorRadiusOrbital
+     !!{RST
+     Constructors for the :galacticus-class:`nodePropertyExtractorRadiusOrbital` property extractor class.
+     !!}
+     module procedure radiusOrbitalConstructorParameters
+     module procedure radiusOrbitalConstructorInternal
+  end interface nodePropertyExtractorRadiusOrbital
+
+contains
+
+  function radiusOrbitalConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`nodePropertyExtractorRadiusOrbital` property extractor class which takes a parameter set as input.
+    !!}
+    use :: Input_Parameters, only : inputParameters
+    implicit none
+    type(nodePropertyExtractorRadiusOrbital)                :: self
+    type(inputParameters                   ), intent(inout) :: parameters
+
+    self=nodePropertyExtractorRadiusOrbital()
+    !![
+    <inputParametersValidate source="parameters"/>
+    !!]
+    return
+  end function radiusOrbitalConstructorParameters
+
+  function radiusOrbitalConstructorInternal() result(self)
+    !!{RST
+    Internal constructor for the :galacticus-class:`nodePropertyExtractorRadiusOrbital` property extractor class.
+    !!}
+    implicit none
+    type(nodePropertyExtractorRadiusOrbital) :: self
+
+    ! Ensure that required methods are supported.
+    !![
+    <componentPropertyAssert class="satellite" properties="position" require="gettable"/>
+    !!]
+    return
+  end function radiusOrbitalConstructorInternal
+
+  double precision function radiusOrbitalExtract(self,node,instance)
+    !!{RST
+    Implement a radiusOrbital output analysis.
+    !!}
+    use :: Galacticus_Nodes    , only : nodeComponentBasic
+    use :: Node_Orbital_Offsets, only : Node_Orbital_Offset
+    use :: Vectors             , only : Vector_Magnitude
+    implicit none
+    class           (nodePropertyExtractorRadiusOrbital), intent(inout), target   :: self
+    type            (treeNode                          ), intent(inout), target   :: node
+    type            (multiCounter                      ), intent(inout), optional :: instance
+    class           (nodeComponentBasic                ), pointer                 :: basic
+    double precision                                    , dimension(3)            :: position
+    !$GLC attributes unused :: self, instance
+
+    basic => node%basic()
+    call Node_Orbital_Offset(node,basic%time(),position=position)
+    radiusOrbitalExtract=Vector_Magnitude(position)
+    return
+  end function radiusOrbitalExtract
+
+
+  function radiusOrbitalName(self)
+    !!{RST
+    Return the name of the radiusOrbital property.
+    !!}
+    implicit none
+    type (varying_string                    )                :: radiusOrbitalName
+    class(nodePropertyExtractorRadiusOrbital), intent(inout) :: self
+    !$GLC attributes unused :: self
+
+    radiusOrbitalName=var_str('radiusOrbitalCurrent')
+    return
+  end function radiusOrbitalName
+
+  function radiusOrbitalDescription(self)
+    !!{RST
+    Return a description of the radiusOrbital property.
+    !!}
+    implicit none
+    type (varying_string                    )                :: radiusOrbitalDescription
+    class(nodePropertyExtractorRadiusOrbital), intent(inout) :: self
+    !$GLC attributes unused :: self
+
+    radiusOrbitalDescription=var_str('The orbital radius of the halo.')
+    return
+  end function radiusOrbitalDescription
+
+  double precision function radiusOrbitalUnitsInSI(self)
+    !!{RST
+    Return the units of the radiusOrbital property in the SI system.
+    !!}
+    use :: Numerical_Constants_Astronomical, only : megaParsec
+    implicit none
+    class(nodePropertyExtractorRadiusOrbital), intent(inout) :: self
+    !$GLC attributes unused :: self
+
+    radiusOrbitalUnitsInSI=megaParsec
+    return
+  end function radiusOrbitalUnitsInSI
+
+  function radiusOrbitalUnits(self) result(units)
+    !!{RST
+    Return the units of the radiusOrbital property.
+    !!}
+    use :: Units_MetaData, only : unitType
+    implicit none
+    type (unitType                          )                :: units
+    class(nodePropertyExtractorRadiusOrbital), intent(inout) :: self
+
+    units=unitType(self%unitsInSI(),description='Mpc',quantity='Mpc')
+    return
+  end function radiusOrbitalUnits

@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<parameters>
+  <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
+  <formatVersion>2</formatVersion>
+  <version>0.9.4</version>
+
+  <!-- Transfer function options -->
+  <!-- Use a tabulated transfer function for mixed CDM/WDM -->
+  <transferFunction value="file">
+    <fileName                            value="constraints/pipelines/darkMatter/transferFunction_COZMIC_WDM:10keV:f0.2.hdf5"/>
+    <redshift                            value="99.0000"                                                  />
+    <transferFunctionType                value="total"                                                                />
+    <factorWavenumberSmoothExtrapolation value="2.0"                                                                  />
+  </transferFunction>
+
+</parameters>

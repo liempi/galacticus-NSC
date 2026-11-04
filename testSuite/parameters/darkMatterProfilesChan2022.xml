@@ -1,8 +1,9 @@
-<?xml version="1.0"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Dark matter subhalo evolution model -->
+
 <parameters>
   <formatVersion>2</formatVersion>
-  <lastModified revision="975fffd5aadf697707003f16bf9b4caee8ebe97d" time="2025-10-22T21:34:03"/>
+  <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
 
   <verbosityLevel value="working"/>
 
@@ -29,8 +30,7 @@
   <!-- Power spectrum options -->
   <cosmologicalMassVariance value="scaled">
     <scale value="0.689"/>
-    <cosmologicalMassVariance value="filteredPower">
-      <sigma_8 value="0.8111"/> <!-- Planck 2018; https://ui.adsabs.harvard.edu/abs/2018arXiv180706211P -->
+    <cosmologicalMassVariance value="filteredPower"> <!-- Planck 2018; https://ui.adsabs.harvard.edu/abs/2018arXiv180706211P -->
       <tolerance value="3.0e-4"/>
       <toleranceTopHat value="3.0e-4"/>
       <nonMonotonicIsFatal value="false"/>
@@ -55,6 +55,10 @@
     <running value="0.0000"/> <!-- Planck 2018; https://ui.adsabs.harvard.edu/abs/2018arXiv180706211P -->
   </powerSpectrumPrimordial>
   <powerSpectrumPrimordialTransferred value="simple"/>
+  <powerSpectrumNormalizer value="sigma8">
+    <sigma_8 value="0.8111"/>
+    <tolerance value="3.0e-4"/>
+  </powerSpectrumNormalizer>
   
     <powerSpectrumWindowFunction value="sharpKSpace">
       <normalization value="2.5"/> <!-- Taken from Benson et al. (2013; https://ui.adsabs.harvard.edu/abs/2013MNRAS.428.1774B) - chosen to ensure a match to the location of the turnover in WDM mass functions. -->
@@ -91,7 +95,7 @@
   <haloEnvironment value="normal">
     <!-- Use environmental overdensities drawn from a normal distribution conditioned upon the fact that the region has not exceeded the threshold for collapse on any larger scale (Mo & White; 1996; MNRAS; 282; 347; eqn. 9; https://ui.adsabs.harvard.edu/abs/1996MNRAS.282..347M)-->
     <!-- Choose an environment radius of 5 Mpc/h as was used by Benson, Ludlow, & Cole (2019, MNRAS, 485, 5010; https://ui.adsabs.harvard.edu/abs/2019MNRAS.485.5010B). -->
-    <radiusEnvironment value="=5.0/([cosmologyParameters::HubbleConstant]/100.0)"/>
+    <radiusEnvironment value="=5.0/([cosmologyParameters/HubbleConstant]/100.0)"/>
     <redshift value=" 0.0"/>
     <criticalOverdensity value="sphericalCollapseClsnlssMttrCsmlgclCnstnt">
       <formatVersion>2</formatVersion>
@@ -164,8 +168,7 @@
 	      <darkMatterProfileConcentration value="diemerJoyce2019">
 		<!-- Use the Diemer & Joyce (2019; ApJ; 871; 168; http://adsabs.harvard.edu/abs/2019ApJ...871..168D) model for concentrations. -->
   
-		<cosmologicalMassVariance value="filteredPower">
-		  <sigma_8 value="0.8111"/> <!-- Planck 2018; https://ui.adsabs.harvard.edu/abs/2018arXiv180706211P -->
+		<cosmologicalMassVariance value="filteredPower"> <!-- Planck 2018; https://ui.adsabs.harvard.edu/abs/2018arXiv180706211P -->
 		  <tolerance value="3.0e-4"/>
 		  <toleranceTopHat value="3.0e-4"/>
 		  <nonMonotonicIsFatal value="false"/>
@@ -195,6 +198,11 @@
 		</powerSpectrumPrimordial>
 		
 		<powerSpectrumPrimordialTransferred value="simple"/>
+		
+		<powerSpectrumNormalizer value="sigma8">
+		  <sigma_8 value="0.8111"/>
+		  <tolerance value="3.0e-4"/>
+		</powerSpectrumNormalizer>
 		
 		<powerSpectrumWindowFunction value="topHat"/>
 		
@@ -241,8 +249,7 @@
 	      </criticalOverdensity>
 	      <cosmologicalMassVariance value="scaled">
 		<scale value="0.689"/>
-		<cosmologicalMassVariance value="filteredPower">
-		  <sigma_8 value="0.8111"/> <!-- Planck 2018; https://ui.adsabs.harvard.edu/abs/2018arXiv180706211P -->
+		<cosmologicalMassVariance value="filteredPower"> <!-- Planck 2018; https://ui.adsabs.harvard.edu/abs/2018arXiv180706211P -->
 		  <tolerance value="3.0e-4"/>
 		  <toleranceTopHat value="3.0e-4"/>
 		  <nonMonotonicIsFatal value="false"/>
@@ -256,6 +263,10 @@
 		<running value="0.0000"/> <!-- Planck 2018; https://ui.adsabs.harvard.edu/abs/2018arXiv180706211P -->
 	      </powerSpectrumPrimordial>
 	      <powerSpectrumPrimordialTransferred value="simple"/>
+	      <powerSpectrumNormalizer value="sigma8">
+	        <sigma_8 value="0.8111"/>
+	        <tolerance value="3.0e-4"/>
+	      </powerSpectrumNormalizer>
 	      <powerSpectrumWindowFunction value="sharpKSpace">
 		<normalization value="2.5"/> <!-- Taken from Benson et al. (2013; https://ui.adsabs.harvard.edu/abs/2013MNRAS.428.1774B) - chosen to ensure a match to the location of the turnover in WDM mass functions. -->
 	      </powerSpectrumWindowFunction>
@@ -290,6 +301,7 @@
 	</darkMatterProfileScaleRadius>
       </darkMatterProfileScaleRadius>
       
+      <massFunctionSlopeLogarithmic value="-1.8"/>
     </darkMatterProfileScaleRadius>
   </darkMatterProfileScaleRadius>
   
@@ -423,6 +435,7 @@
     <nodeOperator value="darkMatterProfileSoliton"/>
     <!-- Halo angular momentum -->
     <nodeOperator value="haloAngularMomentumVitvitska2002">
+      <subresolutionAngularMomentumMethod value="original"/>
       <darkMatterProfileDMO value="NFW"/>	    
       <exponentMass value="1.10475"/> <!-- Best fit value from Benson, Behrens, & Lu (2020) offset for fix to Keplerian orbit propagation -->
     </nodeOperator>
@@ -438,7 +451,7 @@
       <radiusVirialFraction value="0.01"/>
     </nodeOperator>
     <nodeOperator value="satelliteDestructionMassThreshold">
-      <massDestructionAbsolute value="=[mergerTreeMassResolution::massResolution]"/>
+      <massDestructionAbsolute value="=[mergerTreeMassResolution/massResolution]"/>
       <massDestructionMassInfallFraction value="0.0e0"/>
       <massDestructionMassTreeFraction value="0.0e0"/>
     </nodeOperator>
@@ -491,7 +504,7 @@
   <mergerTreeBuildMasses value="replicate">
     <replicationCount value="4"/>
     <mergerTreeBuildMasses value="readHDF5">
-      <fileName value="%DATASTATICPATH%/darkMatter/hostHaloMasses_Symphony_MilkyWay_resolutionX1_CDM.hdf5"/>
+      <fileName value="%DATASTATICPATH%/darkMatter/Symphony/MilkyWay/resolutionX1/CDM/hostHaloMasses_z0.000.hdf5"/>
     </mergerTreeBuildMasses>
   </mergerTreeBuildMasses>
 

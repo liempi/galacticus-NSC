@@ -10,7 +10,9 @@ import re
 
 # Get argument.
 if len(sys.argv) != 4:
-    sys.exit("FAIL: usage: validate-darkMatterOnlySubhalos-SymphonyCOZMIC.py <suite> <resolution> <simulation>")
+    print("FAILED: usage: validate-darkMatterOnlySubhalos-SymphonyCOZMIC.py <suite> <resolution> <simulation>")
+    # Always exit with status 0 - failure is signaled by "FAILED" in the output above.
+    sys.exit(0)
 suite      = sys.argv[1]
 resolution = sys.argv[2]
 simulation = sys.argv[3]
@@ -45,7 +47,7 @@ if not (suite == "Symphony" and resolution == "X1" and simulation == "CDM"):
 status = subprocess.run("cd ..; ./Galacticus.exe "+parameterFiles,shell=True)
 if status.returncode != 0:
     print("FAILED: dark matter-only subhalos validation model ("+suite+"; resolution"+resolution+"; "+simulationTrue+") failed to run")
-    sys.exit()
+    sys.exit(0)
 
 # Extract and validate the likelihoods.
 validate.extract("outputs/validate_darkMatterOnlySubhalos_"+suite+"_MilkyWay_resolution"+resolution+"_"+simulationTrue+".hdf5","Dark Matter Only Subhalos ("+suite+" "+simulationTrue+" resolution "+resolution+" Milky Way)","darkMatterOnlySubhalos"+suite+simulation+"MilkyWay"+resolution,"testSuite/parameters/validate_darkMatterOnlySubhalos_"+suite+"_resolution"+resolution+"_"+simulationTrue+".xml")

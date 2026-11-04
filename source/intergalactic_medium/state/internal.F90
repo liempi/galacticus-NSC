@@ -1,0 +1,501 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+!+    Contributions to this file made by: Daniel McAndrew, Andrew Benson, Claude.
+
+  !!{RST
+  An implementation of the :term:`IGM` state class for an internal model of instantaneous and full reionization.
+  !!}
+
+  use :: Numerical_Interpolation, only : interpolator
+
+  !![
+  <intergalacticMediumState name="intergalacticMediumStateInternal" docformat="rst">
+   <description>
+   The state of the intergalactic medium is solved for internally.
+   </description>
+  </intergalacticMediumState>
+  !!]
+  type, extends(intergalacticMediumStateClass) :: intergalacticMediumStateInternal
+     !!{RST
+     An :term:`IGM` state class for an internally consistent model.
+     !!}
+     double precision              , allocatable, dimension(:) :: time            , temperatureIGM  , &
+          &                                                       massFilteringIGM, densityHydrogen1, &
+          &                                                       densityHydrogen2, densityHelium1  , &
+          &                                                       densityHelium2  , densityHelium3
+     type            (interpolator), allocatable               :: interpolator_
+   contains
+     final     ::                                internalDestructor
+     procedure :: electronFraction            => internalElectronFraction
+     procedure :: temperature                 => internalTemperature
+     procedure :: neutralHydrogenFraction     => internalNeutralHydrogenFraction
+     procedure :: neutralHeliumFraction       => internalNeutralHeliumFraction
+     procedure :: singlyIonizedHeliumFraction => internalSinglyIonizedHeliumFraction
+     !![
+     <methods docformat="rst">
+       <method description="Return the filtering mass at the given ``time``, as solved for along with the state of the :term:`IGM`." method="massFiltering" />
+       <method description="Return the rate of change of the filtering mass at the given ``time``, as solved for along with the state of the :term:`IGM`." method="massFilteringRateOfChange" />
+     </methods>
+     !!]
+     procedure :: autoHook                  => internalAutoHook
+     procedure :: massFiltering             => internalMassFiltering
+     procedure :: massFilteringRateOfChange => internalMassFilteringRateOfChange
+  end type intergalacticMediumStateInternal
+
+  interface intergalacticMediumStateInternal
+     !!{RST
+     Constructors for the internal :term:`IGM` state class.
+     !!}
+     module procedure internalConstructorParameters
+     module procedure internalConstructorInternal
+  end interface intergalacticMediumStateInternal
+
+contains
+
+  function internalConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`intergalacticMediumStateInternal` :term:`IGM` state class which takes a parameter set as input.
+    !!}
+    use :: Input_Parameters, only : inputParameter, inputParameters
+    implicit none
+    type (intergalacticMediumStateInternal)                :: self
+    type (inputParameters                 ), intent(inout) :: parameters
+    class(cosmologyFunctionsClass         ), pointer       :: cosmologyFunctions_
+    class(cosmologyParametersClass        ), pointer       :: cosmologyParameters_
+
+    !![
+    <objectBuilder class="cosmologyFunctions"  name="cosmologyFunctions_"  source="parameters"/>
+    <objectBuilder class="cosmologyParameters" name="cosmologyParameters_" source="parameters"/>
+    !!]
+    self=intergalacticMediumStateInternal(cosmologyFunctions_,cosmologyParameters_)
+    !![
+    <inputParametersValidate source="parameters"/>
+    <objectDestructor name="cosmologyFunctions_" />
+    <objectDestructor name="cosmologyParameters_"/>
+    !!]
+    return
+  end function internalConstructorParameters
+
+  function internalConstructorInternal(cosmologyFunctions_,cosmologyParameters_) result(self)
+    !!{RST
+    Internal constructor for the :galacticus-class:`intergalacticMediumStateInternal` :term:`IGM` state class.
+    !!}
+    implicit none
+    type (intergalacticMediumStateInternal)                        :: self
+    class(cosmologyFunctionsClass         ), intent(inout), target :: cosmologyFunctions_
+    class(cosmologyParametersClass        ), intent(inout), target :: cosmologyParameters_
+    !![
+    <constructorAssign variables="*cosmologyFunctions_, *cosmologyParameters_"/>
+    !!]
+
+    ! The state arrays are left unallocated - they are set when the state is solved for by the `intergalacticMediumStateEvolve`
+    ! universe operator.
+    return
+  end function internalConstructorInternal
+
+  subroutine internalAutoHook(self)
+    !!{RST
+    Hook into the internal intergalactic medium state evolver to receive updates.
+    !!}
+    use :: Events_Hooks, only : intergalacticMediumStateEvolveUpdateEventGlobal
+    implicit none
+    class(intergalacticMediumStateInternal), intent(inout) :: self
+
+    call intergalacticMediumStateEvolveUpdateEventGlobal%attach(self,internalStateSet,label='intergalacticMediumStateInternal')
+    return
+  end subroutine internalAutoHook
+
+  subroutine internalDestructor(self)
+    !!{RST
+    Destructor for the internal :term:`IGM` state class.
+    !!}
+    use :: Events_Hooks, only : intergalacticMediumStateEvolveUpdateEventGlobal
+    implicit none
+    type(intergalacticMediumStateInternal), intent(inout) :: self
+
+    !![
+    <objectDestructor name="self%cosmologyParameters_"/>
+    <objectDestructor name="self%cosmologyFunctions_" />
+    !!]
+    if (intergalacticMediumStateEvolveUpdateEventGlobal%isAttached(self,internalStateSet)) call intergalacticMediumStateEvolveUpdateEventGlobal%detach(self,internalStateSet)
+    return
+  end subroutine internalDestructor
+
+  subroutine internalStateRequired(self,requiredBy)
+    !!{RST
+    Report a fatal error if the state of the :term:`IGM` has not been solved for. The state is set by the
+    :galacticus-class:`universeOperatorIntergalacticMediumStateEvolve` universe operator as the universe is evolved, so
+    without such an operator it is never set, and the property named by ``requiredBy`` can not be evaluated.
+    !!}
+    use :: Display, only : displayGreen, displayReset
+    use :: Error  , only : Error_Report
+    implicit none
+    class    (intergalacticMediumStateInternal), intent(in   ) :: self
+    character(len=*                           ), intent(in   ) :: requiredBy
+
+    if (.not.allocated(self%time))                                                                               &
+         & call Error_Report(                                                                                    &
+         &                   'the state of the IGM has not been solved for, but is required to evaluate '     // &
+         &                   requiredBy//char(10)                                                             // &
+         &                   displayGreen()//'HELP:'//displayReset()                                          // &
+         &                   ' the state of [intergalacticMediumState]=internal is solved for as the universe'// &
+         &                   ' is evolved - set [universeOperator]=intergalacticMediumStateEvolve, or choose' // &
+         &                   ' an [intergalacticMediumState] which does not require it, such as `recFast`'    // &
+         &                   {introspection:location}                                                            &
+         &                  )
+    return
+  end subroutine internalStateRequired
+
+  double precision function internalElectronFraction(self,time)
+    !!{RST
+    Return the electron fraction of the :term:`IGM` in the internal model.
+    !!}
+    use, intrinsic :: ISO_C_Binding, only : c_size_t
+    implicit none
+    class           (intergalacticMediumStateInternal), intent(inout)  :: self
+    double precision                                  , intent(in   )  :: time
+    double precision                                  , dimension(0:1) :: h
+    integer         (c_size_t                        )                 :: i              , j
+    double precision                                                   :: densityHydrogen, densityHelium
+
+    call internalStateRequired(self,'the electron fraction of the IGM')
+    if (size(self%time) > 1) then
+       i=self%interpolator_%locate(time)
+    else
+       densityHydrogen         =self%densityHydrogen1(1)+self%densityHydrogen2(1)
+       densityHelium           =self%densityHelium1  (1)+self%densityHelium2  (1)+self%densityHelium3(1)
+       internalElectronFraction=+(self%densityHydrogen2(1)+self%densityHelium2(1)+2.0d0*self%densityHelium3(1)) &
+            &                   /(densityHydrogen+2.0d0*densityHelium)
+       return
+    end if
+    if (self%time(i+1)-self%time(i) > 0.0d0) then
+       call self%interpolator_%linearWeights(time,i,h)
+    else
+       h(0)=0.0d0
+       h(1)=1.0d0
+    end if
+    internalElectronFraction = 0.0d0
+    do j=0,1
+       densityHydrogen=self%densityHydrogen1(i+j)+self%densityHydrogen2(i+j)
+       densityHelium  =self%densityHelium1  (i+j)+self%densityHelium2  (i+j)+self%densityHelium3(i+j)
+       if (densityHydrogen > 0.0d0) internalElectronFraction=+internalElectronFraction           &
+            &                                                +h                            (  j) &
+            &                                                *(                                  &
+            &                                                  +      self%densityHydrogen2(i+j) &
+            &                                                  +      self%densityHelium2  (i+j) &
+            &                                                  +2.0d0*self%densityHelium3  (i+j) &
+            &                                                )                                   &
+            &                                                /densityHydrogen
+    end do
+    internalElectronFraction=max(0.0d0,internalElectronFraction)
+    return
+  end function internalElectronFraction
+
+  double precision function internalNeutralHydrogenFraction(self,time)
+    !!{RST
+    Return the neutral hydrogen fraction of the :term:`IGM` in the internal model.
+    !!}
+    use, intrinsic :: ISO_C_Binding, only : c_size_t
+    implicit none
+    class           (intergalacticMediumStateInternal), intent(inout)  :: self
+    double precision                                  , intent(in   )  :: time
+    double precision                                  , dimension(0:1) :: h
+    integer         (c_size_t                        )                 :: i              , j
+    double precision                                                   :: densityHydrogen
+
+    call internalStateRequired(self,'the neutral hydrogen fraction of the IGM')
+    if (size(self%time) > 1) then
+       i=self%interpolator_%locate(time)
+    else
+       densityHydrogen                =self%densityHydrogen1(1)+self%densityHydrogen2(1)
+       internalNeutralHydrogenFraction=self%densityHydrogen1(1)/densityHydrogen
+       return
+    end if
+    if (self%time(i+1)-self%time(i) > 0.0d0) then
+       call self%interpolator_%linearWeights(time,i,h)
+    else
+       h(0)=0.0d0
+       h(1)=1.0d0
+    end if
+    internalNeutralHydrogenFraction=0.0d0
+    do j=0,1
+       densityHydrogen=self%densityHydrogen1(i+j)+self%densityHydrogen2(i+j)
+       if (densityHydrogen > 0.0d0) internalNeutralHydrogenFraction=+internalNeutralHydrogenFraction &
+            &                                                       +h                    (  j)      &
+            &                                                       *self%densityHydrogen1(i+j)      &
+            &                                                       /densityHydrogen
+    end do
+    internalNeutralHydrogenFraction=max(0.0d0,min(1.0d0,internalNeutralHydrogenFraction))
+    return
+  end function internalNeutralHydrogenFraction
+
+  double precision function internalNeutralHeliumFraction(self,time)
+    !!{RST
+    Return the neutral helium fraction of the :term:`IGM` in the internal model.
+    !!}
+    use, intrinsic :: ISO_C_Binding, only : c_size_t
+    implicit none
+    class           (intergalacticMediumStateInternal), intent(inout)  :: self
+    double precision                                  , intent(in   )  :: time
+    double precision                                  , dimension(0:1) :: h
+    integer         (c_size_t                        )                 :: i            , j
+    double precision                                                   :: densityHelium
+
+    call internalStateRequired(self,'the neutral helium fraction of the IGM')
+    if (size(self%time) > 1) then
+       i=self%interpolator_%locate(time)
+    else
+       densityHelium                =self%densityHelium1(1)+self%densityHelium2(1)+self%densityHelium3(1)
+       internalNeutralHeliumFraction=self%densityHelium1(1)/densityHelium
+       return
+    end if
+    if (self%time(i+1)-self%time(i) > 0.0d0) then
+       call self%interpolator_%linearWeights(time,i,h)
+    else
+       h(0)=0.0d0
+       h(1)=1.0d0
+    end if
+    internalNeutralHeliumFraction=0.0d0
+    do j=0,1
+       densityHelium=self%densityHelium1(i+j)+self%densityHelium2(i+j)+self%densityHelium3(i+j)
+       if (densityHelium > 0.0d0) internalNeutralHeliumFraction=+internalNeutralHeliumFraction &
+            &                                                   +h                  (  j)      &
+            &                                                   *self%densityHelium1(i+j)      &
+            &                                                   /densityHelium
+    end do
+    internalNeutralHeliumFraction=max(0.0d0,min(1.0d0,internalNeutralHeliumFraction))
+    return
+  end function internalNeutralHeliumFraction
+
+  double precision function internalSinglyIonizedHeliumFraction(self,time)
+    !!{RST
+    Return the singly ionized helium fraction of the :term:`IGM` in the internal model.
+    !!}
+    use, intrinsic :: ISO_C_Binding, only : c_size_t
+    implicit none
+    class           (intergalacticMediumStateInternal), intent(inout)  :: self
+    double precision                                  , intent(in   )  :: time
+    double precision                                  , dimension(0:1) :: h
+    integer         (c_size_t                        )                 :: i            , j
+    double precision                                                   :: densityHelium
+
+    call internalStateRequired(self,'the singly-ionized helium fraction of the IGM')
+    if (size(self%time) > 1) then
+       i=self%interpolator_%locate(time)
+    else
+       densityHelium                      =self%densityHelium1(1)+self%densityHelium2(1)+self%densityHelium3(1)
+       internalSinglyIonizedHeliumFraction=self%densityHelium2(1)/densityHelium
+       return
+    end if
+    if (self%time(i+1)-self%time(i) > 0.0d0) then
+       call self%interpolator_%linearWeights(time,i,h)
+    else
+       h(0)=0.0d0
+       h(1)=1.0d0
+    end if
+    internalSinglyIonizedHeliumFraction=0.0d0
+    do j=0,1
+       densityHelium=self%densityHelium1(i+j)+self%densityHelium2(i+j)+self%densityHelium3(i+j)
+       if (densityHelium > 0.0d0) internalSinglyIonizedHeliumFraction=+internalSinglyIonizedHeliumFraction &
+            &                                                         +h                  (  j)            &
+            &                                                         *self%densityHelium2(i+j)            &
+            &                                                         /densityHelium
+    end do
+    internalSinglyIonizedHeliumFraction=max(0.0d0,min(1.0d0,internalSinglyIonizedHeliumFraction))
+    return
+  end function internalSinglyIonizedHeliumFraction
+
+  double precision function internalTemperature(self,time)
+    !!{RST
+    Return the temperature of the :term:`IGM` in the internal model.
+    !!}
+    use, intrinsic :: ISO_C_Binding, only : c_size_t
+    implicit none
+    class           (intergalacticMediumStateInternal), intent(inout)  :: self
+    double precision                                  , intent(in   )  :: time
+    double precision                                  , dimension(0:1) :: h
+    integer         (c_size_t                        )                 :: i   , j
+
+    call internalStateRequired(self,'the temperature of the IGM')
+    if (size(self%time) > 1) then
+       i=self%interpolator_%locate(time)
+    else
+       internalTemperature=self%temperatureIGM(1)
+       return
+    end if
+    if (self%time(i+1)-self%time(i) > 0.0d0) then
+       call self%interpolator_%linearWeights(time,i,h)
+    else
+       h(0)=0.0d0
+       h(1)=1.0d0
+    end if
+    internalTemperature=0.0d0
+    do j=0,1
+       internalTemperature=internalTemperature+h(j)*self%temperatureIGM(i+j)
+    end do
+    return
+  end function internalTemperature
+
+  double precision function internalMassFiltering(self,time)
+    !!{RST
+    Return the filtering mass at the given ``time`` in the internal model. The state is solved for one step at a time as the
+    universe evolves, while merger trees are evolved up to the time of the next step. The filtering mass may therefore be
+    requested up to one step beyond the last time solved for, and is extrapolated linearly over that step.
+    !!}
+    use, intrinsic :: ISO_C_Binding, only : c_size_t
+    implicit none
+    class           (intergalacticMediumStateInternal), intent(inout)  :: self
+    double precision                                  , intent(in   )  :: time
+    double precision                                  , dimension(0:1) :: h
+    integer         (c_size_t                        )                 :: i   , j
+
+    call internalStateRequired       (self     ,'the filtering mass')
+    call internalExtrapolationLimited(self,time,'the filtering mass')
+    if (size(self%time) > 1) then
+       i=self%interpolator_%locate(time)
+    else
+       internalMassFiltering=self%massFilteringIGM(1)
+       return
+    end if
+    if (self%time(i+1)-self%time(i) > 0.0d0) then
+       call self%interpolator_%linearWeights(time,i,h)
+    else
+       h(0)=0.0d0
+       h(1)=1.0d0
+    end if
+    internalMassFiltering=0.0d0
+    do j=0,1
+       internalMassFiltering=internalMassFiltering+h(j)*self%massFilteringIGM(i+j)
+    end do
+    internalMassFiltering=max(internalMassFiltering,0.0d0)
+    return
+  end function internalMassFiltering
+
+  double precision function internalMassFilteringRateOfChange(self,time)
+    !!{RST
+    Return the rate of change of the filtering mass at the given ``time`` in the internal model. This is the gradient of the
+    linear interpolation (or extrapolation) used for the filtering mass itself.
+    !!}
+    use, intrinsic :: ISO_C_Binding, only : c_size_t
+    implicit none
+    class           (intergalacticMediumStateInternal), intent(inout) :: self
+    double precision                                  , intent(in   ) :: time
+    integer         (c_size_t                        )                :: i
+
+    call internalStateRequired       (self     ,'the rate of change of the filtering mass')
+    call internalExtrapolationLimited(self,time,'the rate of change of the filtering mass')
+    internalMassFilteringRateOfChange=0.0d0
+    if (size(self%time) == 1 .or. self%massFiltering(time) <= 0.0d0) return
+    i=self%interpolator_%locate(time)
+    if (self%time(i+1)-self%time(i) > 0.0d0)                               &
+         & internalMassFilteringRateOfChange=+(                            &
+         &                                     +self%massFilteringIGM(i+1) &
+         &                                     -self%massFilteringIGM(i  ) &
+         &                                    )                            &
+         &                                   /(                            &
+         &                                     +self%time            (i+1) &
+         &                                     -self%time            (i  ) &
+         &                                    )
+    return
+  end function internalMassFilteringRateOfChange
+
+  subroutine internalExtrapolationLimited(self,time,requiredBy)
+    !!{RST
+    Report a fatal error if ``time`` lies more than one step beyond the last time to which the state of the :term:`IGM` has been
+    solved, so that the property named by ``requiredBy`` would be extrapolated further than the state can lag behind the evolution
+    of the universe. The step is that between the last two times solved for, scaled by their ratio since the steps are spaced
+    logarithmically in time.
+    !!}
+    use :: Error             , only : Error_Report
+    use :: ISO_Varying_String, only : varying_string, assignment(=), operator(//)
+    implicit none
+    class           (intergalacticMediumStateInternal), intent(in   ) :: self
+    double precision                                  , intent(in   ) :: time
+    character       (len=*                           ), intent(in   ) :: requiredBy
+    double precision                                  , parameter     :: toleranceRelative=1.0d-6
+    integer                                                           :: countTimes
+    double precision                                                  :: timeLimit
+    character       (len=12                          )                :: label
+    type            (varying_string                  )                :: message
+
+    countTimes=size(self%time)
+    if (countTimes < 2) return
+    timeLimit=+self%time(countTimes  )**2 &
+         &    /self%time(countTimes-1)
+    if (time <= timeLimit*(1.0d0+toleranceRelative)) return
+    message='the state of the IGM has been solved for only to t='
+    write (label,'(f12.6)') self%time(countTimes)
+    message=message//trim(adjustl(label))//' Gyr, but '//requiredBy//' was requested at t='
+    write (label,'(f12.6)') time
+    message=message//trim(adjustl(label))//' Gyr, more than one step beyond it'
+    call Error_Report(message//{introspection:location})
+    return
+  end subroutine internalExtrapolationLimited
+
+  subroutine internalStateSet(self,time,densityHydrogen1,densityHydrogen2,densityHelium1,densityHelium2,densityHelium3,temperature,massFiltering)
+    !!{RST
+    Set state in the internal :term:`IGM` state class.
+    !!}
+    use :: Error             , only : Error_Report
+    use :: ISO_Varying_String, only : char
+    use :: Function_Classes  , only : functionClass
+    implicit none
+    class           (*), intent(inout)               :: self
+    double precision   , intent(in   ), dimension(:) :: time            , densityHydrogen1, &
+         &                                              densityHydrogen2, densityHelium1  , &
+         &                                              densityHelium2  , densityHelium3  , &
+         &                                              temperature     , massFiltering
+    select type (self)
+    class is (intergalacticMediumStateInternal)
+       if (allocated(self%time            )) deallocate(self%time            )
+       if (allocated(self%temperatureIGM  )) deallocate(self%temperatureIGM  )
+       if (allocated(self%densityHydrogen1)) deallocate(self%densityHydrogen1)
+       if (allocated(self%densityHydrogen2)) deallocate(self%densityHydrogen2)
+       if (allocated(self%densityHelium1  )) deallocate(self%densityHelium1  )
+       if (allocated(self%densityHelium2  )) deallocate(self%densityHelium2  )
+       if (allocated(self%densityHelium3  )) deallocate(self%densityHelium3  )
+       if (allocated(self%massFilteringIGM)) deallocate(self%massFilteringIGM)
+       allocate(self%time            ,mold=time            )
+       allocate(self%temperatureIGM  ,mold=temperature     )
+       allocate(self%densityHydrogen1,mold=densityHydrogen1)
+       allocate(self%densityHydrogen2,mold=densityHydrogen2)
+       allocate(self%densityHelium1  ,mold=densityHelium1  )
+       allocate(self%densityHelium2  ,mold=densityHelium2  )
+       allocate(self%densityHelium3  ,mold=densityHelium3  )
+       allocate(self%massFilteringIGM,mold=massFiltering   )
+       self%time            =time
+       self%temperatureIGM  =temperature
+       self%densityHydrogen1=densityHydrogen1
+       self%densityHydrogen2=densityHydrogen2
+       self%densityHelium1  =densityHelium1
+       self%densityHelium2  =densityHelium2
+       self%densityHelium3  =densityHelium3
+       self%massFilteringIGM=massFiltering
+       ! Build interpolator.
+       if (allocated(self%interpolator_)) deallocate(self%interpolator_)
+       allocate(self%interpolator_)
+       self%interpolator_=interpolator(self%time)
+    class is (functionClass)
+       call Error_Report('object is not of [intergalacticMediumStateInternal] class, but of ['//char(self%objectType())//'] class'//{introspection:location})
+    class default
+       call Error_Report('object is not of [intergalacticMediumStateInternal] class'//{introspection:location})
+    end select
+    return
+  end subroutine internalStateSet

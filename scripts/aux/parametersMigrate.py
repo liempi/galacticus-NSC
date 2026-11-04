@@ -1,0 +1,2379 @@
+#!/usr/bin/env python3
+"""Update a Galacticus parameter file from its last modified revision to the current revision."""
+
+import argparse
+import difflib
+import html
+import os
+import re
+import subprocess
+import math
+import sys
+import tempfile
+from datetime import datetime, timezone
+from lxml import etree
+
+from List.ExtraUtils import as_array
+
+
+def parse_arguments():
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Migrate a Galacticus parameter file to the current revision."
+    )
+    parser.add_argument("inputFile", help="Input parameter file")
+    parser.add_argument("outputFile", help="Output parameter file")
+    parser.add_argument("--validate", default="yes", help="Validate the parameter file (default: yes)")
+    parser.add_argument("--prettyify", default="no", help="Pretty-print the output (default: no)")
+    parser.add_argument("--ignoreWhiteSpaceChanges", default="yes", help="Ignore whitespace changes (default: yes)")
+    parser.add_argument("--outputFormatVersion", type=int, default=2, help="Output format version (default: 2)")
+    parser.add_argument("--lastModifiedRevision", default=None, help="Override last modified revision hash")
+    parser.add_argument("--timeStamp", default=None, help="Override timestamp")
+    return parser.parse_args()
+
+
+def preprocess_multiline_attributes(input_filename):
+    """Pre-process the file to concatenate any attribute values that are split across multiple lines.
+
+    Replaces newlines inside unclosed quotes with %%NEWLINE%%, skipping XML comments.
+    Returns the path to the temporary pre-processed file.
+    """
+    fout = tempfile.NamedTemporaryFile(mode='w', delete=False)
+    tmp_filename = fout.name
+    in_multiline = False
+    in_comment = False
+    with open(input_filename, "r") as fin:
+        for line in fin:
+            count_quotes = line.count('"')
+            if "<!--" in line:
+                in_comment = True
+            if count_quotes % 2 == 1 and not in_comment:
+                in_multiline = not in_multiline
+            if in_multiline and not in_comment:
+                line = line.replace("\n", "%%NEWLINE%%")
+            if "-->" in line:
+                in_comment = False
+            fout.write(line)
+    return tmp_filename
+
+
+# Tokens of an XML document: comments, CDATA sections, processing instructions (including the XML declaration), tags
+# (allowing for quoted attribute values which contain `>`), and runs of text.
+_TOKEN = re.compile(r"<!--.*?-->|<!\[CDATA\[.*?\]\]>|<\?.*?\?>|<(?:[^>\"']|\"[^\"]*\"|'[^']*')*>|[^<]+", re.DOTALL)
+_TAG = re.compile(r"<([?/]?)([^\s/>?!]+)(.*?)\s*([/?]?)>\Z", re.DOTALL)
+_ATTRIBUTE = re.compile(r"([^\s=]+)\s*=\s*(\"[^\"]*\"|'[^']*')")
+
+
+def _token_key(token):
+    """Return a normalized form of an XML token, such that tokens which differ only in formatting compare equal.
+
+    Whitespace runs are collapsed, attributes are sorted, attribute values are compared with entities and quoting
+    resolved. Comments and CDATA are compared verbatim, up to whitespace.
+    """
+    if token.startswith("<!"):
+        return " ".join(token.split())
+    match = _TAG.match(token)
+    if match is None:
+        return html.unescape(" ".join(token.split()))
+    attributes = sorted((name, html.unescape(" ".join(value[1:-1].split()))) for name, value in _ATTRIBUTE.findall(match.group(3)))
+    return (match.group(1), match.group(2), tuple(attributes), match.group(4))
+
+
+def _tokenize(text):
+    """Split an XML document into a list of (whitespace, token) pairs, where `whitespace` is the whitespace preceding
+    the token, and return these along with any trailing whitespace."""
+    tokens = []
+    whitespace = ""
+    for match in _TOKEN.finditer(text):
+        token = match.group(0)
+        if not token.startswith("<"):
+            stripped = token.lstrip()
+            whitespace += token[:len(token) - len(stripped)]
+            token = stripped.rstrip()
+            if not token:
+                continue
+            trailing = stripped[len(token):]
+        else:
+            trailing = ""
+        tokens.append((whitespace, token))
+        whitespace = trailing
+    return tokens, whitespace
+
+
+def merge_unchanged_formatting(original, migrated):
+    """Return the migrated document, with every token unchanged by the migration taken verbatim from the original.
+
+    Serialization by `lxml` reformats content which the migration did not touch (attribute order and quoting, the XML
+    declaration, line breaks between adjacent tags). To keep the changes to a migrated file to a minimum, the two
+    documents are compared token by token, ignoring such formatting. Tokens which compare equal are written exactly as
+    they appear in the original, along with their preceding whitespace; only tokens which the migration inserted or
+    changed are taken from the migrated document. An XML declaration is not added to a document which had none.
+    """
+    tokens_original, trailing_original = _tokenize(original)
+    tokens_migrated, trailing_migrated = _tokenize(migrated)
+    if not any(token.startswith("<?xml") for _, token in tokens_original):
+        tokens_migrated = [(whitespace, token) for whitespace, token in tokens_migrated if not token.startswith("<?xml")]
+    matcher = difflib.SequenceMatcher(
+        None,
+        [_token_key(token) for _, token in tokens_original],
+        [_token_key(token) for _, token in tokens_migrated],
+        autojunk=False,
+    )
+    merged = []
+    for operation, i1, i2, j1, j2 in matcher.get_opcodes():
+        if operation == "equal":
+            merged.extend(tokens_original[i1:i2])
+        else:
+            merged.extend(tokens_migrated[j1:j2])
+    return "".join(whitespace + token for whitespace, token in merged) + trailing_original
+
+
+def restore_multiline_attributes(input_filename, output_filename):
+    """Restore %%NEWLINE%% placeholders back to actual newlines."""
+    with open(input_filename, "r") as fin, open(output_filename, "w") as fout:
+        for line in fin:
+            fout.write(line.replace("%%NEWLINE%%", "\n"))
+
+
+def scale_values(parameter, xpath, scale):
+    """Multiply the value(s) of a parameter by a constant factor.
+
+    A parameter may hold a single value or a space-separated list of values, either in its `value` attribute or in `value`
+    child elements (as in parameter grids). Values may use Fortran-style exponents (e.g. `5.25d-10`), as accepted by the
+    parameter reader. If every value is a plain number each is multiplied by the factor. Otherwise (e.g. for a derived parameter
+    expression, `=[...]`, which may itself contain spaces) the parameter can not be rescaled here, and is left entirely unchanged
+    with a warning. A parameter with no value (e.g. one which refers to another by `idRef`) is left unchanged.
+    """
+    value_children = parameter.findall("value")
+    if value_children:
+        all_values = value_children
+    elif parameter.get("value") is not None:
+        all_values = [parameter]
+    else:
+        return
+    description = f" ({scale['description']})" if scale["description"] is not None else ""
+    # Parse all values first, so that nothing is changed unless every value can be rescaled.
+    parsed = []
+    for value_elem in all_values:
+        values_text = value_elem.get("value", "") if value_elem is parameter else (value_elem.text or "")
+        try:
+            numbers = [
+                float(re.sub(r"(?<=[0-9.])[dD](?=[+-]?[0-9])", "e", value))
+                for value in values_text.split()
+            ]
+        except ValueError:
+            print(
+                f"   WARNING: can not rescale value '{values_text.strip()}' of '{xpath}' by {scale['factor']}{description}"
+                " - rescale it by hand"
+            )
+            return
+        parsed.append((value_elem, values_text.split(), numbers))
+    for value_elem, values, numbers in parsed:
+        values_scaled = [repr(number * scale["factor"]) for number in numbers]
+        for value, value_scaled in zip(values, values_scaled):
+            print(f"   scale parameter value: {xpath}")
+            print(f"                                 {value} --> {value_scaled}{description}")
+        if value_elem is parameter:
+            value_elem.set("value", " ".join(values_scaled))
+        else:
+            value_elem.text = " ".join(values_scaled)
+
+
+def parse_migrations(path):
+    """Parse migrations.xml into a structured dict.
+
+    Returns a dict with:
+        'migration': list of migration dicts, each with 'commit' and 'translation' (list)
+        'default': list of default dicts, each with 'parameter' and 'value'
+    """
+    tree = etree.parse(path)
+    root = tree.getroot()
+    migrations = {"migration": [], "default": []}
+    for migration_elem in root.findall("migration"):
+        migration = {
+            "commit": migration_elem.get("commit"),
+            "translation": [],
+        }
+        for trans_elem in migration_elem.findall("translation"):
+            translation = {}
+            if trans_elem.get("xpath") is not None:
+                translation["xpath"] = trans_elem.get("xpath")
+            if trans_elem.get("function") is not None:
+                translation["function"] = trans_elem.get("function")
+            name_elem = trans_elem.find("name")
+            if name_elem is not None:
+                translation["name"] = {"new": name_elem.get("new")}
+            value_elem = trans_elem.find("value")
+            if value_elem is not None:
+                translation["value"] = {
+                    "old": value_elem.get("old"),
+                    "new": value_elem.get("new"),
+                }
+            remove_elem = trans_elem.find("remove")
+            if remove_elem is not None:
+                translation["remove"] = True
+            scale_elem = trans_elem.find("scale")
+            if scale_elem is not None:
+                translation["scale"] = {
+                    "factor":      float(scale_elem.get("factor")),
+                    "description": scale_elem.get("description"),
+                }
+            migration["translation"].append(translation)
+        migrations["migration"].append(migration)
+    for default_elem in root.findall("default"):
+        migrations["default"].append(
+            {
+                "parameter": default_elem.get("parameter"),
+                "value": default_elem.get("value"),
+            }
+        )
+    return migrations
+
+
+def append_indented(parent, new_node):
+    """Append a node to a parent, on a new line indented as for the parent's first child."""
+    indent = parent.text if parent.text is not None and parent.text.strip() == "" and "\n" in parent.text else "\n  "
+    if len(parent) > 0:
+        last = parent[-1]
+        new_node.tail = last.tail
+        last.tail = indent
+    else:
+        new_node.tail = parent.text
+        parent.text = indent
+    parent.append(new_node)
+
+
+def insert_after(parent, new_node, ref_node):
+    """Insert new_node as a child of parent immediately after ref_node."""
+    children = list(parent)
+    if ref_node is None:
+        parent.append(new_node)
+    else:
+        idx = children.index(ref_node)
+        parent.insert(idx + 1, new_node)
+
+
+def insert_before(parent, new_node, ref_node):
+    """Insert new_node as a child of parent immediately before ref_node."""
+    if ref_node is None:
+        parent.append(new_node)
+    else:
+        children = list(parent)
+        idx = children.index(ref_node)
+        parent.insert(idx, new_node)
+
+
+def git_is_tracked(filename):
+    """Check if a file is tracked by git."""
+    result = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", filename],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return result.returncode == 0
+
+
+def git_head_hash():
+    """Get the current HEAD commit hash."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        message = (
+            "Failed to determine the current git HEAD revision. "
+            "Ensure that git is installed and that this script is run inside a git repository."
+        )
+        if e.stderr:
+            message += f" Git error: {e.stderr.strip()}"
+        raise RuntimeError(message) from e
+    return result.stdout.strip()
+
+
+def git_last_modified_hash(filename):
+    """Get the hash of the last commit that modified the given file."""
+    try:
+        result = subprocess.run(
+            ["git", "log", "-n", "1", "--pretty=format:%H", "--", filename],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        message = (
+            f"Failed to determine the last git commit that modified '{filename}'. "
+            "Ensure that git is installed, this script is run inside a git repository, "
+            "and that the file is tracked."
+        )
+        if e.stderr:
+            message += f" Git error: {e.stderr.strip()}"
+        raise RuntimeError(message) from e
+    return result.stdout.strip()
+
+
+def git_ancestry(hash_from, hash_to):
+    """Get the ancestry path between two commits (oldest first)."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-list", "--ancestry-path", f"{hash_from}..{hash_to}"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        message = (
+            f"Failed to determine git ancestry from '{hash_from}' to '{hash_to}'. "
+            "Ensure that git is installed, this script is run inside a git repository, "
+            "and that both revisions are valid."
+        )
+        if e.stderr:
+            message += f" Git error: {e.stderr.strip()}"
+        raise RuntimeError(message) from e
+    hashes = [h for h in result.stdout.strip().split("\n") if h]
+    hashes.reverse()  # Oldest first.
+    return hashes
+
+
+# ---------------------------------------------------------------------------
+# Migrate function
+# ---------------------------------------------------------------------------
+
+def migrate(input_doc, parameters, root_level, is_grid, input_filename, options, hash_head, is_in_git, migrations):
+    """Apply all migrations to a <parameters> element."""
+
+    output_format_version = str(options.outputFormatVersion)
+
+    # Check for a format version element.
+    format_version_elems = parameters.findall("formatVersion")
+    format_version = format_version_elems[0] if format_version_elems else None
+    if format_version is not None:
+        format_version.text = output_format_version
+    elif root_level:
+        format_version_node = etree.Element("formatVersion")
+        format_version_node.text = output_format_version
+        format_version_node.tail = "\n  "
+        parameters.insert(0, format_version_node)
+
+    # Validate the parameter file.
+    if options.validate == "yes":
+        exec_path = os.environ.get("GALACTICUS_EXEC_PATH", ".")
+        result = subprocess.run(
+            [os.path.join(exec_path, "scripts", "build", "parameterValidate.py"),
+             "--structural", input_filename]
+        )
+        if result.returncode != 0:
+            sys.exit(f'input file "{input_filename}" is not a valid Galacticus parameter file')
+
+    # Find last modified hash.
+    hash_last_modified = None
+    element_last_modified_list = parameters.findall("lastModified")
+    element_last_modified = element_last_modified_list[0] if element_last_modified_list else None
+    if element_last_modified is None:
+        element_last_modified = etree.Element("lastModified")
+        element_last_modified.tail = "\n  "
+        parameters.insert(0, element_last_modified)
+
+    if options.lastModifiedRevision is not None:
+        hash_last_modified = options.lastModifiedRevision
+    else:
+        # Look for a last modification hash.
+        if element_last_modified is not None and element_last_modified.get("revision") is not None:
+            hash_last_modified = element_last_modified.get("revision")
+        elif is_in_git:
+            hash_last_modified = git_last_modified_hash(input_filename)
+        else:
+            hash_last_modified = "6eab8997cd73cb0a474228ade542d133890ad138^"
+
+    # Update the last modified metadata.
+    time_stamp = options.timeStamp if options.timeStamp is not None else datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+    element_last_modified.set("revision", hash_head)
+    element_last_modified.set("time", time_stamp)
+
+    # Find the ancestry.
+    ancestry = git_ancestry(hash_last_modified, hash_head)
+
+    # Iterate over the revision ancestry.
+    for hash_ancestor in ancestry:
+        matched_migrations = [m for m in as_array(migrations["migration"]) if m["commit"] == hash_ancestor]
+        if len(matched_migrations) != 1:
+            continue
+        migration = matched_migrations[0]
+        # Report.
+        print(f"Updating to revision {hash_ancestor}")
+
+        # Iterate over translations.
+        for translation in as_array(migration["translation"]):
+
+            # Handle special cases (function dispatch).
+            if "function" in translation:
+                func_name = translation["function"]
+                if func_name in SPECIAL_FUNCTIONS:
+                    SPECIAL_FUNCTIONS[func_name](input_doc, parameters, is_grid)
+                else:
+                    sys.exit(f"Unknown special migration function: {func_name}")
+
+            # Handle removals.
+            if "remove" in translation:
+                for parameter in parameters.xpath(translation["xpath"]):
+                    print(f"   remove parameter: {parameter.tag}")
+                    parameter.getparent().remove(parameter)
+
+            # Translate names.
+            if "name" in translation:
+                for parameter in parameters.xpath(translation["xpath"]):
+                    print(f"   translate parameter name: {parameter.tag} --> {translation['name']['new']}")
+                    leaf_name = translation["name"]["new"]
+                    parameter.tag = leaf_name
+
+            # Translate values.
+            if "value" in translation:
+                for parameter in parameters.xpath(translation["xpath"]):
+                    # Find all value sub-elements, or use the parameter itself.
+                    value_children = parameter.findall("value")
+                    if value_children:
+                        all_values = value_children
+                    else:
+                        all_values = [parameter]
+                    for value_elem in all_values:
+                        # Get the current value text.
+                        if value_elem is parameter:
+                            values_text = value_elem.get("value", "")
+                        else:
+                            values_text = value_elem.text or ""
+                        values_text = values_text.strip()
+                        values = values_text.split() if values_text else []
+                        for i, this_value in enumerate(values):
+                            if this_value == translation["value"]["old"]:
+                                print(f"   translate parameter value: {translation['xpath']}")
+                                print(f"                                 {this_value} --> {translation['value']['new']}")
+                                values[i] = translation["value"]["new"]
+                        # Update the values in the parameter.
+                        if value_elem is parameter:
+                            value_elem.set("value", " ".join(values))
+                        else:
+                            value_elem.text = " ".join(values)
+
+            # Scale values.
+            if "scale" in translation:
+                for parameter in parameters.xpath(translation["xpath"]):
+                    scale_values(parameter, translation["xpath"], translation["scale"])
+
+    # Put subparameters into their host parameter.
+    # We need to iterate over a snapshot since we're modifying the tree.
+    for parameter in list(parameters):
+        if not isinstance(parameter.tag, str):
+            continue  # Skip comments/PIs
+        m = re.match(r"(.+)--(.+)", parameter.tag)
+        if m:
+            host_name = m.group(1)
+            sub_name = m.group(2)
+            host_name_trimmed = re.sub(r"\..+\.", "", host_name)
+            sibling = parameter.getnext()
+            parameter.tag = sub_name
+            host_found = False
+            for host_parameter in list(parameters):
+                if host_parameter.tag == host_name_trimmed:
+                    # Move the sub-parameter into the existing host.
+                    parameters.remove(parameter)
+                    if len(host_parameter) == 0:
+                        host_parameter.text = "\n    "
+                    parameter.tail = "\n  "
+                    host_parameter.append(parameter)
+                    host_found = True
+                    break
+            if not host_found:
+                # Create the new host node.
+                host_leaf_name = re.sub(r"\..+\.", "", host_name)
+                if re.search(r"\..+\.", host_name):
+                    default_value = re.sub(r".*\.(.+)\.", r"\1", host_name)
+                else:
+                    defaults = [d for d in migrations["default"] if d["parameter"] == host_leaf_name]
+                    if len(defaults) != 1:
+                        sys.exit(
+                            f'parametersMigrate.py: attempting to insert a "{host_leaf_name}" element, '
+                            "but no default value is known"
+                        )
+                    default_value = defaults[0]["value"]
+                parameter_node = etree.Element(host_leaf_name)
+                parameter_node.set("value", default_value)
+                parameter_node.text = "\n    "
+                parameters.remove(parameter)
+                parameter.tail = "\n  "
+                parameter_node.append(parameter)
+                if sibling is not None:
+                    insert_before(parameters, parameter_node, sibling)
+                else:
+                    parameters.append(parameter_node)
+
+    # Search for duplicated parameters.
+    duplicate_wrappers = {"mergerTreeOperator": "sequence"}
+    processed_tags = set()
+    for parameter in list(parameters):
+        if not isinstance(parameter.tag, str):
+            continue  # Skip comments/PIs
+        node_name = parameter.tag
+        if node_name in processed_tags:
+            continue
+        duplicates = [p for p in parameters if p.tag == node_name]
+        if len(duplicates) > 1 and node_name in duplicate_wrappers:
+            processed_tags.add(node_name)
+            sibling = duplicates[-1].getnext()
+            wrapper_node = etree.Element(node_name)
+            wrapper_node.set("value", duplicate_wrappers[node_name])
+            wrapper_node.text = "\n    "
+            for duplicate in duplicates:
+                parameters.remove(duplicate)
+                duplicate.tail = "\n  "
+                wrapper_node.append(duplicate)
+            if sibling is not None:
+                insert_before(parameters, wrapper_node, sibling)
+            else:
+                parameters.append(wrapper_node)
+
+
+# ---------------------------------------------------------------------------
+# Special migration functions
+# ---------------------------------------------------------------------------
+
+
+def radiation_field_intergalactic_background_cmb(input_doc, parameters, is_grid):
+    """Special handling to add CMB radiation into the intergalactic background radiation."""
+    for node in parameters.xpath(".//radiationFieldIntergalacticBackground[@value]"):
+        print("   translate special './/radiationFieldIntergalacticBackground[@value]'")
+        # Construct new summation and CMB nodes, and a copy of the original node.
+        summation_node = etree.Element("radiationFieldIntergalacticBackground")
+        cmb_node = etree.Element("radiationField")
+        original_node = etree.Element("radiationField")
+        summation_node.set("value", "summation")
+        cmb_node.set("value", "cosmicMicrowaveBackground")
+        original_node.set("value", node.get("value"))
+        # Move any children of the original node to the copy.
+        for child in list(node):
+            node.remove(child)
+            original_node.append(child)
+        # Also move text content.
+        if node.text:
+            original_node.text = node.text
+            node.text = None
+        # Assemble our new nodes.
+        summation_node.append(cmb_node)
+        summation_node.append(original_node)
+        # Insert the new parameters and remove the original.
+        parent = node.getparent()
+        insert_after(parent, summation_node, node)
+        parent.remove(node)
+
+
+def black_hole_seed_mass(input_doc, parameters, is_grid):
+    """Special handling to add black hole seed mass models."""
+    do_translate = False
+    mass_seed = 100.0  # Default value.
+    component_black_hole = None
+    for node in parameters.xpath(
+        ".//componentBlackHole[@value='simple' or @value='standard' or @value='nonCentral']/massSeed[@value]"
+    ):
+        print("   translate special './/componentBlackHole[@value]/massSeed[@value]'")
+        do_translate = True
+        component_black_hole = node.getparent()
+        mass_seed = node.get("value")
+        node.getparent().remove(node)
+    if not do_translate:
+        return
+    # Find nodeOperators.
+    node_operators = parameters.xpath(".//nodeOperator[@value='multi']")
+    if len(node_operators) == 0:
+        sys.exit("can not find any `nodeOperator[@value='multi']` into which to insert a black hole seed operator")
+    if len(node_operators) > 1:
+        sys.exit("found multiple `nodeOperator[@value='multi']` nodes - unknown into which to insert a black hole seed operator")
+    # Create a new node operator and insert into the list.
+    operator_node = etree.Element("nodeOperator")
+    seed_node = etree.Element("blackHoleSeeds")
+    mass_node = etree.Element("mass")
+    spin_node = etree.Element("spin")
+    operator_node.set("value", "blackHolesSeed")
+    seed_node.set("value", "fixed")
+    mass_node.set("value", str(mass_seed))
+    spin_node.set("value", "0.0")
+    if is_grid:
+        operator_node.set("iterable", "no")
+        seed_node.set("iterable", "no")
+    # Assemble our new nodes.
+    seed_node.append(mass_node)
+    seed_node.append(spin_node)
+    # Insert the new parameters.
+    node_operators[0].append(operator_node)
+    if component_black_hole is not None:
+        insert_after(component_black_hole.getparent(), seed_node, component_black_hole)
+    else:
+        parameters.append(seed_node)
+
+
+def black_hole_physics(input_doc, parameters, is_grid):
+    """Special handling to move black hole physics from components to operators."""
+    defaults = {
+        "simple": {
+            "heatsHotHalo": "false",
+            "efficiencyHeating": "1.0e-3",
+            "efficiencyWind": "2.2157e-3",
+            "growthRatioToStellarSpheroid": "1.0e-3",
+        },
+        "standard": {
+            "bondiHoyleAccretionEnhancementSpheroid": "5.0e0",
+            "bondiHoyleAccretionEnhancementHotHalo": "6.0e0",
+            "bondiHoyleAccretionHotModeOnly": "true",
+            "bondiHoyleAccretionTemperatureSpheroid": "1.0e2",
+            "efficiencyWind": "2.4e-3",
+            "efficiencyWindScalesWithEfficiencyRadiative": "false",
+            "efficiencyRadioMode": "1.0",
+            "heatsHotHalo": "true",
+        },
+    }
+    component_properties = {}
+    component_node = None
+    do_translate = False
+    for node in parameters.xpath(
+        ".//componentBlackHole[@value='simple' or @value='standard' or @value='nonCentral']"
+    ):
+        print("   translate special './/componentBlackHole[@value]'")
+        do_translate = True
+        component_node = node
+        component_type = node.get("value")
+        if component_type == "simple":
+            component_properties["type"] = "simple"
+        elif component_type in ("standard", "nonCentral"):
+            component_properties["type"] = "standard"
+        # Extract all sub-parameters.
+        for node_child in node.xpath("*[@value]"):
+            component_properties[node_child.tag] = node_child.get("value")
+            node.remove(node_child)
+        # Insert default parameters.
+        if component_properties["type"] in defaults:
+            for param_name, param_value in defaults[component_properties["type"]].items():
+                if param_name not in component_properties:
+                    component_properties[param_name] = param_value
+    if not do_translate:
+        return
+    # Find nodeOperators.
+    node_operators = parameters.xpath(".//nodeOperator[@value='multi']")
+    if len(node_operators) == 0:
+        sys.exit("can not find any `nodeOperator[@value='multi']` into which to insert a black hole seed operator")
+    if len(node_operators) > 1:
+        sys.exit("found multiple `nodeOperator[@value='multi']` nodes - unknown into which to insert a black hole seed operator")
+    # Build node operators.
+    operator_accretion_node = etree.Element("nodeOperator")
+    operator_winds_node = etree.Element("nodeOperator")
+    operator_cgm_heat_node = etree.Element("nodeOperator")
+    operator_accretion_node.set("value", "blackHolesAccretion")
+    operator_winds_node.set("value", "blackHolesWinds")
+    operator_cgm_heat_node.set("value", "blackHolesCGMHeating")
+    if is_grid:
+        operator_accretion_node.set("iterable", "no")
+        operator_winds_node.set("iterable", "no")
+        operator_cgm_heat_node.set("iterable", "no")
+    node_operators[0].append(operator_accretion_node)
+    node_operators[0].append(operator_winds_node)
+    if component_properties.get("heatsHotHalo") == "true":
+        node_operators[0].append(operator_cgm_heat_node)
+    # Handle the "simple" black hole component.
+    if component_properties["type"] == "simple":
+        # Accretion.
+        accretion_node = etree.Element("blackHoleAccretionRate")
+        growth_rate_node = etree.Element("growthRatioToStellarSpheroid")
+        accretion_node.set("value", "spheroidTracking")
+        growth_rate_node.set("value", component_properties["growthRatioToStellarSpheroid"])
+        accretion_node.append(growth_rate_node)
+        insert_after(component_node.getparent(), accretion_node, component_node)
+        # Winds.
+        wind_node = etree.Element("blackHoleWind")
+        efficiency_node = etree.Element("efficiencyWind")
+        wind_node.set("value", "simple")
+        efficiency_node.set("value", component_properties["efficiencyWind"])
+        wind_node.append(efficiency_node)
+        insert_after(component_node.getparent(), wind_node, component_node)
+        if component_properties.get("heatsHotHalo") == "true":
+            # CGM heating.
+            heating_node = etree.Element("blackHoleCGMHeating")
+            eff_node = etree.Element("efficiencyHeating")
+            heating_node.set("value", "quasistatic")
+            eff_node.set("value", component_properties["efficiencyHeating"])
+            heating_node.append(eff_node)
+            insert_after(component_node.getparent(), heating_node, component_node)
+    # Handle the "standard" black hole component.
+    if component_properties["type"] == "standard":
+        # Accretion.
+        accretion_node = etree.Element("blackHoleAccretionRate")
+        spheroid_node = etree.Element("bondiHoyleAccretionEnhancementSpheroid")
+        hot_halo_node = etree.Element("bondiHoyleAccretionEnhancementHotHalo")
+        hot_mode_node = etree.Element("bondiHoyleAccretionHotModeOnly")
+        temperature_node = etree.Element("bondiHoyleAccretionTemperatureSpheroid")
+        accretion_node.set("value", "standard")
+        spheroid_node.set("value", component_properties["bondiHoyleAccretionEnhancementSpheroid"])
+        hot_halo_node.set("value", component_properties["bondiHoyleAccretionEnhancementHotHalo"])
+        hot_mode_node.set("value", component_properties["bondiHoyleAccretionHotModeOnly"])
+        temperature_node.set("value", component_properties["bondiHoyleAccretionTemperatureSpheroid"])
+        accretion_node.append(spheroid_node)
+        accretion_node.append(hot_halo_node)
+        accretion_node.append(hot_mode_node)
+        accretion_node.append(temperature_node)
+        insert_after(component_node.getparent(), accretion_node, component_node)
+        # Winds.
+        wind_node = etree.Element("blackHoleWind")
+        efficiency_node = etree.Element("efficiencyWind")
+        scale_node = etree.Element("efficiencyWindScalesWithEfficiencyRadiative")
+        wind_node.set("value", "ciotti2009")
+        efficiency_node.set("value", component_properties["efficiencyWind"])
+        scale_node.set("value", component_properties["efficiencyWindScalesWithEfficiencyRadiative"])
+        wind_node.append(efficiency_node)
+        wind_node.append(scale_node)
+        insert_after(component_node.getparent(), wind_node, component_node)
+        if component_properties.get("heatsHotHalo") == "true":
+            # CGM heating.
+            heating_node = etree.Element("blackHoleCGMHeating")
+            eff_node = etree.Element("efficiencyRadioMode")
+            heating_node.set("value", "jetPower")
+            eff_node.set("value", component_properties["efficiencyRadioMode"])
+            heating_node.append(eff_node)
+            insert_after(component_node.getparent(), heating_node, component_node)
+
+
+def model_parameter_xpath(input_doc, parameters, is_grid):
+    """Special handling to switch `modelParameter` names to use XPath syntax."""
+    for model_parameter in parameters.xpath(".//modelParameter[@value='active' or @value='inactive']"):
+        print("   translate special './/modelParameter[@value]'")
+        for name_node in model_parameter.findall("name"):
+            value = name_node.get("value")
+            value = value.replace("::", "/")
+            # Increment indices to XPath standard 1-indexing.
+            value = re.sub(
+                r"([\[\{])(\d+)([\]\}])",
+                lambda m: m.group(1) + str(int(m.group(2)) + 1) + m.group(3),
+                value,
+            )
+            name_node.set("value", value)
+
+
+def evaluated_parameter_xpath(input_doc, parameters, is_grid):
+    """Switch the path separator used in run-time-evaluated parameter references.
+
+    References to other parameters appear inside square brackets, both in run-time-evaluated
+    parameter values (those whose value begins with `=`, e.g. `=[mergerTreeMassResolution::massResolution]`)
+    and in conditional `active` attributes (e.g. `active="[cosmologicalMassVariance:sigma_8] == 0.912"`).
+    The path separator used to be a colon (one or more colons were treated as a single separator), but was
+    changed to the XPath standard `/`. Here we replace any run of colons inside each `[...]` reference with a
+    single `/`, leaving format specifiers (`[%s|name]`), default values (`[name|123]`), and relative-path
+    markers (`.`, `..`) intact.
+    """
+
+    def replace_separators(text):
+        # Within each `[...]` reference, replace runs of colons with the XPath separator `/`.
+        return re.sub(
+            r"\[([^\]]*)\]",
+            lambda m: "[" + re.sub(r":+", "/", m.group(1)) + "]",
+            text,
+        )
+
+    for element in parameters.xpath(".//*"):
+        # Conditional `active` attributes.
+        active = element.get("active")
+        if active is not None and "[" in active:
+            new_active = replace_separators(active)
+            if new_active != active:
+                print(f"   translate special evaluated-parameter path in 'active' attribute of '{element.tag}'")
+                element.set("active", new_active)
+        # Run-time-evaluated `value` attributes (those beginning with `=`).
+        value = element.get("value")
+        if value is not None and value.lstrip().startswith("=") and "[" in value:
+            new_value = replace_separators(value)
+            if new_value != value:
+                print(f"   translate special evaluated-parameter path in 'value' of '{element.tag}'")
+                element.set("value", new_value)
+        # Run-time-evaluated `<value>` child elements (those beginning with `=`).
+        for value_elem in element.findall("value"):
+            text = value_elem.text
+            if text is not None and text.lstrip().startswith("=") and "[" in text:
+                new_text = replace_separators(text)
+                if new_text != text:
+                    print(f"   translate special evaluated-parameter path in <value> of '{element.tag}'")
+                    value_elem.text = new_text
+
+
+def method_suffix_remove(input_doc, parameters, is_grid):
+    """Special handling to remove the 'Method' suffix from parameter names."""
+    print("   translate special - remove Method suffixes")
+    # Names where the Method suffix persists.
+    exceptions = {
+        "readSubhaloAngularMomentaMethod",
+        "subhaloAngularMomentaMethod",
+        "diskRadiusSolverCole2000Method",
+        "duttonMaccio2014DensityContrastMethod",
+        "duttonMaccio2014DensityProfileMethod",
+    }
+    for parameter in parameters.xpath(".//*"):
+        node_name = parameter.tag
+        if node_name in exceptions:
+            continue
+        m = re.match(r"^treeNodeMethod(.*)$", node_name)
+        if m:
+            parameter.tag = "component" + m.group(1)
+        else:
+            m = re.match(r"^(.*)Method$", node_name)
+            if m:
+                parameter.tag = m.group(1)
+
+
+def satellite_orphanize(input_doc, parameters, is_grid):
+    """Special handling to add a nodeOperator to orphanize satellites."""
+    nodes = parameters.xpath(".//componentSatellite[@value='preset']")
+    if len(nodes) <= 0:
+        return
+    print("   translate special './/componentSatellite[@value='preset']'")
+    # Find nodeOperators.
+    node_operators = parameters.xpath(".//nodeOperator[@value='multi']")
+    if len(node_operators) == 0:
+        sys.exit("can not find any `nodeOperator[@value='multi']` into which to insert a satellite orphanizer operator")
+    if len(node_operators) > 1:
+        sys.exit("found multiple `nodeOperator[@value='multi']` nodes - unknown into which to insert a satellite orphanizer operator")
+    # Build node operator.
+    operator_orphanize = etree.Element("nodeOperator")
+    operator_orphanize.set("value", "satelliteOrphanize")
+    if is_grid:
+        operator_orphanize.set("iterable", "no")
+    node_operators[0].append(operator_orphanize)
+
+
+def black_hole_non_central(input_doc, parameters, is_grid):
+    """Special handling to add nodeOperators for non-central black hole evolution."""
+    nodes = parameters.xpath(".//componentBlackHole[@value='nonCentral']")
+    if len(nodes) <= 0:
+        return
+    if len(nodes) > 1:
+        sys.exit("found multiple `.//componentBlackHole[@value='nonCentral']` nodes - unknown what should be done in this situation")
+    print("   translate special './/componentBlackHole[@value='nonCentral']'")
+    # Look for any "tripleInteraction" option.
+    triple_interactions = nodes[0].findall("tripleInteraction[@value]")
+    if len(triple_interactions) > 1:
+        sys.exit("found multiple `.//tripleInteraction[@value]` nodes - unknown what should be done in this situation")
+    triple_interaction = (
+        triple_interactions[0].get("value") == "true" if len(triple_interactions) == 1 else True
+    )
+    for ti in triple_interactions:
+        ti.getparent().remove(ti)
+    # Find nodeOperators.
+    node_operators = parameters.xpath(".//nodeOperator[@value='multi']")
+    if len(node_operators) == 0:
+        sys.exit("can not find any `nodeOperator[@value='multi']` into which to insert a black hole operator")
+    if len(node_operators) > 1:
+        sys.exit("found multiple `nodeOperator[@value='multi']` nodes - unknown into which to insert a black hole operator")
+    # Build node operators.
+    operator_migration = etree.Element("nodeOperator")
+    operator_triple = etree.Element("nodeOperator")
+    if is_grid:
+        operator_migration.set("iterable", "no")
+        operator_triple.set("iterable", "no")
+    operator_migration.set("value", "blackHolesRadialMigration")
+    node_operators[0].append(operator_migration)
+    if triple_interaction:
+        operator_triple.set("value", "blackHolesTripleInteraction")
+        node_operators[0].append(operator_triple)
+
+
+def hot_halo_very_simple(input_doc, parameters, is_grid):
+    """Special handling to add nodeOperators for 'very simple' hot halo evolution."""
+    nodes = parameters.xpath(".//componentHotHalo[@value='verySimple' or @value='verySimpleDelayed']")
+    if len(nodes) <= 0:
+        return
+    if len(nodes) > 1:
+        sys.exit(
+            "found multiple `.//componentHotHalo[@value='verySimple' or @value='verySimpleDelayed']` nodes"
+            " - unknown what should be done in this situation"
+        )
+    print("   translate special './/componentHotHalo[@value='verySimple' or @value='verySimpleDelayed']'")
+    # Find nodeOperators.
+    node_operators = parameters.xpath(".//nodeOperator[@value='multi']")
+    if len(node_operators) == 0:
+        sys.exit("can not find any `nodeOperator[@value='multi']` into which to insert CGM operators")
+    if len(node_operators) > 1:
+        sys.exit("found multiple `nodeOperator[@value='multi']` nodes - unknown into which to insert CGM operators")
+    # Build node operators.
+    operator_outer_radius = etree.Element("nodeOperator")
+    operator_cooling = etree.Element("nodeOperator")
+    operator_accretion = etree.Element("nodeOperator")
+    operator_starvation = etree.Element("nodeOperator")
+    operator_outflow_reinc = etree.Element("nodeOperator")
+    component = etree.Element("component")
+    operator_outer_radius.set("value", "CGMOuterRadiusVirialRadius")
+    operator_cooling.set("value", "CGMCoolingInflow")
+    operator_accretion.set("value", "CGMAccretion")
+    operator_starvation.set("value", "CGMStarvation")
+    operator_outflow_reinc.set("value", "CGMOutflowReincorporation")
+    component.set("value", "disk")
+    if is_grid:
+        operator_outer_radius.set("iterable", "no")
+        operator_cooling.set("iterable", "no")
+        operator_accretion.set("iterable", "no")
+        operator_starvation.set("iterable", "no")
+        operator_outflow_reinc.set("iterable", "no")
+    operator_cooling.append(component)
+    node_operators[0].append(operator_outer_radius)
+    node_operators[0].append(operator_cooling)
+    node_operators[0].append(operator_accretion)
+    node_operators[0].append(operator_starvation)
+    if nodes[0].get("value") == "verySimpleDelayed":
+        node_operators[0].append(operator_outflow_reinc)
+
+
+def collaborative_mpi(input_doc, parameters, is_grid):
+    """Special handling to migrate the `collaborativeMPI` parameter."""
+    nodes = parameters.xpath(".//posteriorSampleLikelihood[@value='galaxyPopulation']/collaborativeMPI")
+    if len(nodes) <= 0:
+        return
+    print("   translate special './/posteriorSampleLikelihood[@value='galaxyPopulation']/collaborativeMPI'")
+    # Replace each node.
+    for node in nodes:
+        count_groups = 1 if node.get("value") == "true" else -1
+        count_collaborative_groups = etree.Element("countCollaborativeGroups")
+        first_come_first_served = etree.Element("firstComeFirstServed")
+        count_collaborative_groups.set("value", str(count_groups))
+        first_come_first_served.set("value", "false")
+        parent = node.getparent()
+        # Insert the new elements after the old node, then remove the old node.
+        insert_after(parent, count_collaborative_groups, node)
+        insert_after(parent, first_come_first_served, count_collaborative_groups)
+        parent.remove(node)
+
+
+def hot_halo_standard_accretion(input_doc, parameters, is_grid):
+    """Special handling to add and modify nodeOperators for CGM accretion in the standard hot halo component."""
+    nodes = parameters.xpath(
+        ".//componentHotHalo[@value='verySimple' or @value='verySimpleDelayed' "
+        "or @value='standard' or @value='coldMode' or @value='outflowTracking']"
+    )
+    if len(nodes) <= 0:
+        # None found - check if we have any componentHotHalo.
+        nodes_any = parameters.xpath(".//componentHotHalo[@value]")
+        if len(nodes_any) > 0:
+            return
+        # Check if we have nodeOperators present.
+        node_ops = parameters.xpath(".//nodeOperator[@value='multi']")
+        if len(node_ops) == 0:
+            return
+        # No componentHotHalo - insert one with the default value.
+        component_hot_halo = etree.SubElement(parameters, "componentHotHalo")
+        component_hot_halo.set("value", "standard")
+        nodes = parameters.xpath(
+            ".//componentHotHalo[@value='verySimple' or @value='verySimpleDelayed' "
+            "or @value='standard' or @value='coldMode' or @value='outflowTracking']"
+        )
+    if len(nodes) > 1:
+        sys.exit(
+            "found multiple `.//componentHotHalo[@value='verySimple' or ...]` nodes"
+            " - unknown what should be done in this situation"
+        )
+    print(
+        "   translate special './/componentHotHalo[@value='verySimple' or @value='verySimpleDelayed'"
+        " or @value='standard' or @value='coldMode' or @value='outflowTracking']'"
+    )
+    # Determine the type of hot halo component.
+    hh_type = nodes[0].get("value")
+    # Find nodeOperators.
+    node_operators = parameters.xpath(".//nodeOperator[@value='multi']")
+    if len(node_operators) == 0:
+        sys.exit("can not find any `nodeOperator[@value='multi']` into which to insert CGM operators")
+    if len(node_operators) > 1:
+        sys.exit("found multiple `nodeOperator[@value='multi']` nodes - unknown into which to insert CGM operators")
+    # Handle the verySimple or verySimpleDelayed cases.
+    if hh_type in ("verySimple", "verySimpleDelayed"):
+        # Find existing nodeOperatorCGMOutflowReincorporation.
+        ops_reinc = node_operators[0].xpath(".//nodeOperator[@value='CGMOutflowReincorporation']")
+        if len(ops_reinc) > 1:
+            sys.exit("found multiple `nodeOperator[@value='CGMOutflowReincorporation']` nodes - unknown which to use")
+        if len(ops_reinc) == 1:
+            include_satellites = etree.Element("includeSatellites")
+            include_satellites.set("value", "false")
+            ops_reinc[0].append(include_satellites)
+        # Find existing nodeOperatorCGMAccretion operator.
+        ops_accretion = node_operators[0].xpath(".//nodeOperator[@value='CGMAccretion']")
+        if len(ops_accretion) == 0:
+            sys.exit("can not find any `nodeOperator[@value='CGMAccretion']` operators")
+        if len(ops_accretion) > 1:
+            sys.exit("found multiple `nodeOperator[@value='CGMAccretion']` nodes - unknown which to use")
+        allow_negative = etree.Element("allowNegativeCGMMass")
+        allow_negative.set("value", "false")
+        ops_accretion[0].append(allow_negative)
+        # Find existing nodeOperatorStarvation operator.
+        ops_starvation = node_operators[0].xpath(".//nodeOperator[@value='CGMStarvation']")
+        if len(ops_starvation) == 0:
+            sys.exit("can not find any `nodeOperator[@value='CGMStarvation']` operators")
+        if len(ops_starvation) > 1:
+            sys.exit("found multiple `nodeOperator[@value='CGMStarvation']` nodes - unknown which to use")
+        starve_outflows_only = etree.Element("starveOutflowsOnly")
+        fraction_baryon_limit = etree.Element("fractionBaryonLimitInNodeMerger")
+        starve_outflows_only.set("value", "false")
+        fraction_baryon_limit.set("value", "false")
+        ops_starvation[0].append(starve_outflows_only)
+        ops_starvation[0].append(fraction_baryon_limit)
+    # Handle the standard, coldMode, and outflowTracking cases.
+    if hh_type in ("standard", "coldMode", "outflowTracking"):
+        # Find pre-existing options.
+        def _get_prior_value(xpath_expr, default):
+            prior = nodes[0].xpath(xpath_expr)
+            return prior[0].get("value") if len(prior) == 1 else default
+
+        fraction_baryon_value = _get_prior_value(".//fractionBaryonLimitInNodeMerger[@value]", "false")
+        starve_satellites_value = _get_prior_value(".//starveSatellites[@value]", "false")
+        starve_satellites_outflowed_value = _get_prior_value(".//starveSatellitesOutflowed[@value]", "false")
+        angular_momentum_value = _get_prior_value(".//angularMomentumAlwaysGrows[@value]", "false")
+        outflow_to_cold_mode_value = _get_prior_value(".//outflowToColdMode[@value]", "false")
+        # Remove obsoleted parameters.
+        if hh_type != "coldMode":
+            for xpath_expr in (".//fractionBaryonLimitInNodeMerger[@value]", ".//angularMomentumAlwaysGrows[@value]"):
+                for elem in nodes[0].xpath(xpath_expr):
+                    elem.getparent().remove(elem)
+        # Remove starveSatellites and starveSatellitesOutflowed regardless.
+        for xpath_expr in (".//starveSatellites[@value]", ".//starveSatellitesOutflowed[@value]"):
+            for elem in nodes[0].xpath(xpath_expr):
+                elem.getparent().remove(elem)
+        # Add the accretion operator.
+        operator_accretion = etree.Element("nodeOperator")
+        operator_accretion.set("value", "CGMAccretion")
+        if is_grid:
+            operator_accretion.set("iterable", "no")
+        node_operators[0].append(operator_accretion)
+        allow_negative = etree.SubElement(operator_accretion, "allowNegativeCGMMass")
+        allow_negative.set("value", "true")
+        angular_momentum = etree.SubElement(operator_accretion, "angularMomentumAlwaysGrows")
+        angular_momentum.set("value", angular_momentum_value)
+        # Add a starvation operator if needed.
+        if starve_satellites_value == "true" or starve_satellites_outflowed_value == "true":
+            operator_starvation = etree.Element("nodeOperator")
+            operator_starvation.set("value", "CGMStarvation")
+            if is_grid:
+                operator_starvation.set("iterable", "no")
+            node_operators[0].append(operator_starvation)
+            starve_outflows_only_value = (
+                "true" if starve_satellites_outflowed_value == "true" and starve_satellites_value == "false" else "false"
+            )
+            starve_outflows_only = etree.SubElement(operator_starvation, "starveOutflowsOnly")
+            starve_outflows_only.set("value", starve_outflows_only_value)
+            fraction_baryon_limit = etree.SubElement(operator_starvation, "fractionBaryonLimitInNodeMerger")
+            fraction_baryon_limit.set("value", fraction_baryon_value)
+        # Add a reincorporation operator if needed.
+        if not (hh_type == "coldMode" and outflow_to_cold_mode_value == "true"):
+            operator_reinc = etree.Element("nodeOperator")
+            operator_reinc.set("value", "CGMOutflowReincorporation")
+            if is_grid:
+                operator_reinc.set("iterable", "no")
+            node_operators[0].append(operator_reinc)
+            include_satellites_value = (
+                "false" if starve_satellites_outflowed_value == "true" or starve_satellites_value == "true" else "true"
+            )
+            include_satellites = etree.SubElement(operator_reinc, "includeSatellites")
+            include_satellites.set("value", include_satellites_value)
+
+
+def hot_halo_standard_ram_pressure_stripping(input_doc, parameters, is_grid):
+    """Special handling to add and modify nodeOperators for ram pressure stripping of the CGM in the standard hot halo component."""
+    nodes = parameters.xpath(
+        ".//componentHotHalo[@value='standard' or @value='coldMode']"
+    )
+    if len(nodes) <= 0:
+        # None found - check if we have any componentHotHalo.
+        nodes_any = parameters.xpath(".//componentHotHalo[@value]")
+        if len(nodes_any) > 0:
+            return
+        # Check if we have nodeOperators present.
+        node_ops = parameters.xpath(".//nodeOperator[@value='multi']")
+        if len(node_ops) == 0:
+            return
+        # No componentHotHalo - insert one with the default value.
+        component_hot_halo = etree.SubElement(parameters, "componentHotHalo")
+        component_hot_halo.set("value", "standard")
+        nodes = parameters.xpath(
+            ".//componentHotHalo[@value='standard' or @value='coldMode' or @value='outflowTracking']"
+        )
+    if len(nodes) > 1:
+        sys.exit(
+            "found multiple `.//componentHotHalo[@value='standard' or ...]` nodes"
+            " - unknown what should be done in this situation"
+        )
+    print(
+        "   translate special './/componentHotHalo[@value='standard' or @value='coldMode']'"
+    )
+    # Determine the type of hot halo component.
+    hh_type = nodes[0].get("value")
+    # Find nodeOperators.
+    node_operators = parameters.xpath(".//nodeOperator[@value='multi']")
+    if len(node_operators) == 0:
+        sys.exit("can not find any `nodeOperator[@value='multi']` into which to insert CGM operators")
+    if len(node_operators) > 1:
+        print(etree.tostring(parameters, encoding="unicode"))
+        sys.exit("found multiple `nodeOperator[@value='multi']` nodes - unknown into which to insert CGM operators")
+    # Add the ram pressure stripping operator.
+    operator_accretion = etree.Element("nodeOperator")
+    operator_accretion.set("value", "CGMOuterRadiusRamPressureStripping")
+    operator_accretion.tail = "\n"
+    if is_grid:
+        operator_accretion.set("iterable", "no")
+    node_operators[0].append(operator_accretion)
+    # Handle the coldMode cases.
+    if hh_type == "coldMode":
+        # Find pre-existing options.
+        def _get_prior_value(xpath_expr, default):
+            prior = nodes[0].xpath(xpath_expr)
+            return prior[0].get("value") if len(prior) == 1 else default
+
+        outflow_to_cold_mode_value = _get_prior_value(".//outflowToColdMode[@value]", "false")
+        # Remove obsoleted parameters.
+        for elem in nodes[0].xpath(".//outflowToColdMode[@value]"):
+            elem.getparent().remove(elem)
+        # Set the option in the CGMOutflowReincorporation nodeOperator.
+        operator_reincorporation = node_operators[0].xpath(".//nodeOperator[@value='CGMOutflowReincorporation']")
+        if len(operator_reincorporation) == 0:
+            sys.exit("can not find any `nodeOperator[@value='CGMOutflowReincorporation']` into which to insert `outflowToColdMode`")
+        if len(operator_reincorporation) > 1:
+            sys.exit("found multiple `nodeOperator[@value='CGMOutflowReincorporation']` nodes - unknown into which to insert `outflowToColdMode`")
+        outflow_to_cold_mode = etree.SubElement(operator_reincorporation, "outflowToColdMode")
+        outflow_to_cold_mode.set("value", outflow_to_cold_mode_value)
+
+def hot_halo_standard_inflow_outflow(input_doc, parameters, is_grid):
+    """Special handling to add and modify nodeOperators for CGM inflow/outflow in the standard hot halo component."""
+    # Rename any `nodeOperatorCGMCoolingInflow` to `CGMCoolingHeating`.
+    for op in parameters.xpath(".//nodeOperator[@value='multi']/nodeOperator[@value='CGMCoolingInflow']"):
+        op.tag = "CGMCoolingHeating"
+    # Look for "componentHotHalo" parameters.
+    nodes = parameters.xpath(
+        ".//componentHotHalo[@value='standard' or @value='coldMode' or @value='outflowTracking']"
+    )
+    if len(nodes) <= 0:
+        nodes_any = parameters.xpath(".//componentHotHalo[@value]")
+        if len(nodes_any) > 0:
+            return
+        node_ops = parameters.xpath(".//nodeOperator[@value='multi']")
+        if len(node_ops) == 0:
+            return
+        component_hot_halo = etree.SubElement(parameters, "componentHotHalo")
+        component_hot_halo.set("value", "standard")
+        nodes = parameters.xpath(
+            ".//componentHotHalo[@value='standard' or @value='coldMode' or @value='outflowTracking']"
+        )
+    if len(nodes) > 1:
+        sys.exit(
+            "found multiple `.//componentHotHalo[@value='standard' or ...]` nodes"
+            " - unknown what should be done in this situation"
+        )
+    print(
+        "   translate special './/componentHotHalo[@value='standard' or @value='coldMode'"
+        " or @value='outflowTracking']'"
+    )
+    hh_type = nodes[0].get("value")
+    # Find the component to which cooling should be directed.
+    nodes_disk = parameters.xpath(".//componentDisk[@value]")
+    if len(nodes_disk) == 0:
+        component_cooling = "disk"
+    else:
+        type_disk = nodes_disk[0].get("value")
+        component_cooling = "none" if type_disk == "null" else "disk"
+    # Find nodeOperators.
+    node_operators = parameters.xpath(".//nodeOperator[@value='multi']")
+    if len(node_operators) == 0:
+        sys.exit("can not find any `nodeOperator[@value='multi']` into which to insert CGM operators")
+    if len(node_operators) > 1:
+        sys.exit("found multiple `nodeOperator[@value='multi']` nodes - unknown into which to insert CGM operators")
+
+    # Find pre-existing options.
+    def _get_prior(xpath_expr, default):
+        prior = nodes[0].xpath(xpath_expr)
+        return prior[0].get("value") if len(prior) == 1 else default
+
+    cooling_from_node_value = _get_prior(".//coolingFromNode[@value]", "currentNode")
+    excess_heat_drives_outflow_value = _get_prior(".//hotHaloExcessHeatDrivesOutflow[@value]", "true")
+    rate_maximum_expulsion_value = _get_prior(".//rateMaximumExpulsion[@value]", "1.0")
+    fraction_loss_angular_momentum_value = _get_prior(".//fractionLossAngularMomentum[@value]", "0.3")
+    efficiency_stripping_outflow_value = _get_prior(".//efficiencyStrippingOutflow[@value]", "0.1")
+    track_stripped_gas_value = _get_prior(".//trackStrippedGas[@value]", "true")
+    # Remove obsoleted parameters.
+    for xpath_expr in (
+        ".//coolingFromNode[@value]",
+        ".//hotHaloExcessHeatDrivesOutflow[@value]",
+        ".//rateMaximumExpulsion[@value]",
+        ".//fractionLossAngularMomentum[@value]",
+        ".//efficiencyStrippingOutflow[@value]",
+        ".//trackStrippedGas[@value]",
+    ):
+        for elem in nodes[0].xpath(xpath_expr):
+            elem.getparent().remove(elem)
+    # Remove any blackHolesCGMHeating nodeOperator.
+    bh_cgm_heatings = parameters.xpath(".//nodeOperator[@value='multi']/nodeOperator[@value='blackHolesCGMHeating']")
+    if len(bh_cgm_heatings) > 0:
+        cgm_heating = etree.Element("circumgalacticMediumHeating")
+        cgm_heating.set("value", "AGNFeedback")
+        if is_grid:
+            cgm_heating.set("iterable", "no")
+        insert_after(parameters, cgm_heating, nodes[0])
+        for bh in bh_cgm_heatings:
+            bh.getparent().remove(bh)
+    # Add a cooling/heating operator.
+    operator_cooling_heating = etree.Element("nodeOperator")
+    operator_cooling_heating.set("value", "CGMCoolingHeating")
+    if is_grid:
+        operator_cooling_heating.set("iterable", "no")
+    node_operators[0].append(operator_cooling_heating)
+    component_elem = etree.SubElement(operator_cooling_heating, "component")
+    cooling_from = etree.SubElement(operator_cooling_heating, "coolingFrom")
+    excess_heat = etree.SubElement(operator_cooling_heating, "excessHeatDrivesOutflow")
+    rate_max = etree.SubElement(operator_cooling_heating, "rateMaximumExpulsion")
+    component_elem.set("value", component_cooling)
+    cooling_from.set("value", cooling_from_node_value)
+    excess_heat.set("value", excess_heat_drives_outflow_value)
+    rate_max.set("value", rate_maximum_expulsion_value)
+    # Add a cold mode inflow operator.
+    if hh_type == "coldMode":
+        operator_cold_mode = etree.Element("nodeOperator")
+        operator_cold_mode.set("value", "CGMColdModeInflow")
+        if is_grid:
+            operator_cold_mode.set("iterable", "no")
+        node_operators[0].append(operator_cold_mode)
+        comp = etree.SubElement(operator_cold_mode, "component")
+        cf = etree.SubElement(operator_cold_mode, "coolingFrom")
+        comp.set("value", component_cooling)
+        cf.set("value", cooling_from_node_value)
+    # Add coolingInfallTorque object.
+    cooling_infall_torque = etree.Element("coolingInfallTorque")
+    cooling_infall_torque.set("value", "fixed")
+    insert_after(parameters, cooling_infall_torque, nodes[0])
+    fraction_loss = etree.SubElement(cooling_infall_torque, "fractionLossAngularMomentum")
+    fraction_loss.set("value", fraction_loss_angular_momentum_value)
+    # Add hotHaloOutflowStripping object.
+    if track_stripped_gas_value == "true":
+        outflow_stripping = etree.Element("hotHaloOutflowStripping")
+        outflow_stripping.set("value", "standard")
+        insert_after(parameters, outflow_stripping, nodes[0])
+        efficiency = etree.SubElement(outflow_stripping, "efficiency")
+        efficiency.set("value", efficiency_stripping_outflow_value)
+    else:
+        outflow_stripping = etree.Element("hotHaloOutflowStripping")
+        outflow_stripping.set("value", "zero")
+        insert_after(parameters, outflow_stripping, nodes[0])
+    # Replace the "outflowTracking" component with a nodeOperator and nodePropertyExtractor.
+    if hh_type == "outflowTracking":
+        nodes[0].set("value", "standard")
+        # Find nodePropertyExtractors, inserting one if none exists.
+        extractors = parameters.xpath(".//nodePropertyExtractor[@value='multi']")
+        if len(extractors) > 1:
+            sys.exit("found multiple `nodePropertyExtractor[@value='multi']` nodes - unknown into which to insert CGM operators")
+        if len(extractors) == 0:
+            extractor_multi = etree.SubElement(parameters, "nodePropertyExtractor")
+            extractor_indices = etree.Element("nodePropertyExtractor")
+            extractor_multi.set("value", "multi")
+            extractor_indices.set("value", "nodeIndices")
+            extractor_multi.append(extractor_indices)
+            extractors = parameters.xpath(".//nodePropertyExtractor[@value='multi']")
+        # Insert nodeOperator.
+        node_operator = etree.Element("nodeOperator")
+        node_operator.set("value", "trackOutflowedMass")
+        node_operators[0].append(node_operator)
+        # Insert nodePropertyExtractor.
+        node_extractor = etree.Element("nodePropertyExtractor")
+        node_extractor.set("value", "trackOutflowedMass")
+        extractors[0].append(node_extractor)
+
+
+def satellite_bound_mass_initializor(input_doc, parameters, is_grid):
+    """Convert initializationTypeMassBound parameter to satelliteMassBoundInitializor class."""
+    init_type_nodes = parameters.xpath(".//componentSatellite/initializationTypeMassBound[@value]")
+    if len(init_type_nodes) == 0:
+        return
+    for init_type in init_type_nodes:
+        parent = init_type.getparent()
+        value = init_type.get("value")
+        print(f"   translate special './/componentSatellite/initializationTypeMassBound[@value=\"{value}\"]'")
+        # Create new satelliteMassBoundInitializor element.
+        new_elem = etree.Element("satelliteMassBoundInitializor")
+        new_elem.set("value", value)
+        if value == "maximumRadius":
+            # Move radiusMaximumOverRadiusVirial inside the new element.
+            for radius_elem in parent.findall("radiusMaximumOverRadiusVirial"):
+                parent.remove(radius_elem)
+                new_elem.append(radius_elem)
+        elif value == "densityContrast":
+            # Move virialDensityContrastDefinition inside the new element.
+            for vdc_elem in parent.findall("virialDensityContrastDefinition"):
+                parent.remove(vdc_elem)
+                new_elem.append(vdc_elem)
+        # Insert new element and remove old one.
+        parent.append(new_elem)
+        parent.remove(init_type)
+
+
+def satellite_orbit_initializor(input_doc, parameters, is_grid):
+    """Move acceptUnboundOrbits from component to nodeOperator."""
+    accept_type_nodes = parameters.xpath(".//componentSatellite/acceptUnboundOrbits[@value]")
+    if len(accept_type_nodes) == 0:
+        return
+    for accept_type in accept_type_nodes:
+        parent = accept_type.getparent()
+        value = accept_type.get("value")
+        print(f"   translate special './/componentSatellite/acceptUnboundOrbits[@value=\"{value}\"]'")
+        # Remove the old node.
+        parent.remove(accept_type)
+        # Find the nodeOperator.
+        operator_nodes = parameters.xpath('//nodeOperator[@value="satelliteOrbit"]')
+        if len(operator_nodes) == 0:
+            raise RuntimeError('no nodeOperator[@value="satelliteOrbit"] exists')
+        for operator_node in operator_nodes:
+            # Create new acceptUnboundOrbits element.
+            new_elem = etree.Element("acceptUnboundOrbits")
+            new_elem.set("value", value)
+            # Insert new element.
+            operator_node.append(new_elem)
+
+
+def disk_very_simple_analytic_solver(input_doc, parameters, is_grid):
+    """Migrate the legacy 'verySimple' disk analytic solver from the disk component to a nodeOperator."""
+    disks = parameters.xpath(
+        ".//componentDisk[@value='verySimple' or @value='verySimpleSize']"
+    )
+    has_operator_already = (
+        len(parameters.xpath(".//nodeOperator[@value='diskVerySimpleAnalyticSolver']")) > 0
+    )
+    if len(disks) == 0 and not has_operator_already:
+        return
+    print("   translate special './/componentDisk[@value='verySimple' or @value='verySimpleSize']'")
+    use_analytic_solver = False
+    prune_mass_gas = None
+    prune_mass_stars = None
+    track_abundances = None
+    for disk in disks:
+        # Capture and remove the four moving parameters and drop the obsolete trackLuminosities.
+        for child_name, capture in (
+            ("useAnalyticSolver", "useAnalyticSolver"),
+            ("pruneMassGas",      "pruneMassGas"     ),
+            ("pruneMassStars",    "pruneMassStars"   ),
+            ("trackAbundances",   "trackAbundances"  ),
+            ("trackLuminosities", None               ),
+        ):
+            for child in disk.findall(child_name):
+                value = child.get("value")
+                if capture == "useAnalyticSolver" and value is not None and value.lower() == "true":
+                    use_analytic_solver = True
+                elif capture == "pruneMassGas":
+                    prune_mass_gas = value
+                elif capture == "pruneMassStars":
+                    prune_mass_stars = value
+                elif capture == "trackAbundances":
+                    track_abundances = value
+                disk.remove(child)
+    if not use_analytic_solver and not has_operator_already:
+        return
+    if use_analytic_solver and not has_operator_already:
+        # Insert a new nodeOperator carrying the captured parameters.
+        node_operators = parameters.xpath(".//nodeOperator[@value='multi']")
+        if len(node_operators) == 0:
+            sys.exit(
+                "can not find any `nodeOperator[@value='multi']` into which to insert"
+                " a `diskVerySimpleAnalyticSolver` operator"
+            )
+        if len(node_operators) > 1:
+            sys.exit(
+                "found multiple `nodeOperator[@value='multi']` nodes - unknown into which to"
+                " insert a `diskVerySimpleAnalyticSolver` operator"
+            )
+        _insert_disk_very_simple_analytic_solver_operator(
+            node_operators[0], is_grid, prune_mass_gas, prune_mass_stars, track_abundances
+        )
+    _ensure_satellite_destruction_timestep(parameters, is_grid)
+
+
+def _insert_disk_very_simple_analytic_solver_operator(
+    multi_node, is_grid, prune_mass_gas, prune_mass_stars, track_abundances
+):
+    operator_node = etree.Element("nodeOperator")
+    operator_node.set("value", "diskVerySimpleAnalyticSolver")
+    if is_grid:
+        operator_node.set("iterable", "no")
+    for tag, value in (
+        ("pruneMassGas",    prune_mass_gas    ),
+        ("pruneMassStars",  prune_mass_stars  ),
+        ("trackAbundances", track_abundances  ),
+    ):
+        if value is None:
+            continue
+        child = etree.Element(tag)
+        child.set("value", value)
+        operator_node.append(child)
+    multi_node.append(operator_node)
+
+
+def _ensure_satellite_destruction_timestep(parameters, is_grid):
+    """Ensure a `satelliteDestruction` mergerTreeEvolveTimestep is present so pruned satellites
+    (those flagged via `destructionTime`) are cleaned up by the standard mechanism."""
+    if len(parameters.xpath(".//mergerTreeEvolveTimestep[@value='satelliteDestruction']")) > 0:
+        return
+    timestep_top_level = parameters.findall("mergerTreeEvolveTimestep")
+    if len(timestep_top_level) == 0:
+        # No top-level entry: insert a `multi` containing the default `standard` entry plus our
+        # new `satelliteDestruction` entry.
+        multi_node = etree.Element("mergerTreeEvolveTimestep")
+        multi_node.set("value", "multi")
+        standard_node = etree.Element("mergerTreeEvolveTimestep")
+        standard_node.set("value", "standard")
+        if is_grid:
+            standard_node.set("iterable", "no")
+        destruction_node = etree.Element("mergerTreeEvolveTimestep")
+        destruction_node.set("value", "satelliteDestruction")
+        if is_grid:
+            destruction_node.set("iterable", "no")
+        multi_node.append(standard_node)
+        multi_node.append(destruction_node)
+        parameters.append(multi_node)
+    else:
+        timestep = timestep_top_level[0]
+        destruction_node = etree.Element("mergerTreeEvolveTimestep")
+        destruction_node.set("value", "satelliteDestruction")
+        if is_grid:
+            destruction_node.set("iterable", "no")
+        if timestep.get("value") == "multi":
+            # Append into the existing `multi` entry.
+            timestep.append(destruction_node)
+        else:
+            # Wrap the existing entry in a new `multi` and append our new destruction entry.
+            multi_node = etree.Element("mergerTreeEvolveTimestep")
+            multi_node.set("value", "multi")
+            idx = list(parameters).index(timestep)
+            parameters.remove(timestep)
+            # The wrapped entry must look like an inner `iterable="no"` child for grids.
+            if is_grid and timestep.get("iterable") is None:
+                timestep.set("iterable", "no")
+            multi_node.append(timestep)
+            multi_node.append(destruction_node)
+            parameters.insert(idx, multi_node)
+
+def johnson2021_correlated_branches(input_doc, parameters, is_grid):
+    """Pin parameter settings to those consistent with behavior prior to adding correlated scale radii along branches.
+
+    `countSampleEnergyUnresolved` is pinned to the class default of 100, not to 1. Prior to this
+    commit the energy of subresolution accretion was computed deterministically from the means of
+    the virial orbit distribution; it is now estimated by Monte Carlo sampling. A single sample is
+    therefore *not* equivalent to the prior behavior - it replaces that mean with one random draw,
+    which both inflates the scatter in, and biases, the resulting scale radii. Measured for halos
+    just above the merger tree mass resolution, sigma(log10 c) is 0.026 with the prior code, 0.075
+    with one sample, and 0.034 with 100 samples; the median concentration is likewise recovered.
+    The additional sampling costs little, since this calculation is a small share of the run time.
+    """
+    defaults = {
+        "factorMassResolution": "0.0",
+        "scatter": "0.0",
+        "scatterExcess": "0.0",
+        "correlationRateDecay": "0.0",
+        "correlationExponent": "0.0",
+        "countSampleEnergyUnresolved": "100",
+        "acceptUnboundOrbits": "true",
+    }
+    accept_type_nodes = parameters.xpath(".//darkMatterProfileScaleRadius[@value='johnson2021']")
+    if len(accept_type_nodes) == 0:
+        return
+    for accept_type in accept_type_nodes:
+        print(f"   translate special './/darkMatterProfileScaleRadius[@value=\"'johnson2021\"]'")
+        component_properties = {}
+        # Extract all sub-parameters.
+        for node_child in accept_type.xpath("*[@value]"):
+            component_properties[node_child.tag] = node_child.get("value")
+        for param_name, param_value in defaults.items():
+            if param_name not in component_properties:
+                param = etree.Element(param_name)
+                param.set("value", param_value)
+                accept_type.append(param)
+                print("append",param_name, param_value)
+
+
+def _suppress_extended_mass_disable(element):
+    """Append `chandrasekharIntegralSuppressExtendedMass=false` to `element` unless already set."""
+    if len(element.xpath("./chandrasekharIntegralSuppressExtendedMass[@value]")) > 0:
+        return
+    print(f"   append chandrasekharIntegralSuppressExtendedMass false to <{element.tag} value=\"{element.get('value')}\">")
+    new_elem = etree.Element("chandrasekharIntegralSuppressExtendedMass")
+    new_elem.set("value", "false")
+    element.append(new_elem)
+
+
+def chandrasekhar_suppress_extended_mass(input_doc, parameters, is_grid):
+    """Disable the extended-mass suppression of the Chandrasekhar integral.
+
+    Commit 938122648 introduced a factor in the spherical Chandrasekhar integral (used to compute
+    dynamical friction) that suppresses the integral to account for the finite extent of the
+    perturbing subhalo. This factor now defaults to being applied. Parameter files predating that
+    commit expect the prior behavior (no suppression), so we explicitly disable it here by adding
+    `chandrasekharIntegralSuppressExtendedMass=false`.
+
+    The option must be set on whichever mass distribution is actually used to evaluate the
+    Chandrasekhar integral. Dynamical friction uses the *non*-dark-matter-only `darkMatterProfile`
+    of the host (via `node%massDistribution()`), so the option is required there as well as on any
+    `heated` `darkMatterProfileDMO`. Because `adiabaticGnedin2004` is the default
+    `darkMatterProfile`, a file which uses dynamical friction but does not name a
+    `darkMatterProfile` explicitly has one inserted (with the default implementation) so that the
+    option can be attached.
+    """
+    for heated in parameters.xpath(".//darkMatterProfileDMO[@value='heated']"):
+        _suppress_extended_mass_disable(heated)
+    profiles = parameters.xpath(".//darkMatterProfile[@value='adiabaticGnedin2004' or @value='darkMatterOnly']")
+    for profile in profiles:
+        _suppress_extended_mass_disable(profile)
+    # If no `darkMatterProfile` is named at all, the default (`adiabaticGnedin2004`) is used and
+    # there is no element to which the option can be attached. Insert one, but only where dynamical
+    # friction is actually being computed - otherwise the option has no effect and we would be
+    # adding noise to every migrated file.
+    if len(parameters.xpath(".//darkMatterProfile[@value]")) > 0:
+        return
+    friction = parameters.xpath(".//satelliteDynamicalFriction[@value]")
+    if len(friction) == 0 or all(element.get("value") == "zero" for element in friction):
+        return
+    print("   insert darkMatterProfile adiabaticGnedin2004 (default) to carry chandrasekharIntegralSuppressExtendedMass")
+    profile = etree.Element("darkMatterProfile")
+    profile.set("value", "adiabaticGnedin2004")
+    if is_grid:
+        profile.set("iterable", "no")
+    parameters.append(profile)
+    _suppress_extended_mass_disable(profile)
+
+
+def dynamical_friction_gaseous(input_doc, parameters, is_grid):
+    """Retain the collisionless treatment of dynamical friction from gaseous components.
+
+    Commit b3ff1596d6 introduced the `dynamicalFrictionGaseous` class, used to compute dynamical friction
+    from collisional (gaseous) components such as the hot halo, with a default (`kimKim2007`) that
+    differs from the collisionless Chandrasekhar (1943) formula previously applied to them. Parameter
+    files predating that commit expect the prior behavior, so we explicitly select
+    `dynamicalFrictionGaseous=chandrasekhar1943`, which reproduces it.
+
+    The option matters only where dynamical friction is computed (by a `satelliteDynamicalFriction`
+    node operator, or any non-`zero` `satelliteDynamicalFriction` class) *and* a gaseous component is
+    present (i.e. `componentHotHalo` is not `null` - the default is `standard`). Elsewhere it would have
+    no effect, so we do not add it.
+    """
+    if len(parameters.xpath(".//dynamicalFrictionGaseous[@value]")) > 0:
+        return
+    friction = parameters.xpath(".//satelliteDynamicalFriction[@value]")
+    operator = parameters.xpath(".//nodeOperator[@value='satelliteDynamicalFriction']")
+    if len(friction) == 0 and len(operator) == 0:
+        return
+    if len(friction) > 0 and all(element.get("value") == "zero" for element in friction):
+        return
+    hot_halo = parameters.xpath(".//componentHotHalo[@value]")
+    if len(hot_halo) > 0 and all(element.get("value") == "null" for element in hot_halo):
+        return
+    print("   insert dynamicalFrictionGaseous chandrasekhar1943 to retain collisionless dynamical friction from gas")
+    gaseous = etree.Element("dynamicalFrictionGaseous")
+    gaseous.set("value", "chandrasekhar1943")
+    if is_grid:
+        gaseous.set("iterable", "no")
+    append_indented(parameters, gaseous)
+
+
+def satellite_deferral_default(input_doc, parameters, is_grid):
+    """Retain the absence of satellite deferral across the change of its default.
+
+    The default of `fractionTimestepSatelliteMinimum` in the `standard` and `threaded` merger tree evolvers changed from
+    0 (never defer the evolution of a satellite) to 0.75 (issue #1431). Parameter files predating that change expect the
+    prior behavior, so we explicitly set `fractionTimestepSatelliteMinimum=0` in any such evolver which does not set it.
+
+    Only explicitly-present `mergerTreeEvolver` elements are modified. A file which relies on the default evolver (and so
+    has no `mergerTreeEvolver` element) is left unchanged, and will use the new default: whether such a file actually
+    evolves merger trees, or is a fragment to be combined with others (through `xi:include` or on the command line)
+    which select an evolver themselves, cannot be determined from the file alone, and adding an evolver to a fragment
+    could duplicate one selected elsewhere.
+    """
+    for evolver in parameters.xpath(".//mergerTreeEvolver[@value='standard' or @value='threaded']"):
+        # A model that stated its choice explicitly already means what it says - leave it alone.
+        if len(evolver.findall("fractionTimestepSatelliteMinimum")) > 0:
+            continue
+        print("   insert fractionTimestepSatelliteMinimum 0 to retain the absence of satellite deferral")
+        fraction = etree.Element("fractionTimestepSatelliteMinimum")
+        fraction.set("value", "0")
+        if is_grid:
+            fraction.set("iterable", "no")
+        append_indented(evolver, fraction)
+
+
+def interstellar_medium_kinematics(input_doc, parameters, is_grid):
+    """Retain the collisionless treatment of dynamical friction from the interstellar medium.
+
+    The gas of the standard disk, spheroid, and nuclear star cluster components is now described by
+    the `kinematicsDistributionInterstellarMedium` class, which defaults to `effectiveSoundSpeed` - a
+    collisional distribution for which dynamical friction is computed using the `dynamicalFrictionGaseous`
+    class. Previously this gas shared the collisionless `local` kinematics of the stars, so parameter
+    files predating this change expect that behavior, which we retain by explicitly selecting
+    `kinematicsDistributionInterstellarMedium=local`.
+
+    The option matters only where dynamical friction is computed (by a `satelliteDynamicalFriction`
+    node operator, or any non-`zero` `satelliteDynamicalFriction` class) *and* a standard disk,
+    spheroid, or nuclear star cluster component is present (the disk and spheroid default to
+    `standard`, the nuclear star cluster to `null`). Elsewhere it would have no effect (other than on
+    any output of the velocity dispersion of the gas), so we do not add it.
+    """
+    if len(parameters.xpath(".//kinematicsDistributionInterstellarMedium[@value]")) > 0:
+        return
+    friction = parameters.xpath(".//satelliteDynamicalFriction[@value]")
+    operator = parameters.xpath(".//nodeOperator[@value='satelliteDynamicalFriction']")
+    if len(friction) == 0 and len(operator) == 0:
+        return
+    if len(friction) > 0 and all(element.get("value") == "zero" for element in friction):
+        return
+    def has_standard(name, default):
+        elements = parameters.xpath(f".//{name}[@value]")
+        if len(elements) == 0:
+            return default
+        return any(element.get("value") == "standard" for element in elements)
+    if not (has_standard("componentDisk", True) or has_standard("componentSpheroid", True) or has_standard("componentNSC", False)):
+        return
+    print("   insert kinematicsDistributionInterstellarMedium local to retain collisionless dynamical friction from the interstellar medium")
+    kinematics = etree.Element("kinematicsDistributionInterstellarMedium")
+    kinematics.set("value", "local")
+    if is_grid:
+        kinematics.set("iterable", "no")
+    append_indented(parameters, kinematics)
+
+
+def vitvitska_subresolution_method(input_doc, parameters, is_grid):
+    """Special handling to preserve the sub-resolution angular momentum method across the default flip."""
+    nodes = parameters.xpath(".//nodeOperator[@value='haloAngularMomentumVitvitska2002']")
+    if len(nodes) <= 0:
+        return
+    print("   translate special './/nodeOperator[@value='haloAngularMomentumVitvitska2002']'")
+    for node in nodes:
+        # A model that stated its choice explicitly already means what it says - leave it alone.
+        if len(node.findall("useOriginalSubresolutionMethod[@value]")) > 0:
+            continue
+        # The default flipped from `true` to `false`, so an absent parameter used to mean `true`.
+        method_node = etree.Element("useOriginalSubresolutionMethod")
+        method_node.set("value", "true")
+        if is_grid:
+            method_node.set("iterable", "no")
+        node.append(method_node)
+
+
+def johnson2021_mass_function_slope(input_doc, parameters, is_grid):
+    """Preserve the Johnson2021 unresolved-accretion mass-function slope across its default change.
+    `massFunctionSlopeLogarithmic` was a compiled constant (-1.8) and is now an input parameter whose
+    default changed to -1.9 (unifying it with Vitvitska2002 and matching Benson 2019). A file predating
+    this change implicitly used -1.8, so pin that value to preserve its behavior."""
+    nodes = parameters.xpath(".//darkMatterProfileScaleRadius[@value='johnson2021']")
+    if len(nodes) <= 0:
+        return
+    print("   translate special './/darkMatterProfileScaleRadius[@value='johnson2021']' (mass-function slope)")
+    for node in nodes:
+        # If the parameter is already stated explicitly, the file means what it says - leave it.
+        if len(node.findall("massFunctionSlopeLogarithmic[@value]")) > 0:
+            continue
+        slope_node = etree.Element("massFunctionSlopeLogarithmic")
+        slope_node.set("value", "-1.8")
+        if is_grid:
+            slope_node.set("iterable", "no")
+        node.append(slope_node)
+
+
+def vitvitska_subresolution_method_enum(input_doc, parameters, is_grid):
+    """Convert the boolean `useOriginalSubresolutionMethod` to the `subresolutionAngularMomentumMethod`
+    enumeration, preserving the original behavior. The default variance method changed to the new,
+    physically-convergent `resolutionScaled` method, so a file predating this change must be pinned to
+    its former behavior: the old boolean's `true`/`false` map to `original`/`massScaled` respectively.
+    (The earlier `vitvitska_subresolution_method` migration ensures the boolean is present, so any file
+    reaching here that used the model has it set explicitly.)
+
+    The obsolete boolean is removed unconditionally - including from a file which already states the new
+    enumeration parameter. It no longer exists in the code, so leaving it in place would produce an
+    `unrecognized parameter` warning at run time, and since that is only a warning it would go unnoticed."""
+    nodes = parameters.xpath(".//nodeOperator[@value='haloAngularMomentumVitvitska2002']")
+    if len(nodes) <= 0:
+        return
+    print("   translate special './/nodeOperator[@value='haloAngularMomentumVitvitska2002']' (enumeration)")
+    for node in nodes:
+        # Remove the obsolete boolean first, so that it is dropped even in the case below where the new
+        # enumeration parameter is already present and we leave that value alone.
+        boolean_nodes = node.findall("useOriginalSubresolutionMethod[@value]")
+        used_original = (
+            boolean_nodes[0].get("value").strip().lower() in ("true", ".true.", "yes")
+            if len(boolean_nodes) > 0
+            else None
+        )
+        for boolean_node in boolean_nodes:
+            print("   remove obsolete useOriginalSubresolutionMethod")
+            node.remove(boolean_node)
+        # If the new enumeration parameter is already present, the file means what it says - leave it.
+        if len(node.findall("subresolutionAngularMomentumMethod[@value]")) > 0:
+            continue
+        if used_original is None:
+            continue
+        method_node = etree.Element("subresolutionAngularMomentumMethod")
+        method_node.set("value", "original" if used_original else "massScaled")
+        if is_grid:
+            method_node.set("iterable", "no")
+        node.append(method_node)
+
+
+# ---------------------------------------------------------------------------
+# Dispatch table for special migration functions
+# ---------------------------------------------------------------------------
+
+def splashback_radius_accretion_flow(input_doc, parameters, is_grid):
+    """Special handling for the introduction of the `darkMatterHaloSplashbackRadius` class.
+
+    The `accretionFlowDiemerKravtsov2014` and `accretionFlowShi2016` dark matter profile classes
+    previously computed the radius at which the profile transitions from the virialized halo to
+    the accretion flow using the truncation radius of Diemer & Kravtsov (2014). They now obtain
+    that radius from a `darkMatterHaloSplashbackRadius` object, which defaults to the (physically
+    preferable) `diemer2020` model. To retain the original behavior of existing parameter files we
+    therefore insert an explicit `diemerKravtsov2014` splashback radius into these classes.
+
+    Note that this restores the original *model*, but not precisely the original results: the
+    `diemerKravtsov2014` class evaluates the peak height using M₂₀₀ₘ (as Diemer & Kravtsov do),
+    whereas the previous, inlined implementation used the virial mass of the halo.
+    """
+    for node in parameters.xpath(
+        ".//darkMatterProfileDMO[@value='accretionFlowDiemerKravtsov2014' or @value='accretionFlowShi2016']"
+    ):
+        # Do not override a splashback radius which has already been specified.
+        if len(node.xpath("./darkMatterHaloSplashbackRadius[@value]")) > 0:
+            continue
+        print("   insert special 'darkMatterHaloSplashbackRadius' into '" + node.get("value") + "'")
+        splashback_node = etree.Element("darkMatterHaloSplashbackRadius")
+        splashback_node.set("value", "diemerKravtsov2014")
+        if is_grid:
+            splashback_node.set("iterable", "no")
+        # Append as the final child, preserving the indentation of the existing children.
+        children = list(node)
+        if children:
+            splashback_node.tail = children[-1].tail
+            children[-1].tail = node.text
+        else:
+            # The indentation of this node is carried by the whitespace which precedes it.
+            previous = node.getprevious()
+            indentation = (previous.tail if previous is not None else node.getparent().text) or "\n  "
+            splashback_node.tail = indentation
+            node.text = indentation + "  "
+        node.append(splashback_node)
+
+
+def prompt_cusp_require_collapse_before_halo(input_doc, parameters, is_grid):
+    """Special handling for the introduction of the `requireCollapseBeforeHalo` parameter.
+
+    The `darkMatterProfilePromptCusps` node operator previously assigned a prompt cusp to every
+    halo, accepting collapse epochs which postdate the halo itself and, where no collapse epoch
+    existed at all, taking the collapse to occur at the limiting time of the search. It now follows
+    the reference implementation of Delos & White (2025) instead: since prompt cusp formation is,
+    by definition, the formation event of a halo, halos failing that condition can not have formed,
+    and are labeled so that they may be pruned from the merger tree.
+
+    This changes the physics of existing models, so we pin the original behavior here. Users who
+    want the new (more realistic) behavior should set `requireCollapseBeforeHalo` to true and add a
+    merger tree operator which prunes the labeled halos - see the documentation for the
+    `nodeOperatorDarkMatterProfilePromptCusps` class.
+    """
+    for node in parameters.xpath(".//nodeOperator[@value='darkMatterProfilePromptCusps']"):
+        # Do not override a choice which has already been made explicitly.
+        if len(node.xpath("./requireCollapseBeforeHalo[@value]")) > 0:
+            continue
+        print("   insert special 'requireCollapseBeforeHalo' into 'darkMatterProfilePromptCusps'")
+        require_node = etree.Element("requireCollapseBeforeHalo")
+        require_node.set("value", "false")
+        if is_grid:
+            require_node.set("iterable", "no")
+        # Append as the final child, preserving the indentation of the existing children.
+        children = list(node)
+        if children:
+            require_node.tail = children[-1].tail
+            children[-1].tail = node.text
+        else:
+            # The indentation of this node is carried by the whitespace which precedes it.
+            previous = node.getprevious()
+            indentation = (previous.tail if previous is not None else node.getparent().text) or "\n  "
+            require_node.tail = indentation
+            node.text = indentation + "  "
+        node.append(require_node)
+
+
+def dust_attenuation_framework(input_doc, parameters, is_grid):
+    """Special handling for the retirement of `stellarSpectraDustAttenuation` and `lmnstyStllrCF2000`.
+
+    The `lmnstyStllrCF2000` property extractor applied Charlot & Fall (2000) dust to the summed stellar luminosity of
+    a galaxy. Its replacement extracts each component's luminosity unattenuated, applies dust by wrapping them, and
+    scalarizes the sum:
+
+        scalarizer -> dustAttenuation(outputSumOnly) -> luminosityStellar(disk), luminosityStellar(spheroid)
+
+    Note the replacement evaluates the extinction curve at the rest-frame wavelength, where the old extractor used
+    the observed one. For a rest-frame filter these coincide and results are unchanged; for an observed-frame filter
+    at band redshift z the optical depth changes by a factor (1+z)^exponent. The old behavior was a bug -- dust acts
+    in the rest frame of the emitting galaxy -- so it is not reproduced here.
+    """
+    for node in parameters.xpath(".//nodePropertyExtractor[@value='lmnstyStllrCF2000']"):
+        print("   translate special './/nodePropertyExtractor[@value=\'lmnstyStllrCF2000\']'")
+        # Read the old parameters, falling back to the defaults of the retired class.
+        def setting(name, default):
+            child = node.find(name)
+            return child.get("value") if child is not None else default
+
+        filter_name    = setting("filterName"                   , "SDSS_r")
+        filter_type    = setting("filterType"                   , "rest"  )
+        coefficient_ism    = setting("depthOpticalISMCoefficient"   , "1.0"   )
+        coefficient_clouds = setting("depthOpticalCloudsCoefficient", "1.0"   )
+        exponent           = setting("wavelengthExponent"           , "0.7"   )
+        redshift_band      = node.find("redshiftBand")
+
+        scalarizer = etree.Element("nodePropertyExtractor")
+        scalarizer.set("value", "scalarizer")
+        etree.SubElement(scalarizer, "element", value="1")
+        attenuated = etree.SubElement(scalarizer, "nodePropertyExtractor", value="dustAttenuation")
+        etree.SubElement(attenuated, "outputSumOnly", value="true"             )
+        etree.SubElement(attenuated, "sumName"      , value="luminosityStellar")
+        dust = etree.SubElement(attenuated, "dustAttenuation", value="charlotFall2000")
+        etree.SubElement(dust, "coefficientBirthCloud", value=coefficient_clouds)
+        etree.SubElement(dust, "coefficientISM"       , value=coefficient_ism   )
+        etree.SubElement(dust, "timescale"            , value="1.0e-2"          )
+        etree.SubElement(dust, "exponent"             , value=exponent          )
+        # Each component carries its own column of dust, so each is extracted and attenuated separately. Both
+        # postprocessing chains are needed so that the light can be split by stellar population age, which the birth
+        # cloud component requires.
+        for component in ("disk", "spheroid"):
+            luminosity = etree.SubElement(attenuated, "nodePropertyExtractor", value="luminosityStellar")
+            etree.SubElement(luminosity, "filterName"       , value=filter_name    )
+            etree.SubElement(luminosity, "filterType"       , value=filter_type    )
+            etree.SubElement(luminosity, "component"        , value=component      )
+            etree.SubElement(luminosity, "postprocessChains", value="default recent")
+            if redshift_band is not None:
+                etree.SubElement(luminosity, "redshiftBand", value=redshift_band.get("value"))
+        # Insert the replacement and remove the original. The new subtree is indented explicitly: it is several
+        # levels deep, and inherits no useful whitespace from the single element it replaces.
+        parent = node.getparent()
+        etree.indent(scalarizer, space="  ")
+        scalarizer.tail = node.tail
+        insert_after(parent, scalarizer, node)
+        parent.remove(node)
+
+
+
+def extended_schmidt_normalization_per_gigayear(input_doc, parameters, is_grid):
+    """Rescale the extended Schmidt normalization from per year to per Gyr.
+
+    The parameter was given in M☉ yr⁻¹ pc⁻², while the equivalent parameter of
+    `kennicuttSchmidt` was given in M☉ Gyr⁻¹ pc⁻². Both are now per Gyr, so an
+    existing value must be multiplied by the number of years in a Gyr.
+    """
+    for node in parameters.xpath(
+        ".//starFormationRateSurfaceDensityDisks[@value='extendedSchmidt']/normalization[@value]"
+    ):
+        value = node.get("value")
+        try:
+            rescaled = float(value) * 1.0e9
+        except ValueError:
+            # A value which is not a plain number - an expression, say - can not be rescaled here.
+            print(
+                f"   WARNING: can not rescale 'starFormationRateSurfaceDensityDisks[extendedSchmidt]/normalization'"
+                f" value '{value}' from per year to per Gyr - rescale it by 1e9 by hand"
+            )
+            continue
+        print(
+            "   translate special './/starFormationRateSurfaceDensityDisks[@value=\'extendedSchmidt\']"
+            f"/normalization[@value]': {value} --> {rescaled:.6e} (per year --> per Gyr)"
+        )
+        node.set("value", f"{rescaled:.6e}")
+
+
+def dust_properties(input_doc, parameters, is_grid):
+    """Special handling for the introduction of the `dustProperties` class.
+
+    Dust attenuation classes now take their dust-to-metals ratio and V-band opacity from a `dustProperties` object, so
+    that the dust which attenuates a galaxy's light and the dust which re-emits it are the same. Two parameters change:
+
+    * `birthCloud` replaces its dimensionless `coefficient` (the V-band optical depth of a birth cloud of local
+      interstellar medium metallicity) with `densitySurfaceGas`, the column of gas through the cloud in M☉/pc². With the
+      default dust properties unit optical depth corresponds to `COLUMN_UNIT_OPTICAL_DEPTH`, so the coefficient is
+      multiplied by that. (`charlotFall2000` keeps its dimensionless `coefficientBirthCloud` and is unaffected.)
+    * `atlasCompendium` loses its `dustToMetalsRatio`, which moves into a `dustProperties` object of its own. That object
+      must also carry the opacity of the tabulation, which depends on the file and so can not be filled in here: the
+      model reports the required value when it is run.
+    """
+    for node in parameters.xpath(".//dustAttenuation[@value='birthCloud']/coefficient"):
+        print("   translate special './/dustAttenuation[@value=\'birthCloud\']/coefficient'")
+        value = node.get("value")
+        try:
+            column = float(value) * COLUMN_UNIT_OPTICAL_DEPTH
+        except (TypeError, ValueError):
+            sys.exit(f'parametersMigrate.py: can not convert the non-numeric birthCloud coefficient "{value}" to a densitySurfaceGas - convert it by hand, multiplying by {COLUMN_UNIT_OPTICAL_DEPTH:.6e}')
+        node.tag = "densitySurfaceGas"
+        node.set("value", f"{column:.6e}")
+    for node in parameters.xpath(".//dustAttenuation[@value='atlasCompendium']/dustToMetalsRatio"):
+        print("   translate special './/dustAttenuation[@value=\'atlasCompendium\']/dustToMetalsRatio'")
+        print("      NOTE: the new dustProperties object also needs `opacityExtinctionV` set to the opacity of the tabulation;")
+        print("            run the model once to have it reported")
+        attenuator = node.getparent()
+        properties = etree.Element("dustProperties")
+        properties.set("value", "simple")
+        ratio = etree.SubElement(properties, "dustToMetalsRatio")
+        ratio.set("value", node.get("value"))
+        # Indent the new element to match the one it replaces.
+        previous    = node.getprevious()
+        whitespace  = (previous.tail if previous is not None else attenuator.text) or "\n"
+        indentation = whitespace.split("\n")[-1]
+        properties.text = "\n" + indentation + "  "
+        ratio     .tail = "\n" + indentation
+        properties.tail = node.tail
+        insert_after(attenuator, properties, node)
+        attenuator.remove(node)
+
+
+# Surface density of gas, in M☉/pc², for which gas of the metallicity of the local interstellar medium containing Milky
+# Way dust has unit V-band optical depth. This matches `densitySurfaceGasDepthOpticalVUnitMilkyWay` in
+# `source/dust/properties/_class.F90`: the Savage & Mathis (1979) relation between column density and reddening
+# (A_V/E(B-V)=3.1, N_H/E(B-V)=5.8e21 atoms/cm²/mag), a solar hydrogen mass fraction of 0.707, and a local interstellar
+# medium metallicity of 0.02.
+_DEPTH_OPTICAL_PER_SURFACE_DENSITY_METALS = 3.1 / 5.8e21 * 0.707 / 1.660538782e-24 / 0.02 / (2.5 / math.log(10.0))  # cm²/g
+COLUMN_UNIT_OPTICAL_DEPTH = 1.0 / _DEPTH_OPTICAL_PER_SURFACE_DENSITY_METALS / 0.02 * 3.08567758135e18**2 / 1.98892e33
+
+
+def _whitespace_before(node):
+    """Return the whitespace preceding a node (the tail of its previous sibling, or the text of its parent)."""
+    previous = node.getprevious()
+    text = previous.tail if previous is not None else node.getparent().text
+    return text if text is not None and text.strip() == "" else "\n  "
+
+
+def _remove_preserving_whitespace(node):
+    """Remove a node from its parent, retaining the layout of the remaining siblings."""
+    parent = node.getparent()
+    previous = node.getprevious()
+    if previous is not None:
+        previous.tail = node.tail
+    else:
+        parent.text = node.tail
+    parent.remove(node)
+    if len(parent) == 0 and (parent.text is None or parent.text.strip() == ""):
+        parent.text = None
+
+
+def _reindent(node, indent_old, indent_new):
+    """Re-indent the subtree rooted at `node` (moved from indentation `indent_old` to `indent_new`)."""
+    for element in node.iter():
+        if element is not node and element.tail is not None and element.tail.strip() == "" and "\n" in element.tail:
+            element.tail = element.tail.replace("\n" + indent_old, "\n" + indent_new)
+        if element.text is not None and element.text.strip() == "" and "\n" in element.text:
+            element.text = element.text.replace("\n" + indent_old, "\n" + indent_new)
+
+
+def _append_child(parent, child, indent):
+    """Append `child` to `parent`, where `indent` is the indentation of `parent` itself."""
+    if len(parent) == 0:
+        parent.text = "\n" + indent + "  "
+    else:
+        parent[-1].tail = "\n" + indent + "  "
+    child.tail = "\n" + indent
+    parent.append(child)
+
+
+def _parameter_path(element):
+    """Return the absolute path (as used in derived parameter expressions) of a parameter element, or None if it can not be
+    determined (because the element, or one of its ancestors, is moved elsewhere in the parameter tree by a `parameterLevel`
+    attribute)."""
+    names = []
+    while element is not None and element.tag != "parameters":
+        if element.get("parameterLevel") is not None:
+            return None
+        names.insert(0, element.tag)
+        element = element.getparent()
+    return "/".join(names) if element is not None else None
+
+
+def _power_spectrum_normalizer_build(variance, indent, is_grid):
+    """Build a `powerSpectrumNormalizer` element from the normalization parameters of a `cosmologicalMassVariance` element,
+    removing those parameters which belong only to the normalizer. Returns the new element, or None if `variance` specifies
+    no normalization parameters."""
+    def child(name):
+        found = [c for c in variance if isinstance(c.tag, str) and c.tag == name]
+        return found[0] if found else None
+    sigma8               = child("sigma_8"                          )
+    amplitude            = child("amplitudeScalar"                  )
+    wavenumber           = child("wavenumberReference"              )
+    reference            = child("reference"                        )
+    tolerance            = child("toleranceTopHat"                  )
+    window               = child("powerSpectrumWindowFunctionTopHat")
+    # `[integrationFailureIsFatal]` also governed the σ₈ normalization integral, so a variance which relaxes it (with any value
+    # other than the default, "true") needs a normalizer to carry that setting, even if it specifies no other normalization
+    # parameters.
+    integration_failure_relaxed = any(
+        c.get("value", "").strip() != "true"
+        for c in variance if isinstance(c.tag, str) and c.tag == "integrationFailureIsFatal"
+    )
+    if (
+            sigma8 is None and amplitude is None and wavenumber is None and tolerance is None and window is None
+            and not integration_failure_relaxed
+    ):
+        return None
+    # A variance whose σ₈ is simply that of the top-level variance (for example, one which exists only to use a different window
+    # function) is normalized consistently with the power spectrum which it shares, so needs no normalizer of its own.
+    if sigma8 is not None and re.match(r"^\s*=\s*\[cosmologicalMassVariance/sigma_8\]\s*$", sigma8.get("value", "")):
+        _remove_preserving_whitespace(sigma8)
+        return None
+    normalizer = etree.Element("powerSpectrumNormalizer")
+    # In a grid, a variance may be one of several alternatives (siblings), so the normalizer inherits its iterability.
+    if variance.get("iterable") is not None:
+        normalizer.set("iterable", variance.get("iterable"))
+    if wavenumber is not None:
+        normalizer.set("value", "matchedWavenumber")
+        indent_old = _whitespace_before(wavenumber).split("\n")[-1]
+        for element in (wavenumber, reference):
+            if element is None:
+                continue
+            _remove_preserving_whitespace(element)
+            _reindent(element, indent_old, indent + "  ")
+            _append_child(normalizer, element, indent)
+        if reference is not None:
+            _power_spectrum_normalizer_reference(reference, indent + "  ", is_grid)
+    else:
+        normalizer.set("value", "amplitudeScalar" if amplitude is not None else "sigma8")
+        # Move all instances (a grid may list several values).
+        for element in [c for c in variance if isinstance(c.tag, str) and c.tag in ("sigma_8", "amplitudeScalar")]:
+            _remove_preserving_whitespace(element)
+            element.tail = None
+            _append_child(normalizer, element, indent)
+        # Parameters which are retained by the variance (for its own computation of σ₈) are copied into the normalizer.
+        #
+        # In a grid, sibling instances of a parameter are alternatives, and the grid runs every combination of alternatives. So
+        # copying a list of alternatives into the normalizer would make an independent second list, and generate models
+        # pairing (for example) a fatal normalization integral with a non-fatal variance - models which did not exist before.
+        # Instead, the normalizer's parameter is derived from the variance's, so that it always takes the value of whichever
+        # alternative is in use.
+        for name_variance, name_normalizer, reference_format in (
+                ("toleranceTopHat"          , "tolerance"                , "{path}"   ),
+                ("integrationFailureIsFatal", "integrationFailureIsFatal", "%s|{path}")
+        ):
+            elements = [c for c in variance if isinstance(c.tag, str) and c.tag == name_variance]
+            path     = _parameter_path(elements[0]) if is_grid and len(elements) > 1 else None
+            if path is not None:
+                copy = etree.Element(name_normalizer)
+                copy.set("value", "=[" + reference_format.format(path=path) + "]")
+                _append_child(normalizer, copy, indent)
+                continue
+            if is_grid and len(elements) > 1:
+                print(
+                    f"   WARNING: alternatives of '{name_variance}' could not be linked to the powerSpectrumNormalizer - only the"
+                    f" first is copied; edit the normalizer by hand"
+                )
+                elements = elements[:1]
+            for element in elements:
+                copy = etree.Element(name_normalizer)
+                for key, value in element.attrib.items():
+                    copy.set(key, value)
+                _append_child(normalizer, copy, indent)
+        # A window function is an object, so can not be derived from the variance's. In a grid with alternatives of it, copy only
+        # the first, and warn.
+        windows = [c for c in variance if isinstance(c.tag, str) and c.tag == "powerSpectrumWindowFunctionTopHat"]
+        if is_grid and len(windows) > 1:
+            print(
+                "   WARNING: alternatives of 'powerSpectrumWindowFunctionTopHat' can not be linked to the powerSpectrumNormalizer -"
+                " only the first is copied; edit the normalizer by hand"
+            )
+            windows = windows[:1]
+        for element in windows:
+            copy = etree.fromstring(etree.tostring(element, with_tail=False))
+            _reindent(copy, _whitespace_before(element).split("\n")[-1], indent + "  ")
+            _append_child(normalizer, copy, indent)
+    return normalizer
+
+
+def _power_spectrum_normalizer_reference(reference, indent, is_grid):
+    """Within a `reference` section, replace the `cosmologicalMassVariance` (which existed only to normalize the reference power
+    spectrum) and its window function with a normalizer for the reference power spectrum."""
+    variances = [c for c in reference if isinstance(c.tag, str) and c.tag == "cosmologicalMassVariance"]
+    normalizer = None
+    for variance in variances:
+        if variance.get("value") == "filteredPower":
+            normalizer = _power_spectrum_normalizer_build(variance, indent + "  ", is_grid)
+        _remove_preserving_whitespace(variance)
+    for window in [c for c in reference if isinstance(c.tag, str) and c.tag == "powerSpectrumWindowFunction"]:
+        _remove_preserving_whitespace(window)
+    if normalizer is None:
+        # The reference power spectrum must have its own normalizer (otherwise the search for one would find the matched
+        # wavenumber normalizer itself) - use the default. This is equivalent to the old behavior: the default σ₈ of the
+        # `sigma8` normalizer (0.8111) is that of the default mass variance which the reference section would have used.
+        normalizer = etree.Element("powerSpectrumNormalizer")
+        normalizer.set("value", "sigma8")
+    _append_child(reference, normalizer, indent)
+
+
+def power_spectrum_normalizer(input_doc, parameters, is_grid):
+    """Move the normalization of the power spectrum from `cosmologicalMassVariance` to `powerSpectrumNormalizer`.
+
+    The normalization (`[sigma_8]`, `[amplitudeScalar]`, or `[wavenumberReference]` with its `[reference]` section) was a
+    parameter of the `filteredPower` mass variance class. It is now determined by a `powerSpectrumNormalizer` object, which is
+    a member of the transferred primordial power spectrum. Each normalizer is placed alongside the
+    `powerSpectrumPrimordialTransferred` which the variance would use (found as an object builder would find it: among the
+    children of the variance, and then among those of each of its ancestors), or at the top level if there is no such
+    transferred power spectrum (in which case the default one is used). The `[toleranceTopHat]`,
+    `[integrationFailureIsFatal]`, and `[powerSpectrumWindowFunctionTopHat]` parameters of the variance are retained (they
+    control the computation of the derived value of σ₈) and are also copied into the normalizer. Since
+    `[integrationFailureIsFatal]` also governed the old normalization integral, a variance which sets it to anything other
+    than "true" gets a (default `sigma8`) normalizer carrying that setting, even if it has no other normalization parameters. In
+    a grid, where the variance lists alternatives of a copied parameter, the normalizer's parameter is instead derived from the
+    variance's (e.g. `value="=[cosmologicalMassVariance/toleranceTopHat]"`), since independent lists of alternatives would be
+    iterated over independently. Alternatives of the window function can not be linked in this way: only the first is copied,
+    with a warning.
+    """
+    def in_matched_reference(variance):
+        # Variances within the reference section of a matched wavenumber normalization are processed along with that
+        # normalization.
+        for ancestor in variance.iterancestors():
+            if isinstance(ancestor.tag, str) and ancestor.tag == "reference":
+                owner = ancestor.getparent()
+                if (
+                        owner is not None
+                        and owner.tag == "cosmologicalMassVariance"
+                        and any(isinstance(c.tag, str) and c.tag == "wavenumberReference" for c in owner)
+                ):
+                    return True
+        return False
+    variances = [
+        variance for variance in parameters.iter("cosmologicalMassVariance")
+        if variance.get("value") == "filteredPower" and not in_matched_reference(variance)
+    ]
+    created = {}
+    for variance in variances:
+        # Find the transferred power spectrum used by this variance.
+        transferred = None
+        level = variance
+        while level is not None:
+            found = [c for c in level if isinstance(c.tag, str) and c.tag == "powerSpectrumPrimordialTransferred"]
+            if found:
+                transferred = found[0]
+                break
+            if level is parameters:
+                break
+            level = level.getparent()
+        if transferred is not None:
+            anchor = transferred
+        else:
+            anchor = variance
+            while anchor.getparent() is not parameters:
+                anchor = anchor.getparent()
+        indent = _whitespace_before(anchor).split("\n")[-1]
+        normalizer = _power_spectrum_normalizer_build(variance, indent, is_grid)
+        if normalizer is None:
+            continue
+        print("   translate special './/cosmologicalMassVariance[@value=\'filteredPower\']' normalization --> powerSpectrumNormalizer")
+        # Skip a normalizer identical to one already placed at the same level (e.g. where several variances share a power
+        # spectrum).
+        key = (id(anchor.getparent()), etree.tostring(normalizer))
+        if key in created:
+            continue
+        created[key] = True
+        parent = anchor.getparent()
+        normalizer.tail = anchor.tail
+        anchor.tail = _whitespace_before(anchor)
+        parent.insert(parent.index(anchor) + 1, normalizer)
+    # In a grid, variances which have become identical are now redundant alternatives - remove all but the first.
+    if is_grid:
+        seen = {}
+        for variance in variances:
+            parent = variance.getparent()
+            if parent is None:
+                continue
+            key = (id(parent), etree.tostring(variance, with_tail=False))
+            if key in seen:
+                _remove_preserving_whitespace(variance)
+            else:
+                seen[key] = True
+
+
+def supernovae_type_ii_mass_stellar_astrophysics(input_doc, parameters, is_grid):
+    """Move `initialMassForSupernovaeTypeII` from the standard stellar feedback class to the stellar astrophysics class.
+
+    The minimum initial mass for a Type II supernova is now a parameter of `stellarAstrophysicsFile`, so that the
+    stellar yields (which are not interpolated across it) and the supernova energy input of `stellarFeedbackStandard`
+    (which takes it from its `stellarAstrophysics` object) are consistent. A value given inside a `stellarFeedback`
+    element is moved to the `stellarAstrophysics` element that the feedback class uses - the nearest one found by
+    searching the feedback element and then its ancestors, as the object builder does - creating one at the root of
+    the parameters if none is present. A value given at the root level needs no change, as the default
+    `stellarAstrophysics` object reads its parameters from there, unless an explicit root-level `stellarAstrophysics`
+    element is present, in which case it is moved into that.
+    """
+    def remove_element(element):
+        parent   = element.getparent()
+        previous = element.getprevious()
+        if previous is not None:
+            previous.tail = element.tail
+        else:
+            # If this is the only child, leave the parent empty.
+            parent.text   = element.tail if len(parent) > 1 else None
+        parent.remove(element)
+
+    def resolve(element):
+        # Follow an `idRef` to the referenced element.
+        reference = element.get("idRef")
+        if reference is None:
+            return element
+        targets = parameters.xpath(f".//stellarAstrophysics[@id='{reference}']")
+        return targets[0] if len(targets) > 0 else None
+
+    def append_child(parent, child):
+        # Append a child, indented one level deeper than the parent.
+        if len(parent) > 0:
+            append_indented(parent, child)
+            return
+        previous = parent.getprevious()
+        whitespace = (previous.tail if previous is not None else (parent.getparent().text if parent.getparent() is not None else None)) or "\n"
+        indentation = whitespace.split("\n")[-1]
+        parent.text = "\n" + indentation + "  "
+        child.tail  = "\n" + indentation
+        parent.append(child)
+
+    def move_into(mass, target, source):
+        if target.get("value") not in (None, "file"):
+            print(f"   WARNING: initialMassForSupernovaeTypeII can not be moved into stellarAstrophysics of type '{target.get('value')}' - removed")
+            remove_element(mass)
+            return
+        existing = target.find("initialMassForSupernovaeTypeII")
+        if existing is not None:
+            if existing.get("value") != mass.get("value"):
+                print(f"   WARNING: conflicting values of initialMassForSupernovaeTypeII ({existing.get('value')} retained, {mass.get('value')} discarded)")
+            remove_element(mass)
+            return
+        print(f"   move parameter: initialMassForSupernovaeTypeII from {source} to stellarAstrophysics")
+        remove_element(mass)
+        append_child(target, mass)
+
+    for mass in parameters.xpath(".//stellarFeedback/initialMassForSupernovaeTypeII[@value]"):
+        feedback = mass.getparent()
+        if feedback.get("value") not in (None, "standard"):
+            continue
+        # Search for the stellarAstrophysics element used by this feedback object.
+        target  = None
+        current = feedback
+        while current is not None:
+            candidates = [child for child in current if child.tag == "stellarAstrophysics" and (child.get("value") is not None or child.get("idRef") is not None)]
+            if len(candidates) > 0:
+                target = resolve(candidates[0])
+                break
+            current = current.getparent()
+        if target is None:
+            target = etree.Element("stellarAstrophysics")
+            target.set("value", "file")
+            if is_grid:
+                target.set("iterable", "no")
+            append_indented(parameters, target)
+        move_into(mass, target, "stellarFeedback")
+    for mass in parameters.xpath("initialMassForSupernovaeTypeII[@value]"):
+        targets = parameters.xpath("stellarAstrophysics[@value]")
+        if len(targets) > 0:
+            move_into(mass, targets[0], "the root level")
+
+
+SPECIAL_FUNCTIONS = {
+    "extended_schmidt_normalization_per_gigayear": extended_schmidt_normalization_per_gigayear,
+    "dust_properties": dust_properties,
+    "dust_attenuation_framework": dust_attenuation_framework,
+    "prompt_cusp_require_collapse_before_halo": prompt_cusp_require_collapse_before_halo,
+    "radiation_field_intergalactic_background_cmb": radiation_field_intergalactic_background_cmb,
+    "black_hole_seed_mass": black_hole_seed_mass,
+    "black_hole_physics": black_hole_physics,
+    "model_parameter_xpath": model_parameter_xpath,
+    "evaluated_parameter_xpath": evaluated_parameter_xpath,
+    "method_suffix_remove": method_suffix_remove,
+    "satellite_orphanize": satellite_orphanize,
+    "black_hole_non_central": black_hole_non_central,
+    "hot_halo_very_simple": hot_halo_very_simple,
+    "collaborative_mpi": collaborative_mpi,
+    "hot_halo_standard_accretion": hot_halo_standard_accretion,
+    "hot_halo_standard_inflow_outflow": hot_halo_standard_inflow_outflow,
+    "hot_halo_standard_ram_pressure_stripping": hot_halo_standard_ram_pressure_stripping,
+    "satellite_bound_mass_initializor": satellite_bound_mass_initializor,
+    "disk_very_simple_analytic_solver": disk_very_simple_analytic_solver,
+    "satellite_orbit_initializor": satellite_orbit_initializor,
+    "vitvitska_subresolution_method": vitvitska_subresolution_method,
+    "vitvitska_subresolution_method_enum": vitvitska_subresolution_method_enum,
+    "johnson2021_mass_function_slope": johnson2021_mass_function_slope,
+    "splashback_radius_accretion_flow": splashback_radius_accretion_flow,
+    "johnson2021_correlated_branches": johnson2021_correlated_branches,
+    "chandrasekhar_suppress_extended_mass": chandrasekhar_suppress_extended_mass,
+    "dynamical_friction_gaseous": dynamical_friction_gaseous,
+    "satellite_deferral_default": satellite_deferral_default,
+    "interstellar_medium_kinematics": interstellar_medium_kinematics,
+    "power_spectrum_normalizer": power_spectrum_normalizer,
+    "supernovae_type_ii_mass_stellar_astrophysics": supernovae_type_ii_mass_stellar_astrophysics,
+}
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main():
+    options = parse_arguments()
+
+    # Write starting message.
+    print(f"Translating file: {options.inputFile}")
+
+    # Pre-process the file to concatenate any attribute values that are split across multiple lines.
+    tmp_input = preprocess_multiline_attributes(options.inputFile)
+
+    # Parse the input file.
+    parser = etree.XMLParser(remove_blank_text=False)
+    input_doc = etree.parse(tmp_input, parser)
+    is_grid = False
+    parameters_list = input_doc.xpath("/parameters")
+    if parameters_list:
+        root = parameters_list[0]
+    else:
+        parameter_grid_list = input_doc.xpath("/parameterGrid")
+        if parameter_grid_list:
+            is_grid = True
+            root = parameter_grid_list[0]
+            parameters_list = root.xpath("parameters")
+            if not parameters_list:
+                sys.exit("can not find <parameters>")
+        else:
+            sys.exit(f"can not find <parameters> in file `{options.inputFile}`")
+
+    # Check if the file is under version control.
+    is_in_git = git_is_tracked(options.inputFile)
+
+    # Find the current hash.
+    hash_head = git_head_hash()
+
+    # Read migration rules.
+    exec_path = os.environ.get("GALACTICUS_EXEC_PATH", ".")
+    migrations = parse_migrations(os.path.join(exec_path, "scripts", "aux", "migrations.xml"))
+
+    # Iterate over parameter sets.
+    for parameters in parameters_list:
+        migrate(input_doc, parameters, True, is_grid, options.inputFile, options, hash_head, is_in_git, migrations)
+
+    # Output the resulting file.
+    if options.prettyify == "yes":
+        etree.indent(input_doc, space="  ")
+    serialized = etree.tostring(input_doc, xml_declaration=True, encoding="UTF-8", pretty_print=False).decode("UTF-8")
+    serialized = re.sub(r"><!--", ">\n\n  <!--", serialized)
+    serialized = re.sub(r"><(?!/)", ">\n\n  <", serialized)
+    with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+        tmp_output = f.name
+        f.write(serialized)
+
+    # If requested, ignore whitespace (and other formatting) changes, keeping the original formatting of all unchanged
+    # content.
+    if options.ignoreWhiteSpaceChanges == "yes":
+        with open(tmp_input, "r") as f:
+            original = f.read()
+        with open(tmp_output, "w") as f:
+            f.write(merge_unchanged_formatting(original, serialized))
+
+    # Undo any split line reformatting that we previously applied.
+    restore_multiline_attributes(tmp_output, options.outputFile)
+
+    # Clean up.
+    for f in [tmp_input, tmp_output]:
+        if os.path.exists(f):
+            os.unlink(f)
+
+
+if __name__ == "__main__":
+    main()

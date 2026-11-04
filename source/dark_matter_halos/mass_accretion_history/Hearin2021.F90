@@ -1,0 +1,347 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+  !!{RST
+  An implementation of dark matter halo mass accretion histories using the rolling power-law model of :cite:t:`hearin_differentiable_2021`.
+  !!}
+
+  !![
+  <darkMatterHaloMassAccretionHistory name="darkMatterHaloMassAccretionHistoryHearin2021" docformat="rst">
+   <description>
+   Computes dark matter halo mass accretion histories using the differentiable rolling power-law model of :cite:t:`hearin_differentiable_2021`, in which the mass growth rate transitions smoothly between early- and late-time power laws. The early- and late-time indices are set by ``[powerLawIndexEarly]`` and ``[powerLawIndexLate]``, the transition rate by ``[rateRollOver]``, and the time of peak mass by ``[timeMaximum]``.
+   </description>
+  </darkMatterHaloMassAccretionHistory>
+  !!]
+  type, extends(darkMatterHaloMassAccretionHistoryClass) :: darkMatterHaloMassAccretionHistoryHearin2021
+     !!{RST
+     A dark matter halo mass accretion history class using the rolling power-law model of :cite:t:`hearin_differentiable_2021`.
+     !!}
+     private
+     double precision :: powerLawIndexEarly, powerLawIndexLate, &
+          &              rateRollOver      , timeMaximum
+   contains
+     !![
+     <methods docformat="rst">
+      <method description="Return the power law index at the given time."                      method="powerLawIndex"          />
+      <method description="Return the derivative of the power law index with respect to time." method="powerLawIndexDerivative"/>
+      <method description="Return the :math:`\log_{10}(t_0)` parameter."                             method="timeZeroLogarithmic"    />
+      <method description="Return the maximum mass in the mass accretion history."             method="massMaximum"            />
+      <method description="The sigmoid interpolation function."                                method="sigmoid"                />
+      <method description="Return the early-time power law index."                             method="powerLawIndexEarly_"    />
+      <method description="Return the late-time power law index."                              method="powerLawIndexLate_"     />
+      <method description="Return the roll-over rate."                                         method="rateRollOver_"          />
+      <method description="Return the time of maximum mass."                                   method="timeMaximum_"           />
+     </methods>
+     !!]
+     procedure         :: mass                    => hearin2021Mass
+     procedure         :: massAccretionRate       => hearin2021MassAccretionRate
+     procedure         :: powerLawIndex           => hearin2021PowerLawIndex
+     procedure         :: powerLawIndexDerivative => hearin2021PowerLawIndex
+     procedure         :: massMaximum             => hearin2021MassMaximum
+     procedure         :: timeZeroLogarithmic     => hearin2021TimeZeroLogarithmic
+     procedure, nopass :: sigmoid                 => hearin2021Sigmoid
+     procedure         :: powerLawIndexEarly_     => hearin2021PowerLawIndexEarly
+     procedure         :: powerLawIndexLate_      => hearin2021PowerLawIndexLate
+     procedure         :: rateRollOver_           => hearin2021RateRollOver
+     procedure         :: timeMaximum_            => hearin2021TimeMaximum
+  end type darkMatterHaloMassAccretionHistoryHearin2021
+
+  interface darkMatterHaloMassAccretionHistoryHearin2021
+     !!{RST
+     Constructors for the :galacticus-class:`darkMatterHaloMassAccretionHistoryHearin2021` dark matter halo mass accretion history class.
+     !!}
+     module procedure hearin2021ConstructorParameters
+     module procedure hearin2021ConstructorInternal
+  end interface darkMatterHaloMassAccretionHistoryHearin2021
+
+contains
+
+  function hearin2021ConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`darkMatterHaloMassAccretionHistoryHearin2021` dark matter halo mass accretion history class which takes a parameter set as input.
+    !!}
+    use :: Input_Parameters, only : inputParameter, inputParameters
+    implicit none
+    type            (darkMatterHaloMassAccretionHistoryHearin2021)                :: self
+    type            (inputParameters                             ), intent(inout) :: parameters
+    double precision                                                              :: powerLawIndexEarly, powerLawIndexLate, &
+         &                                                                           rateRollOver      , timeMaximum
+
+    !![
+    <inputParameter docformat="rst">
+      <name>powerLawIndexEarly</name>
+      <description>
+      The power law index governing halo mass growth at early times in the :cite:t:`hearin_differentiable_2021` rolling power-law MAH model; positive values correspond to a rapidly assembling halo at high redshift.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>powerLawIndexLate</name>
+      <description>
+      The power law index governing halo mass growth at late times in the :cite:t:`hearin_differentiable_2021` rolling power-law MAH model; negative values correspond to halos that have ceased mass growth or are losing mass via tidal stripping.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>rateRollOver</name>
+      <description>
+      The roll-over rate parameter :math:`k` in the :cite:t:`hearin_differentiable_2021` MAH model, controlling how rapidly the power law index transitions from its early-time to late-time value; larger :math:`k` gives a sharper transition.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>timeMaximum</name>
+      <description>
+      The cosmological time (in Gyr) at which the halo reaches its peak mass in the :cite:t:`hearin_differentiable_2021` MAH model, marking the transition between mass assembly and mass loss regimes.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    !!]
+    self=darkMatterHaloMassAccretionHistoryHearin2021(powerLawIndexEarly,powerLawIndexLate,rateRollOver,timeMaximum)
+    !![
+    <inputParametersValidate source="parameters"/>
+    !!]
+    return
+  end function hearin2021ConstructorParameters
+
+  function hearin2021ConstructorInternal(powerLawIndexEarly,powerLawIndexLate,rateRollOver,timeMaximum) result(self)
+    !!{RST
+    Internal constructor for the :galacticus-class:`darkMatterHaloMassAccretionHistoryHearin2021` dark matter halo mass accretion history class.
+    !!}
+    implicit none
+    type            (darkMatterHaloMassAccretionHistoryHearin2021)                :: self
+    double precision                                              , intent(in   ) :: powerLawIndexEarly, powerLawIndexLate, &
+         &                                                                           rateRollOver      , timeMaximum
+    !![
+    <constructorAssign variables="powerLawIndexEarly, powerLawIndexLate, rateRollOver, timeMaximum"/>
+    !!]
+    
+    return
+  end function hearin2021ConstructorInternal
+
+  double precision function hearin2021PowerLawIndexEarly(self,node)
+    !!{RST
+    Return the early power law index for the given node.
+    !!}
+    implicit none
+    class(darkMatterHaloMassAccretionHistoryHearin2021), intent(inout) :: self
+    type (treeNode                                    ), intent(inout) :: node
+    !$GLC attributes unused :: node
+    
+    hearin2021PowerLawIndexEarly=self%powerLawIndexEarly
+    return
+  end function hearin2021PowerLawIndexEarly
+  
+  double precision function hearin2021PowerLawIndexLate(self,node)
+    !!{RST
+    Return the late power law index for the given node.
+    !!}
+    implicit none
+    class(darkMatterHaloMassAccretionHistoryHearin2021), intent(inout) :: self
+    type (treeNode                                    ), intent(inout) :: node
+    !$GLC attributes unused :: node
+    
+    hearin2021PowerLawIndexLate=self%powerLawIndexLate
+    return
+  end function hearin2021PowerLawIndexLate
+  
+  double precision function hearin2021RateRollOver(self,node)
+    !!{RST
+    Return the roll-over rate for the given node.
+    !!}
+    implicit none
+    class(darkMatterHaloMassAccretionHistoryHearin2021), intent(inout) :: self
+    type (treeNode                                    ), intent(inout) :: node
+    !$GLC attributes unused :: node
+    
+    hearin2021RateRollOver=self%rateRollOver
+    return
+  end function hearin2021RateRollOver
+  
+  double precision function hearin2021TimeMaximum(self,node)
+    !!{RST
+    Return the time of maximum mass for the given node.
+    !!}
+    implicit none
+    class(darkMatterHaloMassAccretionHistoryHearin2021), intent(inout) :: self
+    type (treeNode                                    ), intent(inout) :: node
+    !$GLC attributes unused :: node
+    
+    hearin2021TimeMaximum=self%timeMaximum
+    return
+  end function hearin2021TimeMaximum
+  
+  double precision function hearin2021Mass(self,node,time)
+    !!{RST
+    Compute the mass corresponding to ``time`` in the mass accretion history of ``node``.
+    !!}
+    use :: Galacticus_Nodes, only : nodeComponentBasic
+    implicit none
+    class           (darkMatterHaloMassAccretionHistoryHearin2021), intent(inout), target :: self
+    type            (treeNode                                    ), intent(inout), target :: node
+    double precision                                              , intent(in   )         :: time
+    class           (nodeComponentBasic                          ), pointer               :: basic
+    
+    basic                  =>  node%basic()
+    hearin2021Mass         =  +10.0d0**(                                     &
+         &                              +self%massMaximum        (node     ) &
+         &                              +self%powerLawIndex      (node,time) &
+         &                              *log10(                              &
+         &                                     +     time                    &
+         &                                     /self%timeMaximum_(node     ) &
+         &                                    )                              &
+         &                              )
+    return
+  end function hearin2021Mass
+
+  double precision function hearin2021MassAccretionRate(self,node,time)
+    !!{RST
+    Compute the mass accretion rate at the given ``time`` in the mass accretion history of ``node``.
+    !!}
+    use :: Galacticus_Nodes, only : nodeComponentBasic
+    implicit none
+    class           (darkMatterHaloMassAccretionHistoryHearin2021), intent(inout) :: self
+    type            (treeNode                                    ), intent(inout) :: node
+    double precision                                              , intent(in   ) :: time
+    class           (nodeComponentBasic                          ), pointer       :: basic
+
+    basic                       =>  node%basic(         )
+    hearin2021MassAccretionRate =  +self%mass (node,time)                     &
+         &                         *(                                         &
+         &                           +self%powerLawIndex          (node,time) &
+         &                           /                                  time  &
+         &                           +self%powerLawIndexDerivative(node,time) &
+         &                           *log(                                    &
+         &                                +     time                          &
+         &                                /self%timeMaximum_      (node     ) &
+         &                               )                                    &
+         &                          )
+    return
+  end function hearin2021MassAccretionRate
+
+  double precision function hearin2021MassMaximum(self,node)
+    !!{RST
+    Compute the maximum mass in the mass accretion history of ``node``.
+    !!}
+    use :: Galacticus_Nodes, only : nodeComponentBasic
+    implicit none
+    class(darkMatterHaloMassAccretionHistoryHearin2021), intent(inout) :: self
+    type (treeNode                                    ), intent(inout) :: node
+    class(nodeComponentBasic                          ), pointer       :: basic
+
+    basic                 =>  node%basic()
+    hearin2021MassMaximum =  +log10(                                            &
+         &                          +                 basic%mass        (    )  &
+         &                         )                                            &
+         &                   -self%powerLawIndex(node,basic%time        (    )) &
+         &                   *log10(                                            &
+         &                          +                 basic%time        (    )  &
+         &                          /                 self %timeMaximum_(node)  &
+         &                         )
+    return
+  end function hearin2021MassMaximum
+
+  double precision function hearin2021PowerLawIndex(self,node,time)
+    !!{RST
+    Compute the power-law index.
+    !!}
+    implicit none
+    class           (darkMatterHaloMassAccretionHistoryHearin2021), intent(inout) :: self
+    type            (treeNode                                    ), intent(inout) :: node
+    double precision                                              , intent(in   ) :: time
+
+    hearin2021PowerLawIndex=self%sigmoid(                                &
+         &                               log10(time)                   , &
+         &                               self%timeZeroLogarithmic(node), &
+         &                               self%rateRollOver_      (node), &
+         &                               self%powerLawIndexEarly_(node), &
+         &                               self%powerLawIndexLate_ (node)  &
+         &                              )
+    return
+  end function hearin2021PowerLawIndex
+  
+  double precision function hearin2021PowerLawIndexDerivative(self,node,time)
+    !!{RST
+    Compute the derivative of the power-law index with respect to time.
+    !!}
+    implicit none
+    class           (darkMatterHaloMassAccretionHistoryHearin2021), intent(inout) :: self
+    type            (treeNode                                    ), intent(inout) :: node
+    double precision                                              , intent(in   ) :: time
+
+    hearin2021PowerLawIndexDerivative=+(                                                                          &
+         &                              +    self%powerLawIndexLate_ (node)                                       &
+         &                              -    self%powerLawIndexEarly_(node)                                       &
+         &                             )                                                                          &
+         &                            *      self%rateRollOver_      (node)                                       &
+         &                            *           time**(-1.0d0      +self%rateRollOver_      (node)/log(10.0d0)) &
+         &                            *  exp(self%rateRollOver_(node)*self%timeZeroLogarithmic(node)            ) &
+         &                            /(                                                                          &
+         &                              +exp(self%rateRollOver_(node)*self%timeZeroLogarithmic(node)            ) &
+         &                              +         time**(            +self%rateRollOver_      (node)/log(10.0d0)) &
+         &                             )**2
+    return
+  end function hearin2021PowerLawIndexDerivative
+  
+  double precision function hearin2021TimeZeroLogarithmic(self,node)
+    !!{RST
+    Compute the :math:`t_0` parameter.
+    !!}
+    implicit none
+    class           (darkMatterHaloMassAccretionHistoryHearin2021), intent(inout) :: self
+    type            (treeNode                                    ), intent(inout) :: node
+    double precision                                              , parameter     :: timeZeroLogarithmicMinimum     =-0.175d0, timeZeroLogarithmicMaximum=+0.085d0, &
+         &                                                                           timeZeroLogarithmicRolloverRate=+5.000d0, powerLawIndexEarlyZero    =+2.850d0
+
+    hearin2021TimeZeroLogarithmic=+self%sigmoid(                                            &
+         &                                      self%powerLawIndexEarly_            (node), &
+         &                                           powerLawIndexEarlyZero               , &
+         &                                           timeZeroLogarithmicRolloverRate      , &
+         &                                           timeZeroLogarithmicMinimum           , &
+         &                                           timeZeroLogarithmicMaximum             &
+         &                                     )
+    return
+  end function hearin2021TimeZeroLogarithmic
+  
+  double precision function hearin2021Sigmoid(x,x0,k,yMinimum,yMaximum)
+    !!{RST
+    Sigmoid interpolation function.
+    !!}
+    implicit none
+    double precision, intent(in   ) :: x       , x0      , &
+         &                             yMinimum, yMaximum, &
+         &                             k
+
+    hearin2021Sigmoid=+  yMinimum  &
+         &            +(           &
+         &              +yMaximum  &
+         &              -yMinimum  &
+         &             )           &
+         &            /(           &
+         &              +1.0d0     &
+         &              +exp(      &
+         &                   -k    &
+         &                   *(    &
+         &                     +x  &
+         &                     -x0 &
+         &                    )    &
+         &                  )      &
+         &             )
+    return
+  end function hearin2021Sigmoid

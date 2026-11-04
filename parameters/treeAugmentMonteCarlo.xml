@@ -1,9 +1,11 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Default parameters for Galacticus v0.9.4 -->
+
 <!-- 30-October-2011                          -->
+
 <parameters>
   <formatVersion>2</formatVersion>
-  <lastModified revision="975fffd5aadf697707003f16bf9b4caee8ebe97d" time="2025-10-22T21:34:03"/>
+  <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
 
 
   <verbosityLevel value="working"/>
@@ -42,9 +44,10 @@
     <running value="0.000"/>
   </powerSpectrumPrimordial>
   <powerSpectrumPrimordialTransferred value="simple"/>
-  <cosmologicalMassVariance value="filteredPower">
+  <powerSpectrumNormalizer value="sigma8">
     <sigma_8 value="0.9"/>
-  </cosmologicalMassVariance>
+  </powerSpectrumNormalizer>
+  <cosmologicalMassVariance value="filteredPower"/>
 
   <!-- Structure formation options -->
   <linearGrowth value="collisionlessMatter"/>
@@ -94,6 +97,7 @@
   </mergerTreeNodeEvolver>
 
   <mergerTreeEvolver value="standard">
+    <fractionTimestepSatelliteMinimum value="0.75"/>
     <timestepHostAbsolute value="1.0"/>
     <timestepHostRelative value="0.1"/>
   </mergerTreeEvolver>
@@ -107,14 +111,14 @@
   <mergerTreeOperator value="sequence">
     <mergerTreeOperator value="conditionalMF">
       <outputGroupName value="treeStatisticsInitial"/>
-      <parentMassCount value="2"/>
-      <parentMassMinimum value="1.0e12"/>
-      <parentMassMaximum value="1.0e13"/>
+      <countMassParent value="2"/>
+      <massParentMinimum value="1.0e12"/>
+      <massParentMaximum value="1.0e13"/>
       <massRatioCount value="100"/>
       <massRatioMinimum value="1.0e-2"/>
       <massRatioMaximum value="2.0"/>
-      <parentRedshifts value="0.0 0.0"/>
-      <progenitorRedshifts value="0.508591 1.077875"/>
+      <redshiftsParent value="0.0 0.0"/>
+      <redshiftsProgenitor value="0.508591 1.077875"/>
 
     </mergerTreeOperator>
     <mergerTreeOperator value="regridTimes">
@@ -124,14 +128,14 @@
     </mergerTreeOperator>
     <mergerTreeOperator value="conditionalMF">
       <outputGroupName value="treeStatisticsAfterRegrid"/>
-      <parentMassCount value="2"/>
-      <parentMassMinimum value="1.0e12"/>
-      <parentMassMaximum value="1.0e13"/>
+      <countMassParent value="2"/>
+      <massParentMinimum value="1.0e12"/>
+      <massParentMaximum value="1.0e13"/>
       <massRatioCount value="100"/>
       <massRatioMinimum value="1.0e-2"/>
       <massRatioMaximum value="2.0"/>
-      <parentRedshifts value="0.0 0.0"/>
-      <progenitorRedshifts value="0.508591 1.077875"/>
+      <redshiftsParent value="0.0 0.0"/>
+      <redshiftsProgenitor value="0.508591 1.077875"/>
     </mergerTreeOperator>
     <mergerTreeOperator value="pruneByMass">
       <massThreshold value="1.0e11"/>
@@ -139,17 +143,17 @@
     </mergerTreeOperator>
     <mergerTreeOperator value="conditionalMF">
       <outputGroupName value="treeStatisticsAfterRegridPrune"/>
-      <parentMassCount value="2"/>
-      <parentMassMinimum value="1.0e12"/>
-      <parentMassMaximum value="1.0e13"/>
+      <countMassParent value="2"/>
+      <massParentMinimum value="1.0e12"/>
+      <massParentMaximum value="1.0e13"/>
       <massRatioCount value="50"/>
       <massRatioMinimum value="1.0e-2"/>
       <massRatioMaximum value="2.0"/>
-      <parentRedshifts value="0.0 0.0"/>
-      <progenitorRedshifts value="0.508591 1.077875"/>
+      <redshiftsParent value="0.0 0.0"/>
+      <redshiftsProgenitor value="0.508591 1.077875"/>
     </mergerTreeOperator>
     <mergerTreeOperator value="augment">
-      <massResolution value="1.0e11"/>
+      <massCutOff value="1.0e11"/>
       <toleranceScale value="0.975"/>
       <retryMaximum value="50"/>
       <rescaleMaximum value="20"/>
@@ -178,14 +182,14 @@
     </mergerTreeOperator>
     <mergerTreeOperator value="conditionalMF">
       <outputGroupName value="treeStatisticsAfterInsertion"/>
-      <parentMassCount value="2"/>
-      <parentMassMinimum value="1.0e12"/>
-      <parentMassMaximum value="1.0e13"/>
+      <countMassParent value="2"/>
+      <massParentMinimum value="1.0e12"/>
+      <massParentMaximum value="1.0e13"/>
       <massRatioCount value="100"/>
       <massRatioMinimum value="1.0e-2"/>
       <massRatioMaximum value="2.0"/>
-      <parentRedshifts value="0.0 0.0"/>
-      <progenitorRedshifts value="0.508591 1.077875"/>
+      <redshiftsParent value="0.0 0.0"/>
+      <redshiftsProgenitor value="0.508591 1.077875"/>
 
     </mergerTreeOperator>
   </mergerTreeOperator>

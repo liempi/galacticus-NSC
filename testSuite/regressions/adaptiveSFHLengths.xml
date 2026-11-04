@@ -1,8 +1,9 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Model used to test that adaptive SFHs all have the same lengths -->
+
 <parameters>
   <formatVersion>2</formatVersion>
-  <lastModified revision="975fffd5aadf697707003f16bf9b4caee8ebe97d" time="2025-10-22T21:34:03"/>
+  <lastModified revision="ea6b55717d89e3ac2234e42c78fca7eebcf9e2fc" time="2026-10-30T23:06:36"/>
 
   <!-- Task and work control -->
   <task value="evolveForests">
@@ -45,8 +46,7 @@
   </cosmologyParameters>
 
   <!-- Power spectrum options -->
-  <cosmologicalMassVariance value="filteredPower">
-    <sigma_8 value="0.821"/> 	<!-- Planck 2018; arXiv:1807.06211 -->
+  <cosmologicalMassVariance value="filteredPower"> 	<!-- Planck 2018; arXiv:1807.06211 -->
   </cosmologicalMassVariance>
 
   <transferFunction value="eisensteinHu1999">
@@ -59,6 +59,9 @@
     <running value="0.0000"/> <!-- Planck 2018; arXiv:1807.06211 -->
   </powerSpectrumPrimordial>
   <powerSpectrumPrimordialTransferred value="simple"/>
+  <powerSpectrumNormalizer value="sigma8">
+    <sigma_8 value="0.821"/>
+  </powerSpectrumNormalizer>
 
   <!-- Structure formation options -->
   <linearGrowth value="collisionlessMatter"/>
@@ -99,7 +102,7 @@
     <treeCount value="1"/>
   </mergerTreeBuildMasses>
   <mergerTreeMassResolution value="fixed">
-    <massResolution value="1.0e7"/>
+    <massResolution value="1.0e8"/>
   </mergerTreeMassResolution>
   
   <mergerTreeOperator value="sequence">
@@ -151,7 +154,6 @@
     </stellarPopulationSpectraPostprocessor>
   </stellarPopulationSpectraPostprocessorBuilder>
 
-  <stellarSpectraDustAttenuation value="charlotFall2000"/>
 
   <!-- Substructure hierarchy options -->
   <mergerTreeNodeMerger value="singleLevelHierarchy"/>
@@ -188,6 +190,7 @@
       <unresolvedEnergy value="0.550000000000000"/>
       <!-- For leaf nodes in the tree we instead set scale radii using a concentration-mass-redshift model, with concentrations limited to a reasonable range. -->
       <darkMatterProfileScaleRadius value="concentration"/>
+      <massFunctionSlopeLogarithmic value="-1.8"/>
     </darkMatterProfileScaleRadius>
   </darkMatterProfileScaleRadius>
   <darkMatterProfileConcentration value="diemerJoyce2019">
@@ -281,8 +284,8 @@
     <heightToRadialScaleDisk value="0.137"/>
     <surfaceDensityCritical value="200.0"/>
     <surfaceDensityExponent value="0.4"/>
-    <starFormationFrequencyNormalization value="5.25e-10"/>
-    <pressureCharacteristic value="4.54"/>
+    <starFormationFrequencyNormalization value="3.860294117647059e-10"/>
+    <pressureCharacteristic value="3.5e4"/>
     <pressureExponent value="0.92"/>
     
   </starFormationRateSurfaceDensityDisks>
@@ -328,12 +331,6 @@
   <stellarFeedback value="standard"/>
   
   <!-- Black hole options -->
-  <blackHoleAccretionRate value="standard">
-    <bondiHoyleAccretionEnhancementSpheroid value="  5.0"/>
-    <bondiHoyleAccretionEnhancementHotHalo  value="  6.0"/>
-    <bondiHoyleAccretionTemperatureSpheroid value="100.0"/>
-    <bondiHoyleAccretionHotModeOnly         value="true"/>
-  </blackHoleAccretionRate>
   <blackHoleBinaryMerger value="rezzolla2008"/>
 
   <!-- Galaxy merger options -->
@@ -471,6 +468,7 @@
       <excessHeatDrivesOutflow value="true"/>
       <rateMaximumExpulsion value="1.0"/>
     </nodeOperator>
+    <nodeOperator value="CGMOuterRadiusRamPressureStripping"/>
   </nodeOperator>
   
   <starFormationHistory value="adaptive">

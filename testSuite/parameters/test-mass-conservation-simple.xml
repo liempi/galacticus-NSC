@@ -1,7 +1,10 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Defines a Galacticus model to test mass conservation. -->
+
 <!-- Andrew Benson                                         -->
+
 <!-- 28-April-2016                                         -->
+
 <parameterGrid>
   <emailReport>no</emailReport>
   <doAnalysis>no</doAnalysis>
@@ -15,7 +18,7 @@
 
   <parameters>
     <formatVersion>2</formatVersion>
-    <lastModified revision="975fffd5aadf697707003f16bf9b4caee8ebe97d" time="2025-10-22T21:34:03"/>
+    <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
     <accretionHalo value="bertschinger">
       <redshiftReionization value="10.5"/>
       <velocitySuppressionReionization value="47.370163695687651"/>
@@ -32,7 +35,6 @@
       <exponentVelocity value="1.6845255332717721"/>
     </coolingRate>
     <cosmologicalMassVariance value="filteredPower">
-      <sigma_8 value="0.819344297851851"/>
       <tolerance value="1.0e-7"/>
     </cosmologicalMassVariance>
     <cosmologyFunctions value="matterLambda"/>
@@ -150,6 +152,9 @@
       <wavenumberReference value="1.0"/>
     </powerSpectrumPrimordial>
     <powerSpectrumPrimordialTransferred value="simple"/>
+    <powerSpectrumNormalizer value="sigma8">
+      <sigma_8 value="0.819344297851851"/>
+    </powerSpectrumNormalizer>
     <mergerMassMovements value="verySimple"/>
     <mergerRemnantSize value="null"/>
     <satelliteMergingTimescales value="jiang2008">
@@ -172,6 +177,7 @@
     </starFormationRateDisks>
     <stellarPopulationProperties value="instantaneous"/>
     <mergerTreeEvolver value="standard">
+      <fractionTimestepSatelliteMinimum value="0.75"/>
       <timestepHostAbsolute value="1.0"/>
       <timestepHostRelative value="0.01"/>
     </mergerTreeEvolver>
@@ -181,6 +187,7 @@
         <timeStepRelative value="0.01"/>
       </mergerTreeEvolveTimestep>
       <mergerTreeEvolveTimestep value="satellite" iterable="no"/>
+      <mergerTreeEvolveTimestep value="satelliteDestruction" iterable="no"/>
     </mergerTreeEvolveTimestep>
 
     <transferFunction value="eisensteinHu1999">
@@ -192,10 +199,7 @@
     <componentDarkMatterProfile value="scale"/>
     <componentDisk value="verySimpleSize">
       <toleranceAbsoluteMass value="1.0e-6"/>
-      <pruneMassGas value="1.0e6"/>
-      <pruneMassStars value="1.0e6"/>
       <scaleAbsoluteMass value="1.0e6"/>
-      <useAnalyticSolver value="true"/>
     </componentDisk>
     <componentHotHalo value="verySimpleDelayed">
       <scaleRelativeMass value="1.0"/>
@@ -235,16 +239,19 @@
       <!-- Satellite evolution -->
       <nodeOperator value="satelliteMergingTime" iterable="no"/>
       <!-- Star formation -->
-      <nodeOperator value="starFormationDisks" iterable="no"/>
-      <nodeOperator value="stellarFeedbackDisks" iterable="no">
-	<stellarFeedbackOutflows value="rateLimit">
-          <timescaleOutflowFractionalMinimum value="0.001"/>
-          <stellarFeedbackOutflows value="vlctyMxSclng">
-	    <fraction value="5.4973312818696149E-002"/>
-	    <exponentRedshift value="1.9464430036515628"/>
-	    <exponentVelocity value="-5.2559103933618596"/>
+      <nodeOperator value="filtered" iterable="no">
+	<galacticFilter value="haloIsolated"/>
+	<nodeOperator value="starFormationDisks"/>
+	<nodeOperator value="stellarFeedbackDisks">
+	  <stellarFeedbackOutflows value="rateLimit">
+            <timescaleOutflowFractionalMinimum value="0.001"/>
+            <stellarFeedbackOutflows value="velocityMaximumScaling">
+	      <fraction value="5.4973312818696149E-002"/>
+	      <exponentRedshift value="1.9464430036515628"/>
+	      <exponentVelocity value="-5.2559103933618596"/>
+	    </stellarFeedbackOutflows>
 	  </stellarFeedbackOutflows>
-	</stellarFeedbackOutflows>
+	</nodeOperator>
       </nodeOperator>
       <!-- CGM physics -->
       <nodeOperator value="CGMOuterRadiusVirialRadius" iterable="no"/>
@@ -261,10 +268,16 @@
       <nodeOperator value="CGMOutflowReincorporation" iterable="no">
 	<includeSatellites value="false"/>
       </nodeOperator>
+      <nodeOperator value="diskVerySimpleAnalyticSolver" iterable="no">
+	<pruneMassGas value="1.0e6"/>      
+	<pruneMassStars value="1.0e6"/>
+      </nodeOperator>
     </nodeOperator>
 
     <nodePropertyExtractor value="multi">
       <nodePropertyExtractor value="nodeIndices" iterable="no"/>
+      <nodePropertyExtractor value="treeWeight" iterable="no"/>
+      <nodePropertyExtractor value="indicesTree" iterable="no"/>
       <nodePropertyExtractor value="massBertschinger" iterable="no"/>
     </nodePropertyExtractor>
 

@@ -1,7 +1,10 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Defines a set of Galacticus models which explore all available method options. -->
+
 <!-- Andrew Benson                                                                  -->
+
 <!-- 04-Sep-2010                                                                    -->
+
 <parameterGrid>
   <emailReport>no</emailReport>
   <doAnalysis>no</doAnalysis>
@@ -25,7 +28,7 @@
   <!-- Tree construction methods -->
   <parameters>
     <formatVersion>2</formatVersion>
-    <lastModified revision="975fffd5aadf697707003f16bf9b4caee8ebe97d" time="2025-10-22T21:34:03"/>
+    <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
     <errorWaitTime value="0"/>
     <evolveForestsWorkShare value="cyclic"/>
     <mergerTreeConstructor value="build">
@@ -37,6 +40,7 @@
     </mergerTreeConstructor>
     <mergerTreeConstructor value="read">
       <fileNames value="testSuite/test-MergerTrees.hdf5"/>
+      <nodeOperatorTreeInitializor value="darkMatterProfileScaleSet"/>
       <presetOrbits value="true"/>
       <presetOrbitsBoundOnly value="true"/>
       <presetMergerTimes value="true"/>
@@ -53,6 +57,7 @@
       <componentSatellite value="preset" parameterLevel="top"/>
       <componentPosition value="cartesian" parameterLevel="top"/>
       <mergerTreeEvolver value="standard" parameterLevel="top">
+	<fractionTimestepSatelliteMinimum value="0.75"/>
 	<allTreesExistAtFinalTime value="false"/>
       </mergerTreeEvolver>
       <nodeOperator value="multi" parameterLevel="top">
@@ -109,12 +114,13 @@
 	<nodeOperator value="CGMOutflowReincorporation" iterable="no">
 	  <includeSatellites value="true"/>
 	</nodeOperator>
-      <nodeOperator value="CGMCoolingHeating" iterable="no">
-	<component value="disk"/>
-	<coolingFrom value="currentNode"/>
-	<excessHeatDrivesOutflow value="true"/>
-	<rateMaximumExpulsion value="1.0"/>
-      </nodeOperator>
+	<nodeOperator value="CGMCoolingHeating" iterable="no">
+	  <component value="disk"/>
+	  <coolingFrom value="currentNode"/>
+	  <excessHeatDrivesOutflow value="true"/>
+	  <rateMaximumExpulsion value="1.0"/>
+	</nodeOperator>
+	<nodeOperator value="CGMOuterRadiusRamPressureStripping" iterable="no"/>
       </nodeOperator>
     </mergerTreeConstructor>    
     <cosmologyParameters value="simple">
@@ -129,9 +135,10 @@
       <wavenumberReference value="1.000"/>
       <running value="0.000"/>
     </powerSpectrumPrimordial>
-    <cosmologicalMassVariance value="filteredPower">
+    <cosmologicalMassVariance value="filteredPower"/>
+    <powerSpectrumNormalizer value="sigma8">
       <sigma_8 value="0.9"/>
-    </cosmologicalMassVariance>
+    </powerSpectrumNormalizer>
   </parameters>
   
 </parameterGrid>

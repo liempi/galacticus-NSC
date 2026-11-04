@@ -17,14 +17,14 @@ print("...done ("+str(status)+")")
 if status.returncode != 0:
     print("FAILED: model run:")
     subprocess.run("cat outputs/test-lightconeCrossing.log",shell=True)
-    sys.exit()
+    sys.exit(0)
 print("Checking for errors...")
 status = subprocess.run("grep -q -i -e fatal -e aborted -e \"Galacticus experienced an error in the GSL library\" outputs/test-lightconeCrossing.log",shell=True)
 print("...done ("+str(status)+")")
 if status.returncode == 0:
     print("FAILED: model run (errors):")
     subprocess.run("cat outputs/test-lightconeCrossing.log",shell=True)
-    sys.exit()
+    sys.exit(0)
 print("SUCCESS: model run")
 
 # Open the model and extract the required properties.
@@ -40,7 +40,7 @@ lightconeRedshiftCosmological = nodes['lightconeRedshiftCosmological'][:]
 if np.allclose(lightconePositionX,positionPositionX*(1.0+lightconeRedshiftCosmological),rtol=1.0e-4):
     print("SUCCESS: lightcone and non-lightcone positions agree")
 else:
-    print("FAIL: lightcone and non-lightcone positions disagree")
+    print("FAILED: lightcone and non-lightcone positions disagree")
 
 # Verify that the lightcone position is consistent with the expected position at the crossing time.
 ## Position interpolation is a cubic polynomial is comoving coordinates. The coefficients of that polynomial were computed for our
@@ -51,4 +51,4 @@ distanceExpected = np.sum(coefficients*powers)
 if np.allclose(lightconePositionX,distanceExpected,rtol=1.0e-4):
     print("SUCCESS: lightcone position is correct for crossing time")
 else:
-    print("FAIL: lightcone position is incorrect for crossing time")
+    print("FAILED: lightcone position is incorrect for crossing time")

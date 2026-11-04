@@ -1,0 +1,571 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+  !+    Contributions to this file made by: Andrew Benson, Claude.
+
+  !!{RST
+  Implementation of the cusp-NFW :cite:p:`delos_cusp-halo_2025` mass distribution class.
+  !!}
+
+  !![
+  <massDistribution name="massDistributionCuspNFW" docformat="rst">
+    <description>
+    The cusp-NFW mass distribution :cite:p:`delos_cusp-halo_2025`. The density profile is given by:
+
+    .. math::
+
+       \rho_\mathrm{dark matter}(r) = \rho_\mathrm{s} \left(y^2+{r\over r_\mathrm{s}}\right)^{1/2} \left({r\over r_\mathrm{s}}\right)^{-3/2} \left[1 + \left({r\over r_\mathrm{s}}\right) \right]^{-2},
+
+    where :math:`\rho_\mathrm{s}` and :math:`r_\mathrm{s}` are the usual NFW density normalization and scale length, and :math:`y = A/\rho_s r_\mathrm{s}^{3/2}` characterizes the amplitude of the cusp, with :math:`A` being the "cusp coefficient" as defined by :cite:t:`delos_cusp-halo_2025`.
+    </description>
+  </massDistribution>
+  !!]
+  type, public, extends(massDistributionSphericalTabulated) :: massDistributionCuspNFW
+     !!{RST
+     The cusp-NFW :cite:p:`delos_cusp-halo_2025` mass distribution.
+     !!}
+     private
+     double precision :: densityNormalization, radiusScale, &
+          &              y
+   contains
+     procedure :: describe                        => cuspNFWDescribe
+     procedure :: density                         => cuspNFWDensity
+     procedure :: densityGradientRadial           => cuspNFWDensityGradientRadial
+     procedure :: densitySlopeLogarithmicGradient => cuspNFWDensitySlopeLogarithmicGradient
+     procedure :: densitySlopeLogarithmicCentral  => cuspNFWDensitySlopeLogarithmicCentral
+     procedure :: massEnclosedBySphere            => cuspNFWMassEnclosedBySphere
+     procedure :: parameters                      => cuspNFWParameters
+     procedure :: factoryTabulation               => cuspNFWFactoryTabulation
+     procedure :: descriptor                      => cuspNFWDescriptor
+     procedure :: suffix                          => cuspNFWSuffix
+  end type massDistributionCuspNFW
+  
+  interface massDistributionCuspNFW
+     !!{RST
+     Constructors for the :galacticus-class:`massDistributionCuspNFW` mass distribution class.
+     !!}
+     module procedure cuspNFWConstructorParameters
+     module procedure cuspNFWConstructorInternal
+  end interface massDistributionCuspNFW
+
+  ! Tabulated solutions.
+  logical                                     :: containerCuspNFWInitialized=.false.
+  type   (massDistributionContainer), pointer :: containerCuspNFW
+  !$omp threadprivate(containerCuspNFW,containerCuspNFWInitialized)
+  
+  ! Generate a source digest.
+  !![
+  <sourceDigest name="massDistributionCuspNFWSourceDigest"/>
+  !!]
+
+contains
+
+  function cuspNFWConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`massDistributionCuspNFW` mass distribution class which builds the object from a parameter set.
+    !!}
+    use :: Input_Parameters          , only : inputParameter                , inputParameters
+    use :: Galactic_Structure_Options, only : enumerationComponentTypeEncode, enumerationMassTypeEncode
+    use :: Numerical_Constants_Math  , only : Pi
+    implicit none
+    type            (massDistributionCuspNFW)                :: self
+    type            (inputParameters         ), intent(inout) :: parameters
+    double precision                                          :: mass                      , radiusScale  , &
+         &                                                       densityNormalization      , concentration, &
+         &                                                       radiusVirial              , y            , &
+         &                                                       toleranceRelativePotential
+    logical                                                   :: dimensionless
+    type            (varying_string          )                :: componentType
+    type            (varying_string          )                :: massType
+
+    !![
+    <inputParameter docformat="rst">
+      <name>densityNormalization</name>
+      <defaultValue>1.0d0/2.0d0/Pi/(log(4.0d0)-1.0d0)</defaultValue>
+      <description>
+      The density normalization of the cusp-NFW profile.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>radiusScale</name>
+      <defaultValue>1.0d0</defaultValue>
+      <description>
+      The scale radius of the cusp-NFW profile.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>y</name>
+      <defaultValue>0.0d0</defaultValue>
+      <description>
+      The cusp amplitude parameter the cusp-NFW profile.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>mass</name>
+      <defaultValue>1.0d0</defaultValue>
+      <description>
+      The total mass (in :math:`\mathrm{M}_\odot`) of the cusp-NFW halo, used to set the density normalization when the concentration and virial radius are provided instead of ``densityNormalization``.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>concentration</name>
+      <defaultValue>1.0d0</defaultValue>
+      <description>
+      The concentration of the cusp-NFW profile.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>radiusVirial</name>
+      <defaultValue>1.0d0</defaultValue>
+      <description>
+      The virial radius of the cusp-NFW profile.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>dimensionless</name>
+      <defaultValue>.true.</defaultValue>
+      <description>
+      If true the cusp-NFW profile is considered to be dimensionless.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>componentType</name>
+      <defaultValue>var_str('unknown')</defaultValue>
+      <description>
+      The component type that this mass distribution represents.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>massType</name>
+      <defaultValue>var_str('unknown')</defaultValue>
+      <description>
+      The mass type that this mass distribution represents.
+      </description>
+      <source>parameters</source>
+    </inputParameter>
+    <inputParameter docformat="rst">
+      <name>toleranceRelativePotential</name>
+      <defaultValue>1.0d-3</defaultValue>
+      <source>parameters</source>
+      <description>
+      The relative tolerance to use in numerical solutions for the gravitational potential.
+      </description>
+    </inputParameter>
+    <conditionalCall>
+     <call>self=massDistributionCuspNFW(y=y,toleranceRelativePotential=toleranceRelativePotential,componentType=enumerationComponentTypeEncode(componentType,includesPrefix=.false.),massType=enumerationMassTypeEncode(massType,includesPrefix=.false.){conditions})</call>
+     <argument name="densityNormalization" value="densityNormalization" parameterPresent="parameters"/>
+     <argument name="mass"                 value="mass"                 parameterPresent="parameters"/>
+     <argument name="radiusScale"          value="radiusScale"          parameterPresent="parameters"/>
+     <argument name="radiusVirial"         value="radiusVirial"         parameterPresent="parameters"/>
+     <argument name="concentration"        value="concentration"        parameterPresent="parameters"/>
+     <argument name="dimensionless"        value="dimensionless"        parameterPresent="parameters"/>
+    </conditionalCall>
+    <inputParametersValidate source="parameters"/>
+    !!]
+    return
+  end function cuspNFWConstructorParameters
+
+  function cuspNFWConstructorInternal(radiusScale,y,concentration,densityNormalization,mass,radiusVirial,dimensionless,componentType,massType,toleranceRelativePotential) result(self)
+    !!{RST
+    Internal constructor for :galacticus-class:`massDistributionCuspNFW` mass distribution class.
+    !!}
+    use :: Error                   , only : Error_Report
+    use :: Numerical_Constants_Math, only : Pi
+    implicit none
+    type            (massDistributionCuspNFW     )                          :: self
+    double precision                              , intent(in   ), optional :: radiusScale               , concentration      , &
+         &                                                                     densityNormalization      , mass               , &
+         &                                                                     radiusVirial              , y                  , &
+         &                                                                     toleranceRelativePotential
+    logical                                       , intent(in   ), optional :: dimensionless
+    type            (enumerationComponentTypeType), intent(in   ), optional :: componentType
+    type            (enumerationMassTypeType     ), intent(in   ), optional :: massType
+    double precision                                                        :: radiusScaleFree
+    !![
+    <constructorAssign variables="componentType, massType, toleranceRelativePotential"/>
+    !!]
+
+    ! Determine y parameter.
+    if      (                            &
+         &   present(y            )      &
+         &  ) then
+       self%y                   =y
+    else
+       self%y                   =0.0d0
+       call Error_Report('no means to determinecusp amplitude' //{introspection:location})
+    end if
+    ! Determine scale radius.
+    if      (                            &
+         &   present(radiusScale  )      &
+         &  ) then
+       self%radiusScale         =radiusScale
+    else if (                            &
+         &   present(concentration).and. &
+         &   present(radiusVirial )      &
+         &  ) then
+       self%radiusScale         =radiusVirial/concentration
+    else
+       self%radiusScale         =0.0d0
+       call Error_Report('no means to determine scale radius'//{introspection:location})
+    end if
+    ! Determine density normalization.
+    if      (                                   &
+         &   present(densityNormalization)      &
+         &  ) then
+       self%densityNormalization=densityNormalization
+    else if (                                   &
+         &   present(mass                ).and. &
+         &   present(radiusVirial        )      &
+         &  ) then
+       radiusScaleFree          =+     radiusVirial/self%radiusScale
+       self%densityNormalization=+mass                                                                                                                 &
+            &                    /self%radiusScale**3                                                                                                  &
+            &                    /4.0d0                                                                                                                &
+            &                    /Pi                                                                                                                   &
+            &                    /(                                                                                                                    &
+            &                      + 2.0d0                                 *asinh(sqrt(radiusScaleFree                 )/                 self%y     ) &
+            &                      -(2.0d0-self%y**2)/sqrt(1.0d0-self%y**2)*atanh(sqrt(radiusScaleFree*(1.0d0-self%y**2)/(radiusScaleFree+self%y**2))) &
+            &                      -sqrt(radiusScaleFree*(radiusScaleFree+self%y**2))/(1.0d0+radiusScaleFree)                                          &
+            &                     )
+    else
+       self%densityNormalization=+0.0d0
+       call Error_Report('either "densityNormalization", or "mass" and "radiusVirial" must be specified'//{introspection:location})
+    end if
+    ! Determine if profile is dimensionless.
+    if      (present(dimensionless     )) then
+       self%dimensionless=dimensionless
+    else
+       self%dimensionless=.false.
+    end if
+    return
+  end function cuspNFWConstructorInternal
+
+  function cuspNFWFactoryTabulation(self,parameters) result(instance)
+    !!{RST
+    Construct an instance of this class using tabulation parameters.
+    !!}
+    implicit none
+    class           (massDistributionSphericalTabulated)               , pointer      :: instance
+    class           (massDistributionCuspNFW           ), intent(inout)               :: self
+    double precision                                    , intent(in   ), dimension(:) :: parameters
+    !$GLC attributes unused :: self
+    
+    allocate(massDistributionCuspNFW :: instance)
+    select type(instance)
+    type is (massDistributionCuspNFW)
+       instance=massDistributionCuspNFW(radiusScale=1.0d0,densityNormalization=1.0d0,y=parameters(1),toleranceRelativePotential=self%toleranceRelativePotential)
+    end select
+    return
+  end function cuspNFWFactoryTabulation
+  
+  double precision function cuspNFWDensity(self,coordinates) result(density)
+    !!{RST
+    Return the density at the specified ``coordinates`` in a cusp-NFW mass distribution.
+    !!}
+    implicit none
+    class           (massDistributionCuspNFW), intent(inout) :: self
+    class           (coordinate             ), intent(in   ) :: coordinates
+    double precision                                         :: radiusScaleFree
+
+    ! Compute the density at this position.
+    radiusScaleFree=+coordinates%rSpherical () &
+         &          /self       %radiusScale
+    density        =+self       %densityNormalization       &
+         &          *sqrt(self%y**2+radiusScaleFree)        &
+         &          /               radiusScaleFree **1.5d0 &
+         &          /    (1.0d0    +radiusScaleFree)**2
+    return
+  end function cuspNFWDensity
+  
+  double precision function cuspNFWDensitySlopeLogarithmicGradient(self,coordinates) result(densitySlopeLogarithmicGradient)
+    !!{RST
+    Return the logarithmic gradient of the logarithmic density slope in a cusp-NFW mass distribution. Differentiating the
+    slope :math:`\mathrm{d}\ln\rho/\mathrm{d}\ln r = -7/2 + 2/(1+x) + x/2(y^2+x)`, with :math:`x=r/r_\mathrm{s}`, gives
+    :math:`x[-2/(1+x)^2 + y^2/2(y^2+x)^2]`.
+    !!}
+    implicit none
+    class           (massDistributionCuspNFW), intent(inout), target :: self
+    class           (coordinate             ), intent(in   )         :: coordinates
+    double precision                                                 :: radiusScaleFree
+
+    radiusScaleFree                =+coordinates%rSpherical () &
+         &                          /self       %radiusScale
+    densitySlopeLogarithmicGradient=+radiusScaleFree                                  &
+         &                          *(                                                &
+         &                            -2.0d0          /(1.0d0    +radiusScaleFree)**2 &
+         &                            +0.5d0*self%y**2/(self%y**2+radiusScaleFree)**2 &
+         &                           )
+    return
+  end function cuspNFWDensitySlopeLogarithmicGradient
+
+  double precision function cuspNFWDensityGradientRadial(self,coordinates,logarithmic) result(densityGradient)
+    !!{RST
+    Return the radial density gradient at the specified ``coordinates`` in a cusp-NFW mass distribution.
+    !!}
+    implicit none
+    class           (massDistributionCuspNFW), intent(inout), target   :: self
+    class           (coordinate             ), intent(in   )           :: coordinates
+    logical                                  , intent(in   ), optional :: logarithmic
+    double precision                                                   :: radiusScaleFree
+    !![
+    <optionalArgument name="logarithmic" defaultsTo=".false."/>
+    !!]
+
+    radiusScaleFree=+coordinates%rSpherical () &
+         &          /self       %radiusScale
+    densityGradient=-3.5d0                                                 &
+         &          +2.0d0                /(     1.0d0   +radiusScaleFree) &
+         &          +0.5d0*radiusScaleFree/(self%y    **2+radiusScaleFree)
+    if (.not.logarithmic_)                                    &
+         & densityGradient=+     densityGradient              &
+         &                 *self%density        (coordinates) &
+         &                 /self%radiusScale                  &
+         &                 /     radiusScaleFree
+    return
+  end function cuspNFWDensityGradientRadial
+
+  double precision function cuspNFWDensitySlopeLogarithmicCentral(self) result(slope)
+    !!{RST
+    Return the central logarithmic slope of the density profile in a cusp-NFW mass distribution. The profile scales as
+    :math:`\rho \propto \sqrt{y^2+r/r_\mathrm{s}}\, (r/r_\mathrm{s})^{-3/2}` at small radii, giving a slope of :math:`-3/2`
+    for a non-zero cusp parameter, :math:`y`, and :math:`-1` (the :term:`NFW` limit) when it is zero. The profile is cuspy in
+    either case, so the density is not evaluable at zero radius.
+    !!}
+    implicit none
+    class(massDistributionCuspNFW), intent(inout) :: self
+
+    if (self%y > 0.0d0) then
+       slope=-1.5d0
+    else
+       slope=-1.0d0
+    end if
+    return
+  end function cuspNFWDensitySlopeLogarithmicCentral
+
+  double precision function cuspNFWMassEnclosedBySphere(self,radius) result(mass)
+    !!{RST
+    Return the mass enclosed by a sphere of the specified ``radius`` in a cusp-NFW mass distribution.
+    !!}
+    use :: Numerical_Constants_Math, only : Pi
+    implicit none
+    class           (massDistributionCuspNFW), intent(inout), target :: self
+    double precision                         , intent(in   )         :: radius
+    double precision                         , parameter             :: fractionSmall          =1.0d-3
+    ! The simplified solution below drops the (1+r/r_s)⁻² factor of the density, so its error grows in proportion to the radius -
+    ! reaching 1.2×10⁻³ at r/r_s = 10⁻³. It is needed only at radii small enough that the alternatives lose accuracy to
+    ! cancellation, which is far below that: this threshold minimizes the largest error over the whole range, reducing it from
+    ! 6.7×10⁻⁴ to 2.6×10⁻⁵, and to below 10⁻⁸ for the cusp amplitudes y ≳ 0.05 found in practice.
+    double precision                         , parameter             :: fractionSmallSimplified=1.0d-5
+    double precision                                                 :: radiusScaleFree               , termLogarithmic
+
+    radiusScaleFree=+     radius      &
+         &          /self%radiusScale
+    if (radiusScaleFree < fractionSmall*self%y**2) then
+       ! Use a series expansion for small radii r ≪ y².
+       mass  =+8.0d0                            &
+            & *Pi                               &
+            & /3.0d0                            &
+            & *self%densityNormalization        &
+            & *self%radiusScale         **3     &
+            & *     radiusScaleFree     **1.5d0 &
+            & *self%y                           &
+            & *(                                &
+            &   + 1.0d0                         &
+            &   + 3.0d0                         &
+            &   /10.0d0                         &
+            &   *radiusScaleFree                &
+            &   *(+1.0d0-4.0d0*self%y**2)       &
+            &   /              self%y**2        &
+            & )
+    else if (radiusScaleFree < fractionSmallSimplified) then
+       ! Use a simplified solution (approximating ρ = ρ₀ √(r+y²)/r^{3/2}) for small radii r ≪ 1. The logarithmic term vanishes as
+       ! y → 0, since y⁴log(2√r/y) → 0, but the expressions from which it is built divide by y, so it must be omitted in that
+       ! limit rather than evaluated. A cusp-free profile is a valid configuration - it is simply NFW, and
+       ! `densitySlopeLogarithmicCentral` returns -1 for it - so without this the enclosed mass raises a floating point exception
+       ! at any radius below this branch's threshold.
+       if (self%y > 0.0d0) then
+          termLogarithmic=+self%y**4                                          &
+               &          *log(                                               &
+               &               +sqrt(1.0d0+radiusScaleFree/self%y**2)         &
+               &               +sqrt(      radiusScaleFree          )/self%y  &
+               &              )
+       else
+          termLogarithmic=+0.0d0
+       end if
+       mass  =+Pi                                                        &
+            & *self%densityNormalization                                 &
+            & *self%radiusScale         **3                              &
+            & *(                                                         &
+            &   +                     (2.0d0*radiusScaleFree+self%y**2)  &
+            &   *sqrt(radiusScaleFree*(      radiusScaleFree+self%y**2)) &
+            &   -termLogarithmic                                         &
+            &  )
+    else if (self%y**2 < fractionSmall*radiusScaleFree) then
+       ! For small cusps, y² ≪ r, use a series solution. This is essentially the NFW solution with the lowest order correction for
+       ! y.
+       mass  =+4.0d0*Pi                     &
+            & *self%densityNormalization    &
+            & *self%radiusScale         **3 &
+            & *(                            &
+            &   +log(1.0d0+radiusScaleFree) &
+            &   -(1.0d0-0.5d0*self%y**2)    &
+            &   *       radiusScaleFree     &
+            &   /(1.0d0+radiusScaleFree)    &
+            &  )
+    else
+       ! Use the full solution for larger radii.
+       mass  =+4.0d0                                                                                                                &
+            & *Pi                                                                                                                   &
+            & *self%radiusScale**3                                                                                                  &
+            & *self%densityNormalization                                                                                            &
+            & *(                                                                                                                    &
+            &   + 2.0d0                                 *asinh(sqrt(radiusScaleFree                 )/                 self%y     ) &
+            &   -(2.0d0-self%y**2)/sqrt(1.0d0-self%y**2)*atanh(sqrt(radiusScaleFree*(1.0d0-self%y**2)/(radiusScaleFree+self%y**2))) &
+            &   -sqrt(radiusScaleFree*(radiusScaleFree+self%y**2))/(1.0d0+radiusScaleFree)                                          &
+            &  )
+    end if
+    return
+  end function cuspNFWMassEnclosedBySphere
+
+  subroutine cuspNFWParameters(self,densityNormalization,radiusNormalization,parameters,container)
+    !!{RST
+    Establish parameters for tabulation.
+    !!}
+    implicit none
+    class           (massDistributionCuspNFW  ), intent(inout)                              :: self
+    double precision                           , intent(  out)                              :: densityNormalization, radiusNormalization
+    double precision                           , intent(inout), allocatable, dimension(:  ) :: parameters
+    type            (massDistributionContainer), intent(  out), pointer                     :: container
+
+    if (.not.containerCuspNFWInitialized) then
+       ! Allocate the table and initialize.
+       allocate(containerCuspNFW)
+       call containerCuspNFW%initialize(1)
+       ! Specify the number of tabulation points per interval in radius and each parameter. The cusp amplitude, y, is the only
+       ! parameter in any of these classes to carry a hard limit (see below), and the density of points along its axis sets how
+       ! closely the tabulation can approach that limit: the upper bound is pinned to a lattice point *below* the limit, so it
+       ! falls short of it by a fraction 1-10^(-1/N) of N points per decade - 11% at 20 points per decade, but 2% at 100. A
+       ! request between the bound and the limit is met by extrapolation, so this is worth the cost, which is linear here since
+       ! y is the only parameter and so the tabulations are two-dimensional. The extra axis of the Fourier transform tabulation
+       ! - the scaled outer radius - carries no limit, and so keeps the standard density.
+       containerCuspNFW%mass                      %radiusCountPer       =+ 6_c_size_t
+       containerCuspNFW%mass                      %parametersCountPer   =+30_c_size_t
+       containerCuspNFW%radiusEnclosingDensity    %radiusCountPer       =+ 6_c_size_t
+       containerCuspNFW%radiusEnclosingDensity    %parametersCountPer   =+30_c_size_t
+       containerCuspNFW%potential                 %radiusCountPer       =+ 6_c_size_t
+       containerCuspNFW%potential                 %parametersCountPer   =+30_c_size_t
+       containerCuspNFW%velocityDispersion1D      %radiusCountPer       =+ 6_c_size_t
+       containerCuspNFW%velocityDispersion1D      %parametersCountPer   =+30_c_size_t
+       containerCuspNFW%energy                    %radiusCountPer       =+ 6_c_size_t
+       containerCuspNFW%energy                    %parametersCountPer   =+30_c_size_t
+       containerCuspNFW%radiusFreefall            %radiusCountPer       =+ 6_c_size_t
+       containerCuspNFW%radiusFreefall            %parametersCountPer   =+30_c_size_t
+       containerCuspNFW%radiusFreefallIncreaseRate%radiusCountPer       =+ 6_c_size_t
+       containerCuspNFW%radiusFreefallIncreaseRate%parametersCountPer   =+30_c_size_t
+       containerCuspNFW%densityRadialMoment0      %radiusCountPer       =+ 6_c_size_t
+       containerCuspNFW%densityRadialMoment0      %parametersCountPer   =+30_c_size_t
+       containerCuspNFW%densityRadialMoment1      %radiusCountPer       =+ 6_c_size_t
+       containerCuspNFW%densityRadialMoment1      %parametersCountPer   =+30_c_size_t
+       containerCuspNFW%densityRadialMoment2      %radiusCountPer       =+ 6_c_size_t
+       containerCuspNFW%densityRadialMoment2      %parametersCountPer   =+30_c_size_t
+       containerCuspNFW%densityRadialMoment3      %radiusCountPer       =+ 6_c_size_t
+       containerCuspNFW%densityRadialMoment3      %parametersCountPer   =+30_c_size_t
+       containerCuspNFW%fourierTransform          %radiusCountPer       =+ 6_c_size_t
+       containerCuspNFW%fourierTransform          %parametersCountPer   =[30_c_size_t,6_c_size_t]
+       ! Specify names and descriptions of the parameters.
+       containerCuspNFW%nameParameters                               (1)='y'
+       containerCuspNFW%descriptionParameters                        (1)='The cusp amplitude.'
+       ! Specify parameter ranges.
+       containerCuspNFW%parametersMinimumLimit                       (1)=0.000d0
+       containerCuspNFW%parametersMaximumLimit                       (1)=0.999d0
+       ! Record that the table is now initialized.
+       containerCuspNFWInitialized                                      =.true.
+    end if
+    allocate(parameters(1))
+    densityNormalization    =  +self%densityNormalization
+    radiusNormalization     =  +self%radiusScale
+    parameters          (1) =  +self%y
+    container               =>       containerCuspNFW
+    return
+  end subroutine cuspNFWParameters
+
+  subroutine cuspNFWDescriptor(self,descriptor,includeClass,includeFileModificationTimes,parameterName)
+    !!{RST
+    Return an input parameter list descriptor which could be used to recreate this object.
+    !!}
+    use :: Input_Parameters, only : inputParameters, descriptorParameterName
+    implicit none
+    class    (massDistributionCuspNFW), intent(inout)           :: self
+    type     (inputParameters        ), intent(inout)           :: descriptor
+    logical                           , intent(in   ), optional :: includeClass  , includeFileModificationTimes
+    character(len=*                  ), intent(in   ), optional :: parameterName
+    character(len=18                 )                          :: parameterLabel
+    type     (inputParameters        )                          :: parameters
+    !$GLC attributes unused :: includeFileModificationTimes
+    
+    if (.not.present(includeClass).or.includeClass) call descriptor%addParameter(descriptorParameterName('massDistribution',parameterName),'cuspNFW')
+    parameters=descriptor%subparameters(descriptorParameterName('massDistribution',parameterName))
+    write (parameterLabel,'(e17.10)') self%densityNormalization
+    call parameters%addParameter('densityNormalization',trim(adjustl(parameterLabel)))
+    write (parameterLabel,'(e17.10)') self%radiusScale
+    call parameters%addParameter('radiusScale'         ,trim(adjustl(parameterLabel)))
+    write (parameterLabel,'(e17.10)') self%y
+    call parameters%addParameter('y'                   ,trim(adjustl(parameterLabel)))
+    return
+  end subroutine cuspNFWDescriptor
+
+  function cuspNFWSuffix(self) result(suffix)
+    !!{RST
+    Return a suffix for tabulated file names.
+    !!}
+    use :: String_Handling, only : String_C_To_Fortran
+    implicit none
+    type (varying_string         )                :: suffix
+    class(massDistributionCuspNFW), intent(inout) :: self
+    !$GLC attributes unused :: self
+
+    suffix=String_C_To_Fortran(massDistributionCuspNFWSourceDigest)
+    return
+  end function cuspNFWSuffix
+
+  subroutine cuspNFWDescribe(self)
+    !!{RST
+    Return a suffix for tabulated file names.
+    !!}
+    use :: Display, only : displayMessage
+    implicit none
+    class    (massDistributionCuspNFW), intent(inout) :: self
+    character(len=24                 )                :: label
+
+    write (label,'(e24.16)') self%densityNormalization
+    call displayMessage('densityNormalization = '//trim(label))
+    write (label,'(e24.16)') self%radiusScale
+    call displayMessage('radiusScale          = '//trim(label))
+    write (label,'(e24.16)') self%y
+    call displayMessage('y                    = '//trim(label))
+    return
+  end subroutine cuspNFWDescribe

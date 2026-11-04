@@ -8,6 +8,7 @@ import tarfile
 import subprocess
 import sys
 import tempfile
+import time
 import re
 
 # Show differences between two Galacticus parameter files. 
@@ -26,13 +27,56 @@ dynamicPath = os.environ['GALACTICUS_DATA_PATH']+"/dynamic"
 xdiffPath   = dynamicPath+"/xdiff-2.4"
 xdiff       = Path(xdiffPath+"/xdiff.py")
 if not xdiff.is_file():
-    tarFile = xdiffPath+".tar.gz"
-    urllib.request.urlretrieve("https://hg.sr.ht/~nolda/xdiff/archive/2.4.tar.gz", tarFile)
-    tarball = tarfile.open(tarFile)
-    tarball.extractall(dynamicPath)
-    tarball.close() 
+    # Retry the download: the upstream host (SourceHut) intermittently returns gateway errors,
+    # especially to CI address ranges. A failure here must not masquerade as a comparison result:
+    # this tool follows the diff exit convention (0 = no differences, 1 = differences, >= 2 =
+    # trouble), and an uncaught exception would exit with code 1 -- indistinguishable from
+    # "differences found". The URL can be overridden (e.g. to point at a mirror) via the
+    # GALACTICUS_XDIFF_URL environment variable.
+    xdiffURL = os.environ.get('GALACTICUS_XDIFF_URL',"https://hg.sr.ht/~nolda/xdiff/archive/2.4.tar.gz")
+    os.makedirs(dynamicPath,exist_ok=True)
+    tarFile         = xdiffPath+".tar.gz"
+    attemptsMaximum = 5
+    for attempt in range(attemptsMaximum):
+        try:
+            urllib.request.urlretrieve(xdiffURL, tarFile)
+            with tarfile.open(tarFile) as tarball:
+                tarball.extractall(dynamicPath)
+            break
+        except Exception as error:
+            if attempt+1 < attemptsMaximum:
+                delay = 2**(attempt+1)
+                print(f"attempt {attempt+1} of {attemptsMaximum} to obtain xdiff failed ({error}); retrying in {delay}s",file=sys.stderr)
+                time.sleep(delay)
+            else:
+                print(f"FATAL: failed to obtain xdiff from '{xdiffURL}' after {attemptsMaximum} attempts: {error}",file=sys.stderr)
+                sys.exit(2)
+    if not xdiff.is_file():
+        print(f"FATAL: the xdiff tarball from '{xdiffURL}' did not provide '{xdiff}'",file=sys.stderr)
+        sys.exit(2)
 
-# Create list of filwnames to compare.
+# `xdiff` imports the `blessings` module solely for optional colored terminal output. That package is
+# unmaintained and unavailable on recent Python versions. If it is not installed, drop a minimal no-op shim
+# into xdiff's own directory (which is first on its `sys.path` when run as a script) so that the
+# `from blessings import Terminal` import succeeds, with styling becoming a pass-through.
+blessingsShim = Path(xdiffPath+"/blessings.py")
+try:
+    import blessings
+    if blessingsShim.is_file():
+        blessingsShim.unlink()
+except ImportError:
+    blessingsShim.write_text(
+        "class _NoStyle(str):\n"
+        "    def __call__(self, text=''):\n"
+        "        return text\n"
+        "class Terminal:\n"
+        "    def __init__(self, *args, **kwargs):\n"
+        "        pass\n"
+        "    def __getattr__(self, name):\n"
+        "        return _NoStyle()\n"
+    )
+
+# Create list of file names to compare.
 fileNames    = [ args.parameterFile1, args.parameterFile2 ]
 fileNamesTmp = [ ]
 
@@ -79,12 +123,14 @@ if args.canonicalizeValues:
         fileNamesTmp.append(fileOut.name)    
             
 # Run `xdiff` to compare the files.
+print(f"Comparing files '{args.parameterFile1}' and '{args.parameterFile2}'")
 status = subprocess.run("python3 "+str(xdiff)+" "+" ".join(fileNames),shell=True)
+print()
 
 # Remove any temporary files.
 if not args.respectOrder:
-    for i in range(len(fileNamesTmp)):
-        os.unlink(fileNamesTmp[i])
+    for tmp_file in fileNamesTmp:
+        os.unlink(tmp_file)
 
 # Return diff status.
 sys.exit(status.returncode)

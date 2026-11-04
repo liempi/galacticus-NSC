@@ -1,16 +1,17 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <!-- Galacticus model constrained to match baryonic physics data                        -->
+
 <!-- See https://github.com/galacticusorg/galacticus/wiki/Constraints:-Baryonic-Physics -->
+
 <!-- 30-November-2020                                                                   -->
+
 <parameters>
   <formatVersion>2</formatVersion>
-  <lastModified revision="975fffd5aadf697707003f16bf9b4caee8ebe97d" time="2025-10-22T21:34:03"/>
+  <lastModified revision="f88a96423e21da1fe340565b2036399633246e13" time="2026-10-22T05:48:31"/>
 
 
   <!-- Task and work control -->
-  <task value="evolveForests">
-    <walltimeMaximum value="7200"/>
-  </task>
+  <task value="evolveForests"/>
   <evolveForestsWorkShare value="cyclic"/>
 
   <!-- Output file -->
@@ -57,8 +58,7 @@
   </cosmologyParameters>
 
   <!-- Power spectrum options -->
-  <cosmologicalMassVariance value="filteredPower">
-    <sigma_8 value="0.8111"/> 	                      <!-- Planck 2018; arXiv:1807.06211 -->
+  <cosmologicalMassVariance value="filteredPower"> 	                      <!-- Planck 2018; arXiv:1807.06211 -->
   </cosmologicalMassVariance>
   <transferFunction value="eisensteinHu1999">
     <neutrinoNumberEffective value="3.046"/>
@@ -70,6 +70,9 @@
     <running value="0.0000"/>  	                      <!-- Planck 2018; arXiv:1807.06211 -->
   </powerSpectrumPrimordial>
   <powerSpectrumPrimordialTransferred value="simple"/>
+  <powerSpectrumNormalizer value="sigma8">
+    <sigma_8 value="0.8111"/>
+  </powerSpectrumNormalizer>
 
   <!-- Structure formation options -->
   <linearGrowth value="collisionlessMatter"/>
@@ -253,6 +256,10 @@
       </stellarFeedbackOutflows>
     </nodeOperator>
     <nodeOperator value="barInstability">
+      <!-- Stellar luminosities are solved as inactive properties (see the disk/spheroid components, and the star   -->
+      <!-- formation operators above), so bar instability must be told this too - otherwise it reads the (inactive, -->
+      <!-- and therefore stale during active property evolution) stellar luminosities. See issue #128.             -->
+      <luminositiesStellarInactive value="true"/>
       <galacticDynamicsBarInstability value="efstathiou1982">
 	<stabilityThresholdGaseous value="0.751314746070123"/>
 	<stabilityThresholdStellar value="0.757125972218825"/>
@@ -300,6 +307,7 @@
       <excessHeatDrivesOutflow value="true"/>
       <rateMaximumExpulsion value="1.0"/>
     </nodeOperator>
+    <nodeOperator value="CGMOuterRadiusRamPressureStripping"/>
   </nodeOperator>
   
   <!-- Numerical tolerances -->
@@ -448,7 +456,6 @@
       <randomErrorPolynomialCoefficient value="+0.1"/>
       <systematicErrorPolynomialCoefficient value="-0.00668698203006482 -0.00098878419875252"/>
       <sizeSourceLensing value="2.0e-3"/>
-      <depthOpticalISMCoefficient value="0.0"/>
     </outputAnalysis>
     <outputAnalysis value="luminosityFunctionSobral2013HiZELS"> <!-- Analysis #16 -->
       <redshiftInterval value="4"/>
@@ -457,7 +464,6 @@
       <randomErrorPolynomialCoefficient value="+0.1"/>
       <systematicErrorPolynomialCoefficient value="-0.00668698203006482 -0.00098878419875252"/>
       <sizeSourceLensing value="2.0e-3"/>
-      <depthOpticalISMCoefficient value="0.0"/>
     </outputAnalysis>
 
     <!-- Mass-metallicity relations -->
@@ -477,36 +483,68 @@
       <systematicErrorPolynomialCoefficient value="-0.000290999740052957 0.001719822220954"/>
     </outputAnalysis>
 
-    <!-- Local Group stellar mass function -->
-    <outputAnalysis value="localGroupStellarMassFunction"/> <!-- Analysis #19 -->
-
   </outputAnalysis>
 
-  <!-- Systematics nuisance parameters -->
-  <sdssStellarMassSystematics0 value="0.0582454381888318"/>
-  <sdssStellarMassSystematics1 value="-0.058115287792454"/>
-  <gamaStellarMassSystematics0 value="-0.155872721559837"/>
-  <gamaStellarMassSystematics1 value="0.0077688225143428"/>
-  <ultravistaStellarMassSystematics0 value="-0.251426271063426"/>
-  <ultravistaStellarMassSystematics1 value="-0.0124830824977516"/>
-  <alfalfaMassSystematics0 value="-0.126745570595433"/>
-  <alfalfaMassSystematics1 value="0.00149220388187935"/>
-  <sdssMagnitudeSystematics0 value="0.0021761064660743"/>
-  <sdssMagnitudeSystematics1 value="0.00711985285823365"/>
-  <emissionLineLuminositySystematics0 value="-0.00668698203006482"/>
-  <emissionLineLuminositySystematics1 value="-0.00098878419875252"/>
+  <!-- Systematics nuisance parameters. These are only a record of the fitted values: no class reads them. The values are
+       applied through the systematicErrorPolynomialCoefficient parameters of the analyses above (with a fixed offset in some
+       cases, such as the IMF shift applied to ULTRAVISTA). -->
+  <sdssStellarMassSystematics0 value="0.0582454381888318" ignoreWarnings="true"/>
+  <sdssStellarMassSystematics1 value="-0.058115287792454" ignoreWarnings="true"/>
+  <gamaStellarMassSystematics0 value="-0.155872721559837" ignoreWarnings="true"/>
+  <gamaStellarMassSystematics1 value="0.0077688225143428" ignoreWarnings="true"/>
+  <ultravistaStellarMassSystematics0 value="-0.251426271063426" ignoreWarnings="true"/>
+  <ultravistaStellarMassSystematics1 value="-0.0124830824977516" ignoreWarnings="true"/>
+  <alfalfaMassSystematics0 value="-0.126745570595433" ignoreWarnings="true"/>
+  <alfalfaMassSystematics1 value="0.00149220388187935" ignoreWarnings="true"/>
+  <sdssMagnitudeSystematics0 value="0.0021761064660743" ignoreWarnings="true"/>
+  <sdssMagnitudeSystematics1 value="0.00711985285823365" ignoreWarnings="true"/>
+  <emissionLineLuminositySystematics0 value="-0.00668698203006482" ignoreWarnings="true"/>
+  <emissionLineLuminositySystematics1 value="-0.00098878419875252" ignoreWarnings="true"/>
   <ratioEarlyType value="0.719247501103713"/>
 
+  <!-- Emission line calculations. The Halpha luminosity function analyses compute line luminosities by convolving
+       the star formation history with tabulated Cloudy models of HII regions, so a star formation history must be
+       stored, and must resolve the young, ionizing populations in time and in metallicity. These are the calibrated
+       choices of `parameters/reference/emissionLines.xml`; the metallicity boundaries match those of the tabulation
+       used. -->
+  <starFormationHistory value="adaptive">
+    <timeStepMinimum       value="1.25893e-4"/>
+    <countTimeStepsMaximum value="200"       />
+    <metallicityBoundaries value="
+				  0.00531914893617 0.010638297872340 0.021276595744680 0.067282503407837
+				  0.21276595744680 0.300896502632573 0.425531914893617 0.490000000000000
+				  0.58000000000000 0.672825034078379 0.750000000000000 0.900000000000000
+				  1.06382978723404 1.200000000000000 1.350000000000000 1.500000000000000
+				  1.68206258519595 1.950000000000000 2.200000000000000 2.450000000000000
+				  2.65957446808511
+				  "/>
+  </starFormationHistory>
+  <hiiRegionEscapeFraction value="fixed">
+    <escapeFraction value="0.10"/>
+    <ageLimit       value="0.01"/>
+  </hiiRegionEscapeFraction>
+  <hiiRegionMassFunction value="rosolowsky2021">
+    <exponent    value="-1.8e0"/>
+    <massMinimum value="+1.0e4"/>
+    <massMaximum value="+1.0e8"/>
+  </hiiRegionMassFunction>
+  <hiiRegionDensityDistribution value="logNormal">
+    <densityHydrogenReference value="3.0e2"/>
+    <densityHydrogenMinimum   value="1.0e1"/>
+    <densityHydrogenMaximum   value="4.0e2"/>
+    <sigma                    value="1.8e0"/>
+  </hiiRegionDensityDistribution>
+
   <!-- Luminosity calculations -->
-  <luminosityFilter value="         SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g         SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r         SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g         SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r         Lyc             Lyc             Lyc             Lyc             Lyc              Lyc             Lyc             Lyc         HeliumContinuum HeliumContinuum HeliumContinuum HeliumContinuum HeliumContinuum  HeliumContinuum HeliumContinuum HeliumContinuum         OxygenContinuum OxygenContinuum OxygenContinuum OxygenContinuum OxygenContinuum  OxygenContinuum OxygenContinuum OxygenContinuum         "/>
+  <luminosityFilter value="SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_g   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   SDSS_r   Buser_V"/>
   
-  <luminosityType value="         observed observed observed observed observed observed observed observed observed observed observed         observed observed observed observed observed observed observed observed observed observed observed         observed observed observed observed observed observed observed observed observed observed observed         observed observed observed observed observed observed observed observed observed observed observed         rest     rest     rest     rest     rest     rest     rest     rest         rest     rest     rest     rest     rest     rest     rest     rest         rest     rest     rest     rest     rest     rest     rest     rest         "/>
+  <luminosityType value="observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed observed rest   "/>
   
-  <luminosityRedshift value="         0.02     0.04     0.06     0.08     0.10     0.12     0.14     0.16     0.18     0.20     0.24         0.02     0.04     0.06     0.08     0.10     0.12     0.14     0.16     0.18     0.20     0.24         0.02     0.04     0.06     0.08     0.10     0.12     0.14     0.16     0.18     0.20     0.24         0.02     0.04     0.06     0.08     0.10     0.12     0.14     0.16     0.18     0.20     0.24         0.02     0.04     0.06     0.08     0.10     0.40     0.86     2.20         0.02     0.04     0.06     0.08     0.10     0.40     0.86     2.20         0.02     0.04     0.06     0.08     0.10     0.40     0.86     2.20         "/>
+  <luminosityRedshift value="0.02     0.04     0.06     0.08     0.10     0.12     0.14     0.16     0.18     0.20     0.24     0.02     0.04     0.06     0.08     0.10     0.12     0.14     0.16     0.18     0.20     0.24     0.02     0.04     0.06     0.08     0.10     0.12     0.14     0.16     0.18     0.20     0.24     0.02     0.04     0.06     0.08     0.10     0.12     0.14     0.16     0.18     0.20     0.24     0.00   "/>
 
   
-  <luminosityBandRedshift value="         0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10         0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10         0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10         0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10         0.02     0.04     0.06     0.08     0.10     0.40     0.86     2.20         0.02     0.04     0.06     0.08     0.10     0.40     0.86     2.20         0.02     0.04     0.06     0.08     0.10     0.40     0.86     2.20         "/>
-  <luminosityPostprocessSet value="         default  default  default  default  default  default  default  default  default  default  default         default  default  default  default  default  default  default  default  default  default  default         recent   recent   recent   recent   recent   recent   recent   recent   recent   recent   recent         recent   recent   recent   recent   recent   recent   recent   recent   recent   recent   recent         default  default  default  default  default  default  default  default         default  default  default  default  default  default  default  default         default  default  default  default  default  default  default  default         "/>
+  <luminosityBandRedshift value="0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.10     0.00   "/>
+  <luminosityPostprocessSet value="default  default  default  default  default  default  default  default  default  default  default  default  default  default  default  default  default  default  default  default  default  default  recent   recent   recent   recent   recent   recent   recent   recent   recent   recent   recent   recent   recent   recent   recent   recent   recent   recent   recent   recent   recent   recent   default"/>
   <stellarPopulationSpectraPostprocessorBuilder value="lookup">
     <names value="default recent"/>
     <stellarPopulationSpectraPostprocessor value="inoue2014"/>
@@ -518,6 +556,5 @@
       </stellarPopulationSpectraPostprocessor>
     </stellarPopulationSpectraPostprocessor>
   </stellarPopulationSpectraPostprocessorBuilder>
-  <stellarSpectraDustAttenuation value="charlotFall2000"/>
 
 </parameters>

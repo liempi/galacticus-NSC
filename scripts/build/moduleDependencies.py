@@ -1,0 +1,631 @@
+#!/usr/bin/env python3
+"""Generate `Makefile_Module_Dependencies`: per-module and per-submodule
+Makefile rules that tell the Galacticus build system how to produce `.mod`
+and `.smod` files from their owning object files.
+
+For every `.f` / `.f90` source file under `<installDir>/source/` (recursing
+into subdirectories to any depth), this script:
+
+* Extracts every `module <name>` and `submodule (<parent>[:<grand>]) <name>`
+  declaration (skipping text inside `!!{…!!}` LaTeX and `!![…!!]` XML blocks).
+* For every `functionClass` directive in the file, walks each instance file
+  listed in `directiveLocations.xml` to discover the concrete derived types
+  and synthesizes one functionClass-submodule entry per derived type.
+* Emits Makefile rules for each discovered module / submodule target: the
+  `<mod>.mod`, `<mod>@<sub>.smod`, `<src>.o`, `<src>.p.F90`, `<mod>.mod.d`,
+  `<mod>.mod.gv`, `<src>.m`, `<src>.smod` dependencies the main build
+  graph expects.
+
+Results are cached in `Makefile_Module_Dependencies.blob` (pickle) so
+subsequent runs only rescan the files whose mtimes have advanced past the
+cache's own mtime.
+
+Andrew Benson (2026).
+"""
+
+import os
+import pickle
+import re
+import sys
+import xml.etree.ElementTree as ET
+
+
+from Fortran.Utils                 import TYPE_ATTRIBUTES_TAGGED, type_opener_regex
+from Galacticus.Build.Directives   import extract_directives
+from Galacticus.Build.ParallelScan import scan as parallel_scan
+from Galacticus.Build.SourceTree   import parse_file, walk_tree
+from List.ExtraUtils              import as_array
+from XML.Utils                    import xml_to_dict
+from Galacticus.Build.ScanCache import (
+    file_identifier as _file_identifier,
+    load_cache      as _load_cache,
+    prune           as _prune_cache,
+)
+
+
+# ---------------------------------------------------------------------------
+# Line-level regexes
+# ---------------------------------------------------------------------------
+
+_XML_OPEN_RE     = re.compile(r'^\s*!!\[')
+_XML_CLOSE_RE    = re.compile(r'^\s*!!\]')
+_LATEX_OPEN_RE   = re.compile(r'^\s*!!\{')
+_LATEX_CLOSE_RE  = re.compile(r'^\s*!!\}')
+
+_STRIP_COMMENT_RE = re.compile(r'\s*(!.*)?$')
+
+_MODULE_LINE_RE    = re.compile(r'^\s*module\s+([a-zA-Z0-9_]+)$', re.IGNORECASE)
+_SUBMODULE_LINE_RE = re.compile(
+    r'^\s*submodule\s*\(\s*([a-z0-9_]+)(?::([a-z0-9_]+))?\s*\)'
+    r'\s*([a-zA-Z0-9_]+)$',
+    re.IGNORECASE,
+)
+
+
+# ---------------------------------------------------------------------------
+# Cache / helpers
+# ---------------------------------------------------------------------------
+
+def _load_directive_locations(path):
+    if not os.path.exists(path):
+        return {}
+    return xml_to_dict(ET.parse(path).getroot())
+
+
+def _source_directory_descriptors(source_root, build_path):
+    """Return the list of `{path, leaf}` descriptors -- the top-level `source/`
+    directory with leaf "", plus every subdirectory (recursively, to any depth)
+    with `leaf="<relative/path>/"`.  Also `mkdir -p` the matching build
+    subdirectories so emitted object paths can land there.
+    """
+    descriptors = [{'path': source_root, 'leaf': ''}]
+    if not os.path.exists(source_root):
+        return descriptors
+    subdirs = []
+    for dirpath, dirnames, _ in os.walk(source_root):
+        dirnames[:] = [d for d in dirnames if not d.startswith('.')]
+        for d in dirnames:
+            subdirs.append(os.path.join(dirpath, d))
+    for full in sorted(subdirs):
+        leaf = os.path.relpath(full, source_root) + '/'
+        descriptors.append({'path': full, 'leaf': leaf})
+    for d in descriptors:
+        os.makedirs(os.path.join(build_path, d['leaf']), exist_ok=True)
+    return descriptors
+
+
+def _list_source_files(directory):
+    try:
+        names = os.listdir(directory)
+    except OSError:
+        sys.exit("moduleDependencies.py: can not open the source directory: "
+                 + directory)
+    return sorted(
+        n for n in names
+        if re.search(r'\.(f|f90)$', n, re.IGNORECASE) and not n.startswith('.#')
+    )
+
+
+# ---------------------------------------------------------------------------
+# functionClass submodule discovery
+# ---------------------------------------------------------------------------
+
+def _find_function_class_submodules(directive_name, function_class_file,
+                                    source_root):
+    """Return the list of submodule records produced by one `functionClass`
+    directive.
+    """
+    # Regex is dynamic: the class name is substituted in.
+    type_re = type_opener_regex(
+        name=re.escape(directive_name) + r'[a-z0-9_]+',
+        attributes=TYPE_ATTRIBUTES_TAGGED,
+    )
+
+    tree = parse_file(function_class_file)
+    classes = {}
+    for node in walk_tree(tree):
+        ntype = node.get('type')
+        if ntype == directive_name:
+            name = (node.get('directive') or {}).get('name')
+            if name:
+                classes.setdefault(name, {})['name'] = name
+        elif ntype == 'type':
+            m = type_re.match(node.get('opener') or '')
+            if m and m.group('extends') is not None:
+                classes.setdefault(m.group('name'), {})['extends'] = m.group('extends')
+
+    submodules = []
+    # `fileName` must be the stem relative to `source/` (e.g.
+    # `accretion/halo/_class`) so the object path `<build>/<fileName>.o`
+    # mirrors the hierarchical source tree.  Using only the basename would
+    # collapse every `_class.F90` to a single colliding `_class.o`.  Use
+    # `relpath` against the source root rather than stripping `source/` by
+    # regex, since a path may itself contain a directory named `source`
+    # (e.g. `radiative_transfer/source/distributed.F90`).
+    leaf = re.sub(r'\.[fF]90$', '',
+                  os.path.relpath(function_class_file, source_root))
+    for class_name, info in classes.items():
+        own_name   = info.get('name') or class_name
+        extends    = info.get('extends')
+        submodule_name = own_name + '_'
+        if extends == directive_name + 'Class':
+            parent = None
+        elif extends is not None:
+            parent = extends + '_'
+        else:
+            parent = None
+        submodules.append({
+            'name':          submodule_name,
+            'fileName':      leaf,
+            'extends':       parent,
+            'source':        function_class_file,
+            'functionClass': True,
+        })
+    return submodules
+
+
+# ---------------------------------------------------------------------------
+# Per-file Fortran scan
+# ---------------------------------------------------------------------------
+
+def _scan_file(file_path, entry, source_root):
+    """Scan one source file, populating `entry` (a plain dict; keys
+    populated: `modulesProvided`, `submodulesProvided`).
+
+    `include`d files are not followed: a Fortran `include` cannot introduce
+    a `module`/`submodule` statement in this codebase (module declarations
+    are never placed in include files).
+    """
+    in_xml   = False
+    in_latex = False
+    try:
+        fh = open(file_path, 'r', errors='replace')
+    except OSError:
+        sys.exit("moduleDependencies.py: can not open input file: "
+                 + file_path)
+    try:
+        for line in fh:
+            # Leave XML/LaTeX blocks on their closing markers.
+            if _XML_CLOSE_RE.match(line):
+                in_xml = False
+            if _LATEX_CLOSE_RE.match(line):
+                in_latex = False
+            if in_xml or in_latex:
+                continue
+
+            stripped = _STRIP_COMMENT_RE.sub('', line)
+
+            m = _MODULE_LINE_RE.match(stripped)
+            if m:
+                entry.setdefault('modulesProvided', []).append(
+                    m.group(1).lower() + '.mod',
+                )
+
+            m = _SUBMODULE_LINE_RE.match(stripped)
+            if m:
+                parent_mod = m.group(1).lower() + '.mod'
+                submodule_name = m.group(3).lower()
+                leaf = re.sub(r'\.[fF]90$', '',
+                              os.path.relpath(file_path, source_root))
+                entry.setdefault('submodulesProvided', []).append({
+                    'moduleName': parent_mod,
+                    'submodule':  {
+                        'name':          submodule_name,
+                        'fileName':      leaf,
+                        'source':        file_path,
+                        'extends':       None,
+                        'functionClass': False,
+                    },
+                })
+
+            # Enter XML/LaTeX blocks on their opening markers (check
+            # AFTER processing the line so `!![` itself is not mistaken
+            # for code).
+            if _XML_OPEN_RE.match(line):
+                in_xml = True
+            if _LATEX_OPEN_RE.match(line):
+                in_latex = True
+    finally:
+        fh.close()
+
+
+# ---------------------------------------------------------------------------
+# Per-file processing (parallelized across files)
+# ---------------------------------------------------------------------------
+#
+# Each source file is scanned independently: it reads the file (and any
+# `include`d files) and produces a single `entry` dict that writes to no shared
+# state. The per-file cost is dominated by blocking file I/O (open/read of the
+# source on NFS), which on a loaded node stretches from microseconds to
+# milliseconds per file; running the scans concurrently overlaps those waits
+# (and the parsing CPU work) instead of paying them one at a time.
+#
+# A fork-based process pool is used rather than threads so the workers are fully
+# isolated -- no assumptions are made about the thread-safety of the parser --
+# and the regex/AST parsing parallelizes too. Workers inherit the read-only
+# `locations` map and `source_root` via copy-on-write fork, so nothing large is
+# pickled per task; only the small result dicts come back.
+
+_WORKER = {}
+
+
+def _scan_one(task):
+    """Worker: scan one source file and return its `(file_identifier, name,
+    desc, entry)`. Mirrors the per-file body of the serial scan loop exactly.
+    """
+    file_identifier, name, desc = task
+    source_root = _WORKER['source_root']
+    locations   = _WORKER['locations']
+    file_path   = desc['path'] + '/' + name
+
+    # functionClass -> synthesize submodule records.
+    function_classes = extract_directives(file_path, 'functionClass')
+    submodules_for_file = []
+    for fc in function_classes:
+        for fc_file in as_array((locations.get(fc['name']) or {}).get('file')):
+            submodules_for_file.extend(
+                _find_function_class_submodules(
+                    fc['name'], fc_file, source_root,
+                )
+            )
+
+    entry = {}
+    if submodules_for_file:
+        entry['submodules'] = submodules_for_file
+    entry.setdefault('files', []).append(file_path)
+    entry['sourceFileName']            = name
+    entry['sourceDirectoryDescriptor'] = desc
+    entry.setdefault('modulesProvided', [])
+
+    _scan_file(file_path, entry, source_root)
+    return file_identifier, name, desc, entry
+
+
+def _scan_files(scan_list, source_root, locations):
+    """Scan every file in `scan_list` (a list of `(file_identifier, name, desc)`
+    preserving the serial loop's order) and return the results in that SAME
+    order, so downstream `modules_per_file` insertion order -- and therefore the
+    emitted Makefile -- is identical to the serial version. The read-only
+    `source_root`/`locations` are published to `_WORKER` first so forked workers
+    inherit them via copy-on-write instead of re-pickling per task.
+    """
+    _WORKER['source_root'] = source_root
+    _WORKER['locations']   = locations
+    return parallel_scan(scan_list, _scan_one, 'moduleDependencies.py')
+
+
+# ---------------------------------------------------------------------------
+# Submodule-by-module map
+# ---------------------------------------------------------------------------
+
+def _build_submodule_map(modules_per_file):
+    """Return a dict mapping lowercase `<module>.mod` to the ordered list of
+    submodule records associated with it.  Combines both functionClass-
+    synthesized submodules and Fortran `submodule (…)` statements.
+    """
+    submodules = {}
+    for file_id, entry in modules_per_file.items():
+        if not entry.get('submodules'):
+            continue
+        provided = entry.get('modulesProvided') or []
+        if len(provided) != 1:
+            raise RuntimeError(
+                "moduleDependencies.py: submodules associated with multiple "
+                "modules"
+            )
+        module_file_name = provided[0]
+        module_name = re.sub(r'\.mod$', '', module_file_name)
+        submodules[module_name.lower() + '.mod'] = list(entry['submodules'])
+
+    for file_id, entry in modules_per_file.items():
+        for rec in entry.get('submodulesProvided') or []:
+            module_file_name = rec['moduleName']
+            submodules.setdefault(module_file_name, []).append(rec['submodule'])
+
+    return submodules
+
+
+# ---------------------------------------------------------------------------
+# Makefile emission
+# ---------------------------------------------------------------------------
+
+def _remove_if_stale(path, lines):
+    """Delete the module-list (`.m`) file `path` if its content is not `lines`.
+
+    The `.m` rules written below have no prerequisites, so make never rewrites
+    an existing `.m` file.  If the modules that a source file provides change
+    (a module is renamed, say), the old file would list module files that are
+    no longer produced, and the compile rule would fail trying to move them
+    into place.  Deleting the stale file makes make regenerate it.
+    """
+    try:
+        with open(path) as fh:
+            current = fh.read()
+    except FileNotFoundError:
+        return
+    if current != ''.join(line + '\n' for line in lines):
+        os.remove(path)
+
+
+def _write_makefile(path, modules_per_file, submodules_by_module, work_dir):
+    """Write `Makefile_Module_Dependencies`.
+    """
+    with open(path, 'w') as mk:
+        for file_identifier in sorted(modules_per_file):
+            entry  = modules_per_file[file_identifier]
+            mods   = entry.get('modulesProvided') or []
+            if not mods:
+                continue
+            source_file_name = entry['sourceFileName']
+            leaf             = entry['sourceDirectoryDescriptor']['leaf']
+            object_file_name = re.sub(
+                r'\.(f|f90)$', '.o', source_file_name,
+                flags=re.IGNORECASE,
+            )
+            obj_dep_file     = re.sub(r'\.o$', '.d', object_file_name)
+
+            for module_file_name in mods:
+                mod_key   = module_file_name.lower()
+                submodule_list = submodules_by_module.get(mod_key, [])
+                mod_path  = work_dir + module_file_name
+                leaf_obj  = work_dir + leaf + object_file_name
+
+                # <build>/foo.mod: <build>/<leaf>/foo.o   (+conditional rebuild)
+                mk.write(f"{mod_path}: {leaf_obj}\n")
+                mk.write(f"\t@if [ ! -f {mod_path} ]; then \\\n")
+                mk.write(f"\t  rm {leaf_obj} ; \\\n")
+                mk.write(f"\t  $(MAKE) {leaf_obj} ; \\\n")
+                mk.write("\tfi\n\n")
+
+                module_name = re.sub(r'\.mod$', '', module_file_name)
+
+                for submodule in submodule_list:
+                    sub_name  = submodule['name'].lower()
+                    sub_file  = submodule['fileName']
+                    smod_path = (
+                        f"{work_dir}{module_name}@{sub_name}.smod"
+                    )
+                    sub_obj = f"{work_dir}{sub_file}.o"
+
+                    mk.write(f"{smod_path}: {sub_obj}\n")
+                    mk.write(f"\t@if [ ! -f {smod_path} ]; then \\\n")
+                    mk.write(f"\t  rm {sub_obj} ; \\\n")
+                    mk.write(f"\t  $(MAKE) {sub_obj} ; \\\n")
+                    mk.write("\tfi\n\n")
+
+                    if submodule['extends'] is not None:
+                        matches = [
+                            s for s in submodule_list
+                            if s['name'] == submodule['extends']
+                        ]
+                        if not matches:
+                            print("no matching submodule found:")
+                            print(
+                                f"\t'{submodule['name']}' extends "
+                                f"'{submodule['extends']}'"
+                            )
+                            print("\tavailable submodules are:")
+                            for avail in submodule_list:
+                                print(f"\t\t'{avail['name']}'")
+                            sys.exit(
+                                "ERROR: moduleDependencies.py: "
+                                "no matching submodule found"
+                            )
+                        if len(matches) > 1:
+                            print(
+                                "ERROR: class '" + submodule['name']
+                                + "' is an extension of class '"
+                                + submodule['extends']
+                                + "' which is multiply defined in files:"
+                            )
+                            for m in matches:
+                                print("\t" + m['source'])
+                            sys.exit(
+                                "moduleDependencies.py: multiple matching "
+                                "submodules found"
+                            )
+                        depends_on = matches[0]['fileName'] + '.o'
+                    else:
+                        depends_on = leaf + object_file_name
+
+                    mk.write(f"{sub_obj}: {work_dir}{depends_on}\n\n")
+
+                    if submodule['functionClass']:
+                        preprocessed = re.sub(
+                            r'\.F90$', '.p.F90', source_file_name,
+                        )
+                        p_file = (
+                            f"{work_dir}{sub_file}.p.F90"
+                        )
+                        p_src  = f"{work_dir}{leaf}{preprocessed}"
+                        # An implementation's preprocessed submodule file
+                        # (`p_file`) is *generated as a side effect of
+                        # preprocessing the functionClass base* (`p_src`), by
+                        # the FunctionClass source-tree processor.  Gate the
+                        # implementation behind the base (so make builds the
+                        # base first), and force-regenerate the base if the
+                        # implementation's file is missing.  The `base` prereq
+                        # makes this race-free under `-j`: the base is built
+                        # once before the recipe runs, after which every
+                        # implementation file already exists.
+                        mk.write(
+                            f"{p_file}.up: {p_src} {submodule['source']}\n"
+                        )
+                        mk.write(f"\t@if [ ! -f {p_file} ]; then \\\n")
+                        mk.write(f"\t  rm {p_src} ; \\\n")
+                        mk.write(f"\t  $(MAKE) {p_src} ; \\\n")
+                        mk.write("\tfi\n")
+                        mk.write(f"{p_file}: {p_file}.up\n\n")
+
+                # <build>/foo.mod.d : aggregates the per-source .d files.
+                dep_targets = ' '.join(
+                    work_dir + s['fileName'] + '.d'
+                    for s in submodule_list
+                )
+                mod_d    = mod_path + '.d'
+                leaf_dep = work_dir + leaf + obj_dep_file
+                mk.write(f"{mod_d}: {leaf_dep} {dep_targets}\n")
+                mk.write(f"\t@echo {leaf_obj} > {mod_d}~\n")
+                mk.write(f"\t@cat {leaf_dep} >> {mod_d}~\n")
+                for submodule in submodule_list:
+                    sub_file = submodule['fileName']
+                    mk.write(f"\t@echo {work_dir}{sub_file}.o >> {mod_d}~\n")
+                    mk.write(f"\t@cat {work_dir}{sub_file}.d >> {mod_d}~\n")
+                mk.write(f"\t@if cmp -s {mod_d} {mod_d}~ ; then \\\n")
+                mk.write(f"\t rm {mod_d}~ ; \\\n")
+                mk.write("\telse \\\n")
+                mk.write(f"\t mv {mod_d}~ {mod_d} ; \\\n")
+                mk.write("\tfi\n\n")
+
+                # <build>/foo.mod.gv : GraphViz source-dependency rule.
+                gv_src = work_dir + leaf + source_file_name + '.gv'
+                mk.write(
+                    f"{mod_path}.gv: {leaf_dep} {gv_src}\n"
+                )
+                mk.write(
+                    f"\t@echo {leaf}{source_file_name} > "
+                    f"{work_dir}{mod_key}.gv\n"
+                )
+
+            # Module-list file: `<src>.m`.
+            modules_list_file_name = re.sub(
+                r'\.(f|f90)$', '.m', source_file_name,
+                flags=re.IGNORECASE,
+            )
+            modules_list_path = (
+                work_dir + leaf + modules_list_file_name
+            )
+            mk.write(f"{modules_list_path}:\n")
+            director = '> '
+            modules_listed = []
+            for module_file_name in mods:
+                mk.write(
+                    f"\t@echo {work_dir}{module_file_name} "
+                    f"{director} {modules_list_path}\n"
+                )
+                modules_listed.append(f"{work_dir}{module_file_name}")
+                director = '>>'
+                sub_list = submodules_by_module.get(module_file_name.lower(), [])
+                if sub_list:
+                    smod_name = re.sub(r'\.mod$', '.smod', module_file_name)
+                    mk.write(
+                        f"\t@echo {work_dir}{smod_name} "
+                        f"{director} {modules_list_path}\n"
+                    )
+                    modules_listed.append(f"{work_dir}{smod_name}")
+            mk.write("\n")
+            _remove_if_stale(modules_list_path, modules_listed)
+
+            # Per-submodule `.m` files.
+            for module_file_name in mods:
+                module_name = re.sub(r'\.mod$', '', module_file_name)
+                for submodule in submodules_by_module.get(
+                        module_file_name.lower(), []):
+                    sub_name = submodule['name'].lower()
+                    sub_file = submodule['fileName']
+                    sub_m    = f"{work_dir}{sub_file}.m"
+                    mk.write(f"{sub_m}:\n")
+                    mk.write(
+                        f"\t@echo {work_dir}{module_name}@"
+                        f"{sub_name}.smod > {sub_m}\n\n"
+                    )
+                    _remove_if_stale(
+                        sub_m, [f"{work_dir}{module_name}@{sub_name}.smod"],
+                    )
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main(argv):
+    if len(argv) != 2:
+        print("Usage: moduleDependencies.py <sourceDirectory>",
+              file=sys.stderr)
+        sys.exit(1)
+    install_directory = argv[1]
+    build_path = os.environ['BUILDPATH']
+    work_dir   = build_path + '/'
+    blob_path  = work_dir + 'Makefile_Module_Dependencies.blob'
+
+    locations = _load_directive_locations(
+        work_dir + 'directiveLocations.xml',
+    )
+
+    source_root = os.path.join(install_directory, 'source')
+    descriptors = _source_directory_descriptors(source_root, build_path)
+
+    modules_per_file, cache_mtime = _load_cache(blob_path)
+    have_per_file = cache_mtime is not None
+
+    # Build the identifier list used for add/remove detection and the
+    # stale-entry prune below. Canonicalized via `file_identifier()` so it
+    # uses the same key form as the cache entries.
+    current_identifiers = []
+    for desc in descriptors:
+        for name in _list_source_files(desc['path']):
+            current_identifiers.append(
+                _file_identifier(desc['path'] + '/' + name),
+            )
+    current_identifier_set = set(current_identifiers)
+
+    force_rescan = False
+    if have_per_file:
+        if any(fid not in modules_per_file for fid in current_identifiers):
+            force_rescan = True
+        if any(fid not in current_identifier_set for fid in modules_per_file):
+            force_rescan = True
+
+    # Decide which files need a (re)scan, preserving the deterministic
+    # descriptor-then-sorted-name order so the merge below reproduces the serial
+    # insertion order exactly.
+    scan_list = []
+    for desc in descriptors:
+        for name in _list_source_files(desc['path']):
+            file_path       = desc['path'] + '/' + name
+            file_identifier = _file_identifier(file_path)
+
+            rescan = True
+            if have_per_file and file_identifier in modules_per_file:
+                tracked = modules_per_file[file_identifier].get('files') or []
+                stale = any(
+                    os.path.exists(t)
+                    and os.stat(t).st_mtime > cache_mtime
+                    for t in tracked
+                )
+                rescan = bool(stale)
+            if not (rescan or force_rescan):
+                continue
+            scan_list.append((file_identifier, name, desc))
+
+    # Scan the files (concurrently) and merge results in scan-list order so the
+    # output is identical to a serial run.
+    for file_identifier, name, desc, entry in _scan_files(
+            scan_list, source_root, locations):
+        modules_per_file.pop(file_identifier, None)
+        modules_per_file[file_identifier] = entry
+
+    # Drop cache entries for source files that no longer exist, or their
+    # module/submodule rules would be re-emitted into
+    # Makefile_Module_Dependencies forever (phantom dependencies on deleted
+    # files, which survive deleting the generated fragment — it is rebuilt
+    # from this same cache).
+    _prune_cache(modules_per_file, current_identifier_set)
+
+    # Build the submodule-by-module map.
+    submodules_by_module = _build_submodule_map(modules_per_file)
+
+    # Emit the Makefile and persist the cache.
+    _write_makefile(
+        work_dir + 'Makefile_Module_Dependencies',
+        modules_per_file,
+        submodules_by_module,
+        work_dir,
+    )
+
+    with open(blob_path, 'wb') as fh:
+        pickle.dump(modules_per_file, fh, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+if __name__ == '__main__':
+    main(sys.argv)

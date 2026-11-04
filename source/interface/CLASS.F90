@@ -1,0 +1,1215 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+!+    Contributions to this file made by: Andrew Benson, Claude.
+
+!!{RST
+Contains a module which provides various interfaces to the :term:`CLASS` code.
+!!}
+
+module Interfaces_CLASS
+  !!{RST
+  Provides various interfaces to the :term:`CLASS` code.
+  !!}
+  use :: File_Utilities, only : lockDescriptor
+  private
+  public :: Interface_CLASS_Initialize                 , Interface_CLASS_Perturbations, Interface_CLASS_Transfer_Function, Interface_CLASS_Normalization, &
+       &    Interface_CLASS_Transfer_Function_Amplitude, Interface_CLASS_Dark_Energy
+
+  ! Current file format version for transfer function files. Note that this file format matches that used by the "file" transfer
+  ! function class.
+  integer                         , parameter :: classFormatVersionCurrent       =     2
+
+  ! Default maximum wavenumber to tabulate.
+  double precision                , parameter :: classLogWavenumberMaximumDefault=log(10.0d0)
+
+  ! Tolerance within which a CPL dark energy equation of state is treated as that of a cosmological constant (w_a may be found by
+  ! finite difference), and tolerance within which a dark energy equation of state must match the CPL form.
+  double precision                , parameter :: toleranceEquationOfStateLambda  =1.0d-6
+  double precision                , parameter :: toleranceEquationOfStateCPL     =1.0d-3
+
+  !![
+  <enumeration docformat="rst">
+   <name>classSpecies</name>
+   <description>
+   Enumeration of particle species tracked by the CLASS Boltzmann code when computing transfer functions: ``photons``, ``darkMatter``, and ``baryons``, used to select which species' transfer function is returned.
+   </description>
+   <visibility>public</visibility>
+   <indexing>1</indexing>
+   <entry label="photons"   />
+   <entry label="darkMatter"/>
+   <entry label="baryons"   />
+  </enumeration>
+  !!]
+
+  ! Generate a source digest.
+  !![
+  <sourceDigest name="classSourceDigest"/>
+  !!]
+
+contains
+
+  subroutine Interface_CLASS_Initialize(classPath,classVersion,static)
+    !!{RST
+    Initialize the interface with CLASS, including downloading and compiling CLASS if necessary.
+    !!}
+    use :: Dependencies      , only : dependencyVersion
+    use :: Display           , only : displayMessage   , verbosityLevelWorking
+    use :: File_Utilities    , only : Directory_Make   , File_Exists          , File_Lock   , File_Unlock, &
+          &                           lockDescriptor
+    use :: Error             , only : Error_Report
+    use :: Input_Paths       , only : inputPath        , pathTypeTools
+    use :: ISO_Varying_String, only : assignment(=)    , char                 , operator(//), replace    , &
+          &                           varying_string
+    use :: String_Handling   , only : stringSubstitute
+    use :: System_Command    , only : System_Command_Do, shellEscape
+    use :: System_Download   , only : download
+    use :: System_Compilers  , only : compiler         , compilerOptions      , languageC   , compilerValidate
+    implicit none
+    type   (varying_string), intent(  out)           :: classPath, classVersion
+    logical                , intent(in   ), optional :: static
+    integer                                          :: status
+    type   (varying_string)                          :: command         , escapedToolsPath, &
+         &                                              escapedTarFile  , escapedClassPath
+    type   (lockDescriptor)                          :: fileLock
+    !![
+    <optionalArgument name="static" defaultsTo=".false." />
+    !!]
+
+    ! Set path and version
+    classVersion=dependencyVersion("class")
+    classPath   =inputPath(pathTypeTools)//"class_public-"//classVersion//"/"
+    ! Build the CLASS code.
+    if (.not.File_Exists(classPath//"class")) then
+       call compilerValidate(languageC,'CLASS')
+       call Directory_Make(     classPath                                        )
+       call File_Lock     (char(classPath//"class"),fileLock,lockIsShared=.false.)
+       ! Unpack the code.
+       if (.not.File_Exists(classPath//"Makefile")) then
+          ! Download CLASS if necessary.
+          if (.not.File_Exists(inputPath(pathTypeTools)//"class_public-"//char(classVersion)//".tar.gz")) then
+             call displayMessage("downloading CLASS code....",verbosityLevelWorking)
+             call download("https://github.com/lesgourg/class_public/archive/refs/tags/v"//char(classVersion)//".tar.gz",char(inputPath(pathTypeTools))//"class_public-"//char(classVersion)//".tar.gz",status=status,retries=5,retryWait=60)
+             if (status /= 0 .or. .not.File_Exists(inputPath(pathTypeTools)//"class_public-"//char(classVersion)//".tar.gz")) call Error_Report("unable to download CLASS"//{introspection:location})
+          end if
+          call displayMessage("unpacking CLASS code....",verbosityLevelWorking)
+          escapedToolsPath=inputPath  (pathTypeTools   )
+          escapedToolsPath=shellEscape(escapedToolsPath)
+          escapedTarFile  =inputPath  (pathTypeTools   )//"class_public-"//char(classVersion)//".tar.gz"
+          escapedTarFile  =shellEscape(escapedTarFile  )
+          call System_Command_Do("tar -x -v -z -C "//escapedToolsPath//" -f "//escapedTarFile,status)
+          if (status /= 0 .or. .not.File_Exists(classPath)) call Error_Report('failed to unpack CLASS code'//{introspection:location})
+       end if
+       call displayMessage("compiling CLASS code",verbosityLevelWorking)
+       escapedClassPath=shellEscape(classPath)
+       command='cd '//escapedClassPath//'; cp Makefile Makefile.tmp; '
+       ! Include Galacticus compilation flags here.
+       command=command//'sed -E -i~ s/"^CC[[:space:]]+=[[:space:]]+gcc"/"CC='//char(stringSubstitute(compiler(languageC),"/","\/"))//'"/ Makefile.tmp; sed -E -i~ s/"^(CC|LD)FLAG = "/"\1FLAG = '//char(stringSubstitute(compilerOptions(languageC),"/","\/"))
+       if (static_) command=command//' -static -Wl,--whole-archive -lpthread -Wl,--no-whole-archive'
+       command=command//' "/ Makefile.tmp; make -f Makefile.tmp -j1 class'
+       call System_Command_Do(char(command),status);
+       if (status /= 0 .or. .not.File_Exists(classPath//"class")) call Error_Report("failed to build CLASS code"//{introspection:location})
+       call File_Unlock(fileLock)
+    end if
+    return
+
+  contains
+
+    function flagsRetrieve(flagsLength)
+      !!{RST
+      Retrieve the compiler flags.
+      !!}
+      implicit none
+      type     (varying_string )                :: flagsRetrieve
+      integer                   , intent(in   ) :: flagsLength
+      character(len=flagsLength)                :: flags
+
+      call Get_Environment_Variable('GALACTICUS_FCFLAGS',value=flags)
+      flagsRetrieve=replace(flags,"/","\/",every=.true.)
+      return
+    end function flagsRetrieve
+
+  end subroutine Interface_CLASS_Initialize
+
+  subroutine Interface_CLASS_Perturbations(cosmologyParameters_,redshifts,wavenumberRequired,wavenumberMaximum,countPerDecade,fileName,wavenumberMaximumReached,perturbationsDarkMatter,perturbationsBaryons)
+    !!{RST
+    Run CLASS as necessary to compute perturbations.
+    !!}
+    use               :: Cosmology_Parameters            , only : cosmologyParametersClass    , hubbleUnitsLittleH
+    use               :: Dependencies                    , only : dependencyVersion           , dependencyVersionLabel
+    use               :: File_Utilities                  , only : Count_Lines_In_File         , Directory_Make        , File_Exists   , File_Lock     , &
+         &                                                        File_Path                   , File_Remove           , File_Unlock   , lockDescriptor
+    use               :: Error                           , only : Error_Report
+    use               :: Input_Paths                     , only : inputPath                   , pathTypeDataDynamic
+    use               :: HDF5                            , only : hsize_t
+    use               :: Hashes_Cryptographic            , only : Hash_MD5
+    use               :: HDF5_Access                     , only : hdf5Access
+    use               :: IO_HDF5                         , only : hdf5File                    , hdf5Group
+    use   , intrinsic :: ISO_C_Binding                   , only : c_size_t
+    use               :: ISO_Varying_String              , only : assignment(=)               , char                  , extract       , len           , &
+          &                                                       operator(//)                , operator(==)          , varying_string
+    use               :: Input_Parameters                , only : inputParameters
+#ifdef USEMPI
+    use               :: MPI_Utilities                   , only : mpiSelf
+#endif
+    use               :: Numerical_Constants_Astronomical, only : heliumByMassPrimordial
+    use               :: Numerical_Interpolation         , only : GSL_Interp_cSpline
+    !$ use            :: OMP_Lib                         , only : OMP_Get_Thread_Num
+    use               :: Sorting                         , only : sortIndex
+    use               :: String_Handling                 , only : String_C_To_Fortran         , operator(//)
+    use               :: System_Command                  , only : System_Command_Do
+    use               :: Table_Labels                    , only : extrapolationTypeExtrapolate
+    use               :: Tables                          , only : table                       , table1DGeneric
+    implicit none
+    class           (cosmologyParametersClass), intent(inout)                   :: cosmologyParameters_
+    double precision                          , intent(in   ), dimension(:    ) :: redshifts
+    double precision                          , intent(in   )                   :: wavenumberRequired                  , wavenumberMaximum
+    integer                                   , intent(in   ), optional         :: countPerDecade
+    type            (varying_string          ), intent(  out), optional         :: fileName
+    type            (table1DGeneric          ), intent(  out), optional         :: perturbationsDarkMatter             , perturbationsBaryons
+    logical                                   , intent(inout), optional         :: wavenumberMaximumReached
+    double precision                          , allocatable  , dimension(:    ) :: wavenumbers                         , wavenumbersLogarithmic      , &
+         &                                                                         perturbations_                      , redshiftsCombined
+    double precision                          , allocatable  , dimension(:,:,:) :: perturbations
+    character       (len= 9                  ), allocatable  , dimension(:    ) :: redshiftLabels                      , redshiftLabelsCombined
+    integer         (c_size_t                ), allocatable  , dimension(:    ) :: redshiftRanks                       , redshiftRanksCombined
+    type            (varying_string          ), allocatable  , dimension(:    ) :: datasetNames
+    integer         (hsize_t                 ), parameter                       :: chunkSize               =100_hsize_t
+    type            (lockDescriptor          )                                  :: fileLock
+    integer                                                                     :: i                                   , j                           , &
+         &                                                                         countRedshiftsUnique
+    type            (hdf5File                )                                  :: classOutput
+    type            (hdf5Group               )                                  :: parametersGroup                     , extrapolationWavenumberGroup, &
+         &                                                                         extrapolationGroup                  , speciesGroup
+    character       (len=32                  )                                  :: parameterLabel                      , datasetName                 , &
+         &                                                                         redshiftLabel
+    type            (varying_string          )                                  :: uniqueLabel                         , fileName_    , &
+         &                                                                     versionClass                        , labelVersionClass
+    type            (inputParameters         )                                  :: descriptor
+    logical                                                                     :: allEpochsFound
+    !![
+    <optionalArgument name="countPerDecade" defaultsTo="0"/>
+    !!]
+
+    ! Build a sorted array of all redshift labels.
+    allocate(redshiftRanks (size(redshifts)))
+    allocate(redshiftLabels(size(redshifts)))
+    redshiftRanks=sortIndex(redshifts)
+    do i=1,size(redshifts)
+       write (redshiftLabels(i),'(f9.4)') redshifts(redshiftRanks(i))
+    end do
+    ! Get a constructor descriptor for this object.
+    descriptor=inputParameters()
+    call cosmologyParameters_%descriptor(descriptor)
+    ! Add primordial helium abundance to the descriptor.
+    write (parameterLabel,'(f4.2)') heliumByMassPrimordial
+    call descriptor%addParameter("Y_He"          ,parameterLabel)
+    ! Add wavenumber resolution to descriptor.
+    write (parameterLabel,'(i4)'  ) countPerDecade_
+    call descriptor%addParameter("countPerDecade",parameterLabel)
+    ! Add the unique label string to the descriptor.
+    ! Evaluate into a local first - gfortran leaks the temporary returned by a `varying_string`-valued
+    ! function when it is consumed directly by another function.
+    versionClass     =dependencyVersion     ("class")
+    labelVersionClass=dependencyVersionLabel("class")
+    uniqueLabel=descriptor%serializeToString()        // &
+         &      "_sourceDigest:"                      // &
+         &      String_C_To_Fortran(classSourceDigest)// &
+         &      labelVersionClass
+    call descriptor%destroy()
+    ! Build the file name.
+    fileName_=char(inputPath(pathTypeDataDynamic))                    // &
+         &                  'largeScaleStructure/perturbations_CLASS_'// &
+         &                  Hash_MD5(uniqueLabel)                     // &
+         &                  '.hdf5'
+    if (present(fileName)) fileName=fileName_
+    ! Create the directory.
+    call Directory_Make(File_Path(fileName_))
+    ! If the file exists but has not yet been read, read it now.
+    ! Always obtain the file lock before the hdf5Access lock to avoid deadlocks between OpenMP threads.
+    call File_Lock(char(fileName_),fileLock)
+    allEpochsFound=.false.
+    if (File_Exists(fileName_)) then
+       allEpochsFound=.true.
+       !$ call hdf5Access%set()
+       hdf5ReadScope: block
+         classOutput=hdf5File(fileName_)
+         call classOutput%readDataset('wavenumber',wavenumbers)
+         allocate(perturbations(size(wavenumbers),3,size(redshifts)))
+         speciesGroup=classOutput%openGroup('darkMatter')
+         do i=1,size(redshifts)
+            datasetName='perturbationsZ'//trim(adjustl(redshiftLabels(i)))
+            if (speciesGroup%hasDataset(datasetName)) then
+               call speciesGroup%readDatasetStatic(datasetName,perturbations(:,classSpeciesDarkMatter%ID,i))
+            else
+               allEpochsFound=.false.
+            end if
+         end do
+         speciesGroup=classOutput%openGroup('baryons')
+         do i=1,size(redshifts)
+            datasetName='perturbationsZ'//trim(adjustl(redshiftLabels(i)))
+            if (speciesGroup%hasDataset(datasetName)) then
+               call speciesGroup%readDatasetStatic(datasetName,perturbations(:,classSpeciesBaryons   %ID,i))
+            else
+               allEpochsFound=.false.
+            end if
+         end do
+       end block hdf5ReadScope
+       !$ call hdf5Access %unset()
+    end if
+    if (.not.allocated(wavenumbers) .or. wavenumberRequired > wavenumbers(size(wavenumbers)) .or. .not.allEpochsFound) then
+       ! If the wavenumber is out of range, or if not all requested epochs exist within the file, recompute the CLASS perturbations.
+       ! Find all existing epochs in the file, create a union of these and the requested epochs.
+       if (File_Exists(fileName_)) then
+          !$ call hdf5Access%set       (               )
+          hdf5DatasetsScope: block
+            classOutput=hdf5File(fileName_)
+            speciesGroup=classOutput%openGroup('darkMatter')
+            call    speciesGroup%datasets(datasetNames   )
+          end block hdf5DatasetsScope
+          !$ call hdf5Access  %unset   (               )
+       else
+          allocate(datasetNames(0))
+       end if
+       allocate(redshiftsCombined(size(redshifts)+size(datasetNames)))
+       redshiftsCombined(1:size(redshifts))=redshifts
+       do i=1,size(datasetNames)
+          if (extract(datasetNames(i),1,14) == 'perturbationsZ') then
+             redshiftLabel=extract(datasetNames(i),15,len(datasetNames(i)))
+             read (redshiftLabel,*) redshiftsCombined(size(redshifts)+i)
+          else
+             call Error_Report("unknown dataset '"//datasetNames(i)//"' in file '"//fileName_//"'"//{introspection:location})
+          end if
+       end do
+       allocate(redshiftRanksCombined (size(redshiftsCombined)))
+       allocate(redshiftLabelsCombined(size(redshiftsCombined)))
+       redshiftRanksCombined=sortIndex(redshiftsCombined)
+       do i=1,size(redshiftsCombined)
+          write (redshiftLabelsCombined(i),'(f9.4)') redshiftsCombined(redshiftRanksCombined(i))
+       end do
+       ! Remove duplicated redshifts.
+       countRedshiftsUnique=size(redshiftLabelsCombined)
+       i=2
+       do while (i <= countRedshiftsUnique)
+          if (redshiftLabelsCombined(i) == redshiftLabelsCombined(i-1)) then
+             do j=i,countRedshiftsUnique-1
+                redshiftLabelsCombined(j)=redshiftLabelsCombined(j+1)
+             end do
+             countRedshiftsUnique=countRedshiftsUnique-1
+          else
+             i=i+1
+          end if
+       end do
+       ! Run CLASS to get perturbations.
+       call Interface_CLASS_Run(cosmologyParameters_,redshiftsCombined,wavenumberRequired,wavenumberMaximum,countPerDecade,wavenumberMaximumReached,wavenumbers,perturbations=perturbations)
+       ! Construct the output HDF5 file.
+       !$ call hdf5Access  %set()
+       hdf5WriteScope: block
+         classOutput=hdf5File(fileName_,objectsOverwritable=.true.)
+         call    classOutput %writeAttribute('Perturbations created by CLASS.','description' )
+         call    classOutput %writeAttribute(classFormatVersionCurrent        ,'fileFormat'  )
+         call    classOutput %writeAttribute(versionClass                     ,'versionCLASS')
+         call    classOutput %writeDataset(wavenumbers ,'wavenumber'                               ,chunkSize=chunkSize,appendTo=.not. classOutput%hasDataset('wavenumber'))
+         speciesGroup=classOutput%openGroup('darkMatter','Group containing perturbations for dark matter.')
+         do i=1,countRedshiftsUnique
+            datasetName='perturbationsZ'//trim(adjustl(redshiftLabelsCombined(i)))
+            call speciesGroup%writeDataset(perturbations(:,classSpeciesDarkMatter%ID,i),datasetName,chunkSize=chunkSize,appendTo=.not.speciesGroup%hasDataset(datasetName ))
+         end do
+         speciesGroup=classOutput%openGroup('baryons'   ,'Group containing perturbations for baryons.'    )
+         do i=1,countRedshiftsUnique
+            datasetName='perturbationsZ'//trim(adjustl(redshiftLabelsCombined(i)))
+            call speciesGroup%writeDataset(perturbations(:,classSpeciesBaryons   %ID,i),datasetName,chunkSize=chunkSize,appendTo=.not.speciesGroup%hasDataset(datasetName ))
+         end do
+         parametersGroup=classOutput%openGroup('parameters')
+         call parametersGroup%writeAttribute(cosmologyParameters_%HubbleConstant (),'HubbleConstant' )
+         call parametersGroup%writeAttribute(cosmologyParameters_%OmegaBaryon    (),'OmegaBaryon'    )
+         call parametersGroup%writeAttribute(cosmologyParameters_%OmegaDarkEnergy(),'OmegaDarkEnergy')
+         call parametersGroup%writeAttribute(cosmologyParameters_%OmegaMatter    (),'OmegaMatter'    )
+         call parametersGroup%writeAttribute(cosmologyParameters_%temperatureCMB (),'temperatureCMB' )
+         extrapolationGroup          =classOutput       %openGroup('extrapolation')
+         extrapolationWavenumberGroup=extrapolationGroup%openGroup('wavenumber'   )
+         call    extrapolationWavenumberGroup%writeAttribute('extrapolate','low' )
+         call    extrapolationWavenumberGroup%writeAttribute('extrapolate','high')
+       end block hdf5WriteScope
+       !$ call hdf5Access                  %unset()
+    end if
+    ! If necessary, construct tables of perturbations.
+    if (present(perturbationsDarkMatter)) then
+       !$ call hdf5Access%set()
+       hdf5DarkMatterScope: block
+         classOutput=hdf5File(fileName_)
+         call classOutput%readDataset('wavenumber',wavenumbersLogarithmic)
+         wavenumbersLogarithmic=log(wavenumbersLogarithmic)
+         call perturbationsDarkMatter%create(                                                 &
+              &                                                   wavenumbersLogarithmic       , &
+              &                                 tableCount       =size(redshifts)              , &
+              &                                 extrapolationType=[                              &
+              &                                                    extrapolationTypeExtrapolate, &
+              &                                                    extrapolationTypeExtrapolate  &
+              &                                                   ]                            , &
+              &                                 interpolationType=GSL_Interp_cSpline             &
+              &                                )
+         deallocate(wavenumbersLogarithmic)
+         speciesGroup=classOutput%openGroup('darkMatter')
+         do i=1,size(redshifts)
+            datasetName='perturbationsZ'//trim(adjustl(redshiftLabels(i)))
+            call speciesGroup%readDataset(datasetName,perturbations_)
+            call perturbationsDarkMatter%populate(perturbations_,table=int(redshiftRanks(i)))
+            deallocate(perturbations_)
+         end do
+       end block hdf5DarkMatterScope
+       !$ call hdf5Access  %unset()
+    end if
+    if (present(perturbationsBaryons)) then
+       !$ call hdf5Access%set()
+       hdf5BaryonsScope: block
+         classOutput=hdf5File(fileName_)
+         call    classOutput%readDataset('wavenumber',wavenumbersLogarithmic)
+         wavenumbersLogarithmic=log(wavenumbersLogarithmic)
+         call perturbationsBaryons   %create(                                                    &
+              &                                                   wavenumbersLogarithmic       , &
+              &                                 tableCount       =size(redshifts)              , &
+              &                                 extrapolationType=[                              &
+              &                                                    extrapolationTypeExtrapolate, &
+              &                                                    extrapolationTypeExtrapolate  &
+              &                                                   ]                            , &
+              &                                 interpolationType=GSL_Interp_cSpline             &
+              &                                )
+         deallocate(wavenumbersLogarithmic)
+         speciesGroup=classOutput%openGroup('baryons')
+         do i=1,size(redshifts)
+            datasetName='perturbationsZ'//trim(adjustl(redshiftLabels(i)))
+            call speciesGroup%readDataset(datasetName,perturbations_)
+            call perturbationsBaryons   %populate(perturbations_,table=int(redshiftRanks(i)))
+            deallocate(perturbations_)
+         end do
+         end block hdf5BaryonsScope
+       !$ call hdf5Access  %unset()
+    end if
+    ! Unlock the file.
+    call File_Unlock(fileLock)
+    return
+  end subroutine Interface_CLASS_Perturbations
+
+  subroutine Interface_CLASS_Dark_Energy(cosmologyFunctions_,equationOfState0,equationOfStateA)
+    !!{RST
+    Find the parameters, :math:`w_0` and :math:`w_a`, of the CPL form, :math:`w(a)=w_0+w_a(1-a)`, of the dark energy equation of
+    state (the form supported by CLASS) which match the equation of state of the given ``cosmologyFunctions_`` object. These are
+    found from the equation of state, and its derivative, at the present epoch, and an error is reported if the equation of state
+    does not then follow the CPL form at earlier epochs.
+    !!}
+    use :: Cosmology_Functions , only : cosmologyFunctionsClass
+    use :: Error               , only : Error_Report
+    use :: Numerical_Comparison, only : Values_Differ
+    implicit none
+    class           (cosmologyFunctionsClass), intent(inout)               :: cosmologyFunctions_
+    double precision                         , intent(  out)               :: equationOfState0          , equationOfStateA
+    double precision                         , parameter                   :: expansionFactorOffset=1.0d-3
+    double precision                         , parameter    , dimension(2) :: expansionFactorTest  =[0.5d0,0.1d0]
+    integer                                                                :: i
+
+    equationOfState0=+  cosmologyFunctions_%equationOfStateDarkEnergy(expansionFactor=1.0d0                      )
+    equationOfStateA=-(                                                                                            &
+         &             +cosmologyFunctions_%equationOfStateDarkEnergy(expansionFactor=1.0d0                      ) &
+         &             -cosmologyFunctions_%equationOfStateDarkEnergy(expansionFactor=1.0d0-expansionFactorOffset) &
+         &            )                                                                                            &
+         &           /expansionFactorOffset
+    do i=1,size(expansionFactorTest)
+       if     (                                                                                                        &
+            &  Values_Differ(                                                                                          &
+            &                cosmologyFunctions_%equationOfStateDarkEnergy(expansionFactor=expansionFactorTest(i)),    &
+            &                equationOfState0+equationOfStateA*(1.0d0-expansionFactorTest(i))                     ,    &
+            &                absTol=toleranceEquationOfStateCPL                                                        &
+            &               )                                                                                          &
+            & )                                                                                                        &
+            & call Error_Report(                                                                                       &
+            &                   'CLASS supports only dark energy equations of state of the CPL form, w(a)=w₀+wₐ(1-a)'// &
+            &                   {introspection:location}                                                               &
+            &                  )
+    end do
+    return
+  end subroutine Interface_CLASS_Dark_Energy
+
+  logical function classDarkEnergyIsLambda(equationOfState0,equationOfStateA)
+    !!{RST
+    Return true if the CPL dark energy equation of state with the given parameters is that of a cosmological constant (to within a
+    tolerance).
+    !!}
+    implicit none
+    double precision, intent(in   ) :: equationOfState0, equationOfStateA
+
+    classDarkEnergyIsLambda= abs(equationOfState0+1.0d0) <= toleranceEquationOfStateLambda &
+         &                  .and.                                                          &
+         &                   abs(equationOfStateA      ) <= toleranceEquationOfStateLambda
+    return
+  end function classDarkEnergyIsLambda
+
+  subroutine Interface_CLASS_Transfer_Function(cosmologyParameters_,redshifts,wavenumberRequired,wavenumberMaximum,countPerDecade,fileName,wavenumberMaximumReached,transferFunctionDarkMatter,transferFunctionBaryons,equationOfState0,equationOfStateA)
+    !!{RST
+    Run CLASS as necessary to compute transfer functions. If given, ``equationOfState0`` and ``equationOfStateA`` are the parameters,
+    :math:`w_0` and :math:`w_a`, of a CPL dark energy equation of state, :math:`w(a)=w_0+w_a(1-a)` (see
+    ``Interface_CLASS_Dark_Energy``); otherwise the dark energy is a cosmological constant.
+    !!}
+    use               :: Cosmology_Parameters            , only : cosmologyParametersClass    , hubbleUnitsLittleH
+    use               :: Dependencies                    , only : dependencyVersion           , dependencyVersionLabel
+    use               :: File_Utilities                  , only : Count_Lines_In_File         , Directory_Make        , File_Exists   , File_Lock     , &
+         &                                                        File_Path                   , File_Remove           , File_Unlock   , lockDescriptor
+    use               :: Error                           , only : Error_Report
+    use               :: Input_Paths                     , only : inputPath                   , pathTypeDataDynamic
+    use               :: HDF5                            , only : hsize_t
+    use               :: Hashes_Cryptographic            , only : Hash_MD5
+    use               :: HDF5_Access                     , only : hdf5Access
+    use               :: IO_HDF5                         , only : hdf5File                    , hdf5Group
+    use   , intrinsic :: ISO_C_Binding                   , only : c_size_t
+    use               :: ISO_Varying_String              , only : assignment(=)               , char                  , extract       , len           , &
+          &                                                       operator(//)                , operator(==)          , varying_string
+    use               :: Input_Parameters                , only : inputParameters
+    use               :: Numerical_Constants_Astronomical, only : heliumByMassPrimordial
+    use               :: Numerical_Interpolation         , only : GSL_Interp_cSpline
+    !$ use            :: OMP_Lib                         , only : OMP_Get_Thread_Num
+    use               :: Sorting                         , only : sortIndex
+    use               :: String_Handling                 , only : String_C_To_Fortran         , operator(//)
+    use               :: System_Command                  , only : System_Command_Do
+    use               :: Table_Labels                    , only : extrapolationTypeExtrapolate
+    use               :: Tables                          , only : table                       , table1DGeneric
+    implicit none
+    class           (cosmologyParametersClass), intent(inout)                   :: cosmologyParameters_
+    double precision                          , intent(in   ), dimension(:    ) :: redshifts
+    double precision                          , intent(in   )                   :: wavenumberRequired                      , wavenumberMaximum
+    integer                                   , intent(in   ), optional         :: countPerDecade
+    type            (varying_string          ), intent(  out), optional         :: fileName
+    type            (table1DGeneric          ), intent(  out), optional         :: transferFunctionDarkMatter              , transferFunctionBaryons
+    logical                                   , intent(inout), optional         :: wavenumberMaximumReached
+    double precision                          , intent(in   ), optional         :: equationOfState0                        , equationOfStateA
+    double precision                          , allocatable  , dimension(:    ) :: wavenumbers                             , wavenumbersLogarithmic      , &
+         &                                                                         transferFunctionLogarithmic             , redshiftsCombined
+    double precision                          , allocatable  , dimension(:,:,:) :: transferFunctions
+    character       (len= 9                  ), allocatable  , dimension(:    ) :: redshiftLabels                          , redshiftLabelsCombined
+    integer         (c_size_t                ), allocatable  , dimension(:    ) :: redshiftRanks                           , redshiftRanksCombined
+    type            (varying_string          ), allocatable  , dimension(:    ) :: datasetNames
+    integer         (hsize_t                 ), parameter                       :: chunkSize                   =100_hsize_t
+    type            (lockDescriptor          )                                  :: fileLock
+    integer                                                                     :: i                                       , j                           , &
+         &                                                                         countRedshiftsUnique
+    type            (hdf5File                )                                  :: classOutput
+    type            (hdf5Group               )                                  :: parametersGroup                         , extrapolationWavenumberGroup, &
+         &                                                                         extrapolationGroup                      , speciesGroup
+    character       (len=32                  )                                  :: parameterLabel                          , datasetName                 , &
+         &                                                                         redshiftLabel
+    type            (varying_string          )                                  :: uniqueLabel                             , fileName_, &
+         &                                                                     versionClass                            , labelVersionClass
+    type            (inputParameters         )                                  :: descriptor
+    logical                                                                     :: allEpochsFound
+    !![
+    <optionalArgument name="countPerDecade" defaultsTo="0"/>
+    !!]
+
+    ! Build a sorted array of all redshift labels.
+    allocate(redshiftRanks (size(redshifts)))
+    allocate(redshiftLabels(size(redshifts)))
+    redshiftRanks=sortIndex(redshifts)
+    do i=1,size(redshifts)
+       write (redshiftLabels(i),'(f9.4)') redshifts(redshiftRanks(i))
+    end do
+    ! Get a constructor descriptor for this object.
+    descriptor=inputParameters()
+    call cosmologyParameters_%descriptor(descriptor)
+    ! Add primordial helium abundance to the descriptor.
+    write (parameterLabel,'(f4.2)') heliumByMassPrimordial
+    call descriptor%addParameter("Y_He"          ,parameterLabel)
+    ! Add wavenumber resolution to descriptor.
+    write (parameterLabel,'(i4)'  ) countPerDecade_
+    call descriptor%addParameter("countPerDecade",parameterLabel)
+    ! Add the dark energy equation of state to the descriptor. This is done only if it is not a cosmological constant, so that the
+    ! descriptor is unchanged in that (default) case.
+    if (present(equationOfState0) .neqv. present(equationOfStateA)) &
+         & call Error_Report('both or neither of `equationOfState0` and `equationOfStateA` must be given'//{introspection:location})
+    if (present(equationOfState0)) then
+       if (.not.classDarkEnergyIsLambda(equationOfState0,equationOfStateA)) then
+          write (parameterLabel,'(e24.16)') equationOfState0
+          call descriptor%addParameter("w0_fld",trim(adjustl(parameterLabel)))
+          write (parameterLabel,'(e24.16)') equationOfStateA
+          call descriptor%addParameter("wa_fld",trim(adjustl(parameterLabel)))
+       end if
+    end if
+    ! Add the unique label string to the descriptor.
+    ! Evaluate into a local first - gfortran leaks the temporary returned by a `varying_string`-valued
+    ! function when it is consumed directly by another function.
+    versionClass     =dependencyVersion     ("class")
+    labelVersionClass=dependencyVersionLabel("class")
+    uniqueLabel=descriptor%serializeToString()        // &
+         &      "_sourceDigest:"                      // &
+         &      String_C_To_Fortran(classSourceDigest)// &
+         &      labelVersionClass
+    call descriptor%destroy()
+    ! Build the file name.
+    fileName_=char(inputPath(pathTypeDataDynamic))                        // &
+         &                  'largeScaleStructure/transfer_function_CLASS_'// &
+         &                  Hash_MD5(uniqueLabel)                         // &
+         &                  '.hdf5'
+    if (present(fileName)) fileName=fileName_
+    ! Create the directory.
+    call Directory_Make(File_Path(fileName_))
+    ! If the file exists but has not yet been read, read it now.
+    ! Always obtain the file lock before the hdf5Access lock to avoid deadlocks between OpenMP threads.
+    call File_Lock(char(fileName_),fileLock)
+    allEpochsFound=.false.
+    if (File_Exists(fileName_)) then
+       allEpochsFound=.true.
+       !$ call hdf5Access%set()
+       hdf5ReadScope: block
+         classOutput=hdf5File(fileName_)
+         call classOutput%readDataset('wavenumber',wavenumbers)
+         allocate(transferFunctions(size(wavenumbers),3,size(redshifts)))
+         speciesGroup=classOutput%openGroup('darkMatter')
+         do i=1,size(redshifts)
+            datasetName='transferFunctionZ'//trim(adjustl(redshiftLabels(i)))
+            if (speciesGroup%hasDataset(datasetName)) then
+               call speciesGroup%readDatasetStatic(datasetName,transferFunctions(:,classSpeciesDarkMatter%ID,i))
+            else
+               allEpochsFound=.false.
+            end if
+         end do
+         speciesGroup=classOutput%openGroup('baryons')
+         do i=1,size(redshifts)
+            datasetName='transferFunctionZ'//trim(adjustl(redshiftLabels(i)))
+            if (speciesGroup%hasDataset(datasetName)) then
+               call speciesGroup%readDatasetStatic(datasetName,transferFunctions(:,classSpeciesBaryons   %ID,i))
+            else
+               allEpochsFound=.false.
+            end if
+         end do
+       end block hdf5ReadScope
+       !$ call hdf5Access%unset()
+    end if
+    if (.not.allocated(wavenumbers) .or. wavenumberRequired > wavenumbers(size(wavenumbers)) .or. .not.allEpochsFound) then
+       ! If the wavenumber is out of range, or if not all requested epochs exist within the file, recompute the CLASS transfer function.
+       ! Find all existing epochs in the file, create a union of these and the requested epochs.
+       if (File_Exists(fileName_)) then
+          !$ call hdf5Access%set()
+          hdf5DatasetsScope: block
+            classOutput=hdf5File(fileName_)
+            speciesGroup=classOutput%openGroup('darkMatter')
+            call speciesGroup%datasets(datasetNames)
+          end block hdf5DatasetsScope
+          !$ call hdf5Access%unset()
+       else
+          allocate(datasetNames(0))
+       end if
+       allocate(redshiftsCombined(size(redshifts)+size(datasetNames)))
+       redshiftsCombined(1:size(redshifts))=redshifts
+       do i=1,size(datasetNames)
+          if (extract(datasetNames(i),1,17) == 'transferFunctionZ') then
+             redshiftLabel=extract(datasetNames(i),18,len(datasetNames(i)))
+             read (redshiftLabel,*) redshiftsCombined(size(redshifts)+i)
+          else
+             call Error_Report("unknown dataset '"//datasetNames(i)//"' in file '"//fileName_//"'"//{introspection:location})
+          end if
+       end do
+       allocate(redshiftRanksCombined (size(redshiftsCombined)))
+       allocate(redshiftLabelsCombined(size(redshiftsCombined)))
+       redshiftRanksCombined=sortIndex(redshiftsCombined)
+       do i=1,size(redshiftsCombined)
+          write (redshiftLabelsCombined(i),'(f9.4)') redshiftsCombined(redshiftRanksCombined(i))
+       end do
+       ! Remove duplicated redshifts.
+       countRedshiftsUnique=size(redshiftLabelsCombined)
+       i=2
+       do while (i <= countRedshiftsUnique)
+          if (redshiftLabelsCombined(i) == redshiftLabelsCombined(i-1)) then
+             do j=i,countRedshiftsUnique-1
+                redshiftLabelsCombined(j)=redshiftLabelsCombined(j+1)
+             end do
+             countRedshiftsUnique=countRedshiftsUnique-1
+          else
+             i=i+1
+          end if
+       end do
+       ! Run CLASS to get transfer functions.
+       call Interface_CLASS_Run(cosmologyParameters_,redshiftsCombined,wavenumberRequired,wavenumberMaximum,countPerDecade,wavenumberMaximumReached,wavenumbers,transferFunctions,equationOfState0=equationOfState0,equationOfStateA=equationOfStateA)
+       ! Construct the output HDF5 file.
+       !$ call hdf5Access%set()
+       hdf5WriteScope: block
+         classOutput=hdf5File(fileName_,objectsOverwritable=.true.)
+         call classOutput %writeAttribute('Transfer functions created by CLASS.','description' )
+         call classOutput %writeAttribute(classFormatVersionCurrent             ,'fileFormat'  )
+         call classOutput %writeAttribute(versionClass                          ,'versionCLASS')
+         call classOutput %writeDataset(wavenumbers ,'wavenumber'                               ,chunkSize=chunkSize,appendTo=.not. classOutput%hasDataset('wavenumber'))
+         speciesGroup=classOutput%openGroup('darkMatter','Group containing transfer functions for dark matter.')
+         do i=1,countRedshiftsUnique
+            datasetName='transferFunctionZ'//trim(adjustl(redshiftLabelsCombined(i)))
+            call speciesGroup%writeDataset(transferFunctions(:,classSpeciesDarkMatter%ID,i),datasetName,chunkSize=chunkSize,appendTo=.not.speciesGroup%hasDataset(datasetName ))
+         end do
+         speciesGroup=classOutput%openGroup('baryons'   ,'Group containing transfer functions for baryons.'    )
+         do i=1,countRedshiftsUnique
+            datasetName='transferFunctionZ'//trim(adjustl(redshiftLabelsCombined(i)))
+            call speciesGroup%writeDataset(transferFunctions(:,classSpeciesBaryons   %ID,i),datasetName,chunkSize=chunkSize,appendTo=.not.speciesGroup%hasDataset(datasetName ))
+         end do
+         parametersGroup=classOutput%openGroup('parameters')
+         call parametersGroup%writeAttribute(cosmologyParameters_%HubbleConstant (),'HubbleConstant' )
+         call parametersGroup%writeAttribute(cosmologyParameters_%OmegaBaryon    (),'OmegaBaryon'    )
+         call parametersGroup%writeAttribute(cosmologyParameters_%OmegaDarkEnergy(),'OmegaDarkEnergy')
+         call parametersGroup%writeAttribute(cosmologyParameters_%OmegaMatter    (),'OmegaMatter'    )
+         call parametersGroup%writeAttribute(cosmologyParameters_%temperatureCMB (),'temperatureCMB' )
+         extrapolationGroup          =classOutput       %openGroup('extrapolation')
+         extrapolationWavenumberGroup=extrapolationGroup%openGroup('wavenumber'   )
+         call extrapolationWavenumberGroup%writeAttribute('fix'        ,'low' )
+         call extrapolationWavenumberGroup%writeAttribute('extrapolate','high')
+       end block hdf5WriteScope
+       !$ call hdf5Access%unset()
+    end if
+    ! If necessary, construct tables of transfer functions.
+    if (present(transferFunctionDarkMatter)) then
+       !$ call hdf5Access%set()
+       hdf5DarkMatterScope: block
+         classOutput=hdf5File(fileName_)
+         call classOutput%readDataset('wavenumber',wavenumbersLogarithmic)
+         wavenumbersLogarithmic=log(wavenumbersLogarithmic)
+         call transferFunctionDarkMatter%create(                                                 &
+              &                                                   wavenumbersLogarithmic       , &
+              &                                 tableCount       =size(redshifts)              , &
+              &                                 extrapolationType=[                              &
+              &                                                    extrapolationTypeExtrapolate, &
+              &                                                    extrapolationTypeExtrapolate  &
+              &                                                   ]                            , &
+              &                                 interpolationType=GSL_Interp_cSpline             &
+              &                                )
+         deallocate(wavenumbersLogarithmic)
+         speciesGroup=classOutput%openGroup('darkMatter')
+         do i=1,size(redshifts)
+            datasetName='transferFunctionZ'//trim(adjustl(redshiftLabels(i)))
+            call speciesGroup%readDataset(datasetName,transferFunctionLogarithmic)
+            transferFunctionLogarithmic=log(transferFunctionLogarithmic)
+            call transferFunctionDarkMatter%populate(transferFunctionLogarithmic,table=int(redshiftRanks(i)))
+            deallocate(transferFunctionLogarithmic)
+         end do
+       end block hdf5DarkMatterScope
+       !$ call hdf5Access%unset()
+    end if
+    if (present(transferFunctionBaryons)) then
+       !$ call hdf5Access%set()
+       hdf5BaryonsScope: block
+         classOutput=hdf5File(fileName_)
+         call classOutput%readDataset('wavenumber',wavenumbersLogarithmic)
+         wavenumbersLogarithmic=log(wavenumbersLogarithmic)
+         call transferFunctionBaryons   %create(                                                 &
+              &                                                   wavenumbersLogarithmic       , &
+              &                                 tableCount       =size(redshifts)              , &
+              &                                 extrapolationType=[                              &
+              &                                                    extrapolationTypeExtrapolate, &
+              &                                                    extrapolationTypeExtrapolate  &
+              &                                                   ]                            , &
+              &                                 interpolationType=GSL_Interp_cSpline             &
+              &                                )
+         deallocate(wavenumbersLogarithmic)
+         speciesGroup=classOutput%openGroup('baryons')
+         do i=1,size(redshifts)
+            datasetName='transferFunctionZ'//trim(adjustl(redshiftLabels(i)))
+            call speciesGroup%readDataset(datasetName,transferFunctionLogarithmic)
+            transferFunctionLogarithmic=log(transferFunctionLogarithmic)
+            call transferFunctionBaryons   %populate(transferFunctionLogarithmic,table=int(redshiftRanks(i)))
+            deallocate(transferFunctionLogarithmic)
+         end do
+       end block hdf5BaryonsScope
+       !$ call hdf5Access%unset()
+    end if
+    ! Unlock the file.
+    call File_Unlock(fileLock)
+    return
+  end subroutine Interface_CLASS_Transfer_Function
+
+  double precision function Interface_CLASS_Transfer_Function_Amplitude(cosmologyParameters_,equationOfState0,equationOfStateA) result(amplitude)
+    !!{RST
+    Return the large-scale amplitude of the CLASS matter transfer function at the present day,
+
+    .. math::
+
+       \mathcal{T}_0 = \lim_{k \rightarrow 0} \left[ -\frac{\delta_\mathrm{m}(k)}{k^2} \right],
+
+    in units of Mpc\ :math:`^2`, where :math:`\delta_\mathrm{m}(k)` is the matter density perturbation at :math:`z=0` for unit
+    primordial comoving curvature perturbation (the normalization of the transfer functions output by CLASS) and :math:`k` is in
+    units of Mpc\ :math:`^{-1}`. This is the normalization which is divided out of tabulated transfer functions (see
+    :galacticus-class:`transferFunctionFile`), so the linear matter power spectrum at the present day is
+
+    .. math::
+
+       P(k) = 2 \pi^2 \mathcal{T}_0^2 k \mathcal{P}_\mathcal{R}(k) T^2(k),
+
+    where :math:`\mathcal{P}_\mathcal{R}(k)` is the dimensionless primordial curvature power spectrum and :math:`T(k)` is the
+    transfer function normalized to unity as :math:`k \rightarrow 0`. :math:`\mathcal{T}_0=2D_0/(5\Omega_\mathrm{m}H_0^2)`
+    (with :math:`H_0` in units of Mpc\ :math:`^{-1}`), so it carries the linear growth factor at the present day, :math:`D_0`,
+    normalized such that :math:`D \rightarrow a` in the matter-dominated era, as computed by CLASS (including the effects of
+    radiation and neutrinos).
+
+    If given, ``equationOfState0`` and ``equationOfStateA`` are the parameters of a CPL dark energy equation of state (as for
+    ``Interface_CLASS_Transfer_Function``); otherwise the dark energy is a cosmological constant.
+
+    It is taken from the matter (dark matter and baryon) transfer function at the smallest wavenumber tabulated by CLASS, after
+    removing the factor :math:`1-3K/k^2` which, in a curved universe, arises from the curvature term in the Poisson equation (as
+    for :galacticus-class:`transferFunctionFile`).
+    !!}
+    use :: Cosmology_Parameters        , only : cosmologyParametersClass
+    use :: File_Utilities              , only : File_Lock               , File_Unlock, lockDescriptor
+    use :: HDF5_Access                 , only : hdf5Access
+    use :: IO_HDF5                     , only : hdf5File                , hdf5Group
+    use :: ISO_Varying_String          , only : varying_string          , char
+    use :: Numerical_Constants_Physical, only : speedLight
+    use :: Numerical_Constants_Prefixes, only : kilo
+    implicit none
+    class           (cosmologyParametersClass), intent(inout)               :: cosmologyParameters_
+    double precision                          , intent(in   ), optional     :: equationOfState0    , equationOfStateA
+    double precision                          , allocatable  , dimension(:) :: wavenumbers         , transferDarkMatter, &
+         &                                                                     transferBaryons
+    type            (varying_string          )                              :: fileName
+    type            (lockDescriptor          )                              :: fileLock
+    type            (hdf5File                )                              :: classOutput
+    type            (hdf5Group               )                              :: speciesGroup
+    double precision                                                        :: curvature
+
+    ! Ensure that the present day transfer functions exist. Only the large-scale limit is needed, so the smallest range of
+    ! wavenumbers that CLASS computes by default is requested. The maximum wavenumber is not limited, so that the file (which is
+    ! shared with the CLASS transfer function class) is the same as that class would create.
+    call Interface_CLASS_Transfer_Function(cosmologyParameters_,[0.0d0],1.0d0,huge(0.0d0),fileName=fileName,equationOfState0=equationOfState0,equationOfStateA=equationOfStateA)
+    ! Read the transfer functions directly. (They are not read into tables, as those store logarithms, and the baryon transfer
+    ! function can be negative at large wavenumbers.)
+    ! Always obtain the file lock before the hdf5Access lock to avoid deadlocks between OpenMP threads.
+    call File_Lock(char(fileName),fileLock,lockIsShared=.true.)
+    !$ call hdf5Access%set()
+    hdf5ReadScope: block
+      classOutput =hdf5File(fileName,readOnly=.true.)
+      call classOutput %readDataset('wavenumber'             ,wavenumbers       )
+      speciesGroup=classOutput%openGroup('darkMatter')
+      call speciesGroup%readDataset('transferFunctionZ0.0000',transferDarkMatter)
+      speciesGroup=classOutput%openGroup('baryons'   )
+      call speciesGroup%readDataset('transferFunctionZ0.0000',transferBaryons   )
+    end block hdf5ReadScope
+    !$ call hdf5Access%unset()
+    call File_Unlock(fileLock)
+    ! Construct the matter transfer function at the smallest tabulated wavenumber.
+    amplitude=+(                                                                                               &
+         &      +transferDarkMatter(1)*(cosmologyParameters_%OmegaMatter()-cosmologyParameters_%OmegaBaryon()) &
+         &      +transferBaryons   (1)*                                    cosmologyParameters_%OmegaBaryon()  &
+         &     )                                                                                               &
+         &    /                                       cosmologyParameters_%OmegaMatter()
+    ! Remove the curvature factor. K is in units of Mpc⁻².
+    curvature=-(                                        &
+         &      +1.0d0                                  &
+         &      -cosmologyParameters_%OmegaMatter    () &
+         &      -cosmologyParameters_%OmegaDarkEnergy() &
+         &     )                                        &
+         &    *(                                        &
+         &      +cosmologyParameters_%HubbleConstant () &
+         &      /(speedLight/kilo)                      &
+         &     )**2
+    amplitude=+amplitude                           &
+         &    /(                                   &
+         &      +1.0d0                             &
+         &      -3.0d0*curvature/wavenumbers(1)**2 &
+         &     )
+    return
+  end function Interface_CLASS_Transfer_Function_Amplitude
+
+  double precision function Interface_CLASS_Normalization(cosmologyParameters_,indexSpectral,indexSpectralRunning,wavenumberPivot,equationOfState0,equationOfStateA) result(normalization)
+    !!{RST
+    Run CLASS to compute the ratio :math:`\sigma_8^2/A_s` for a primordial power spectrum with the given spectral index,
+    ``indexSpectral``, and running of that index, ``indexSpectralRunning``, both defined at the given pivot wavenumber,
+    ``wavenumberPivot`` (in units of Mpc\ :math:`^{-1}`), at which :math:`A_s` is also defined, and for dark energy with an
+    equation of state of the form :math:`w(a)=w_0+w_a(1-a)` with :math:`w_0=`\ ``equationOfState0`` and :math:`w_a=`\
+    ``equationOfStateA``.
+    !!}
+    use               :: Cosmology_Parameters            , only : cosmologyParametersClass
+    use               :: Dependencies                    , only : dependencyVersion       , dependencyVersionLabel
+    use               :: File_Utilities                  , only : Directory_Make          , File_Exists           , File_Lock   , File_Unlock, &
+         &                                                        File_Path               , lockDescriptor
+    use               :: Input_Paths                     , only : inputPath               , pathTypeDataDynamic
+    use               :: Hashes_Cryptographic            , only : Hash_MD5
+    use               :: HDF5_Access                     , only : hdf5Access
+    use               :: IO_HDF5                         , only : hdf5File
+    use               :: Numerical_Constants_Astronomical, only : heliumByMassPrimordial
+    use   , intrinsic :: ISO_C_Binding                   , only : c_size_t
+    use               :: ISO_Varying_String              , only : varying_string          , char                  , operator(//)
+    use               :: Input_Parameters                , only : inputParameters
+    use               :: String_Handling                 , only : String_C_To_Fortran     , operator(//)
+    use               :: System_Command                  , only : System_Command_Do
+    implicit none
+    class           (cosmologyParametersClass), intent(inout)                   :: cosmologyParameters_
+    double precision                          , intent(in   )                   :: indexSpectral       , indexSpectralRunning, &
+         &                                                                         wavenumberPivot     , equationOfState0    , &
+         &                                                                         equationOfStateA
+    type            (lockDescriptor          )                                  :: fileLock
+    type            (hdf5File                )                                  :: classOutput
+    character       (len=32                  )                                  :: parameterLabel
+    type            (varying_string          )                                  :: uniqueLabel         , fileName            , &
+         &                                                                         versionClass        , labelVersionClass
+    type            (inputParameters         )                                  :: descriptor
+  
+    ! Get a constructor descriptor for this object.
+    descriptor=inputParameters()
+    call cosmologyParameters_%descriptor(descriptor)
+    ! Add primordial helium abundance to the descriptor.
+    write (parameterLabel,'(f4.2)') heliumByMassPrimordial
+    call descriptor%addParameter("Y_He",parameterLabel)
+    ! Add the primordial power spectrum parameters to the descriptor.
+    write (parameterLabel,'(e24.16)') indexSpectral
+    call descriptor%addParameter("n_s"    ,trim(adjustl(parameterLabel)))
+    write (parameterLabel,'(e24.16)') indexSpectralRunning
+    call descriptor%addParameter("alpha_s",trim(adjustl(parameterLabel)))
+    write (parameterLabel,'(e24.16)') wavenumberPivot
+    call descriptor%addParameter("k_pivot",trim(adjustl(parameterLabel)))
+    ! Add the dark energy equation of state parameters to the descriptor.
+    write (parameterLabel,'(e24.16)') equationOfState0
+    call descriptor%addParameter("w0_fld" ,trim(adjustl(parameterLabel)))
+    write (parameterLabel,'(e24.16)') equationOfStateA
+    call descriptor%addParameter("wa_fld" ,trim(adjustl(parameterLabel)))
+    ! Add the unique label string to the descriptor.
+    ! Evaluate into a local first - gfortran leaks the temporary returned by a `varying_string`-valued
+    ! function when it is consumed directly by another function.
+    versionClass     =dependencyVersion     ("class")
+    labelVersionClass=dependencyVersionLabel("class")
+    uniqueLabel=descriptor%serializeToString()        // &
+         &      "_sourceDigest:"                      // &
+         &      String_C_To_Fortran(classSourceDigest)// &
+         &      labelVersionClass
+    call descriptor%destroy()
+    ! Build the file name.
+    fileName=char(inputPath(pathTypeDataDynamic))                    // &
+         &                 'largeScaleStructure/normalization_CLASS_'// &
+         &                 Hash_MD5(uniqueLabel)                     // &
+         &                 '.hdf5'
+    ! Create the directory.
+    call Directory_Make(File_Path(fileName))
+    ! If the file exists but has not yet been read, read it now.
+    ! Always obtain the file lock before the hdf5Access lock to avoid deadlocks between OpenMP threads.
+    call File_Lock(char(fileName),fileLock)
+    if (File_Exists(fileName)) then
+       !$ call hdf5Access%set  ()
+       hdf5ReadScope: block
+         classOutput=hdf5File(fileName)
+         call classOutput%readAttribute('normalization',normalization)      
+       end block hdf5ReadScope
+       !$ call hdf5Access%unset()
+    else
+       ! Run CLASS to compute the normalization.
+       call Interface_CLASS_Run(cosmologyParameters_,ratioSigma8SquaredAs=normalization,indexSpectral=indexSpectral,indexSpectralRunning=indexSpectralRunning,wavenumberPivot=wavenumberPivot,equationOfState0=equationOfState0,equationOfStateA=equationOfStateA)
+       ! Construct the output HDF5 file.
+       !$ call hdf5Access%set  ()
+       hdf5WriteScope: block
+         classOutput=hdf5File(fileName,objectsOverwritable=.true.)
+         call classOutput%writeAttribute(normalization,'normalization')
+         call classOutput%writeAttribute(versionClass ,'versionCLASS' )
+       end block hdf5WriteScope
+       !$ call hdf5Access%unset()
+    end if
+    ! Unlock the file.
+    call File_Unlock(fileLock)
+    return
+  end function Interface_CLASS_Normalization
+
+  subroutine Interface_CLASS_Run(cosmologyParameters_,redshifts,wavenumberRequired,wavenumberMaximum,countPerDecade,wavenumberMaximumReached,wavenumbers,transferFunctions,perturbations,ratioSigma8SquaredAs,indexSpectral,indexSpectralRunning,wavenumberPivot,equationOfState0,equationOfStateA)
+    !!{RST
+    Run CLASS and extract required information.
+    !!}
+#ifdef USEMPI
+    use               :: MPI_Utilities                   , only : mpiSelf
+#endif
+    !$ use            :: OMP_Lib                         , only : OMP_Get_Thread_Num
+    use               :: Cosmology_Parameters            , only : cosmologyParametersClass, hubbleUnitsLittleH
+    use               :: Error                           , only : Error_Report
+    use               :: File_Utilities                  , only : Directory_Make          , File_Remove        , Directory_Remove             , Count_Lines_In_File
+    use               :: Input_Paths                     , only : inputPath               , pathTypeDataDynamic
+    use   , intrinsic :: ISO_C_Binding                   , only : c_size_t
+    use               :: ISO_Varying_String              , only : varying_string          , char               , operator(//)                 , var_str
+    use               :: Numerical_Constants_Astronomical, only : heliumByMassPrimordial
+    use               :: Sorting                         , only : sortIndex
+    use               :: String_Handling                 , only : operator(//)
+    use               :: System_Command                  , only : System_Command_Do       , shellEscape        , System_Command_Failure_Report
+    implicit none
+    class           (cosmologyParametersClass), intent(inout)                                          :: cosmologyParameters_
+    double precision                          , intent(in   ), optional, dimension(:    )              :: redshifts
+    double precision                          , intent(in   ), optional                                :: wavenumberRequired               , wavenumberMaximum
+    integer                                   , intent(in   ), optional                                :: countPerDecade
+    logical                                   , intent(inout), optional                                :: wavenumberMaximumReached
+    double precision                          , intent(inout), optional, dimension(:    ), allocatable :: wavenumbers
+    double precision                          , intent(inout), optional, dimension(:,:,:), allocatable :: transferFunctions                , perturbations
+    double precision                          , intent(  out), optional                                :: ratioSigma8SquaredAs
+    double precision                          , intent(in   ), optional                                :: indexSpectral                    , indexSpectralRunning , &
+         &                                                                                                wavenumberPivot                  , equationOfState0     , &
+         &                                                                                                equationOfStateA
+    double precision                          , parameter                                              :: normalizationAs           =1.0d-9
+    integer         (c_size_t                ), allocatable            , dimension(:    )              :: redshiftRanks
+    character       (len= 9                  ), allocatable            , dimension(:    )              :: redshiftLabels
+    character       (len=255                 )                                                         :: hostName                         , classTransferLine
+    character       (len= 32                 )                                                         :: line                             , outputs
+    integer         (c_size_t                )                                                         :: countWavenumber
+    integer                                                                                            :: classParameterFile               , classLog             , &
+         &                                                                                                offset                           , status               , &
+         &                                                                                                classTransferFile                , i                    , &
+         &                                                                                                j
+    type            (varying_string          )                                                         :: classVersion                     , parameterFile        , &
+         &                                                                                                classPath                        , workPath             , &
+         &                                                                                                transferFileName                 , escapedExecutable    , &
+         &                                                                                                escapedParameterFile             , escapedLogFile       , &
+         &                                                                                                logFileName                      , helpMessage
+    logical                                                                                            :: found                            , haveTransferFunctions, &
+         &                                                                                                haveNormalization                , havePerturbations
+    double precision                                                                                   :: sigma8                           , wavenumberCLASS
+    !![
+    <optionalArgument name="countPerDecade" defaultsTo="0"/>
+    !!]
+
+    ! Ensure CLASS is initialized.
+    call Interface_CLASS_Initialize(classPath,classVersion)
+    ! Determine the types of output needed.
+    outputs=''
+    haveNormalization=present(ratioSigma8SquaredAs)
+    if (haveNormalization) then
+       outputs=trim(outputs)//' mPk'
+    end if
+    haveTransferFunctions=present(transferFunctions)
+    if (haveTransferFunctions) then
+       outputs=trim(outputs)//' mTk'
+       if (.not.present(redshifts         )) call Error_Report('`redshifts` is required for transfer function calculation'         //{introspection:location})
+       if (.not.present(wavenumberRequired)) call Error_Report('`wavenumberRequired` is required for transfer function calculation'//{introspection:location})
+       if (.not.present(wavenumberMaximum )) call Error_Report('`wavenumberMaximum` is required for transfer function calculation' //{introspection:location})
+       if (.not.present(wavenumbers       )) call Error_Report('`wavenumbers` is required for transfer function calculation'       //{introspection:location})
+    end if
+    havePerturbations=present(perturbations)
+    if (havePerturbations) then
+       outputs=trim(outputs)//' dTk'
+       if (.not.present(redshifts         )) call Error_Report('`redshifts` is required for perturbation calculation'              //{introspection:location})
+       if (.not.present(wavenumberRequired)) call Error_Report('`wavenumberRequired` is required for perturbation calculation'     //{introspection:location})
+       if (.not.present(wavenumberMaximum )) call Error_Report('`wavenumberMaximum` is required for perturbation calculation'      //{introspection:location})
+       if (.not.present(wavenumbers       )) call Error_Report('`wavenumbers` is required for perturbation calculation'            //{introspection:location})
+    end if
+    if (trim(outputs) == 'no outputs added') call Error_Report(''//{introspection:location})
+    ! Determine maximum wavenumber.
+    if (haveTransferFunctions .or. havePerturbations) then
+       wavenumberCLASS=exp(max(log(wavenumberRequired)+1.0d0,classLogWavenumberMaximumDefault))
+       if (wavenumberCLASS > wavenumberMaximum) then
+          wavenumberCLASS=wavenumberMaximum
+          if (present(wavenumberMaximumReached)) wavenumberMaximumReached=.true.
+       end if
+       if (allocated(wavenumbers)) wavenumberCLASS=max(wavenumberCLASS,wavenumbers(size(wavenumbers)))
+    end if
+    ! Generate redshift labels.
+    if (haveTransferFunctions .or. havePerturbations) then
+       allocate(redshiftRanks (size(redshifts)))
+       allocate(redshiftLabels(size(redshifts)))
+       redshiftRanks=sortIndex(redshifts)
+       do i=1,size(redshifts)
+          write (redshiftLabels(i),'(f9.4)') redshifts(redshiftRanks(i))
+       end do
+    end if
+    ! Construct input file for CLASS.
+    call Get_Environment_Variable('HOSTNAME',hostName)
+    workPath        =inputPath(pathTypeDataDynamic)//'largeScaleStructure/class_work_'//trim(hostName)//'_'//GetPID()
+    !$ workPath     =workPath     //'_'//OMP_Get_Thread_Num()
+    !$ parameterFile=parameterFile//'_'//OMP_Get_Thread_Num()
+#ifdef USEMPI
+    workPath        =workPath     //'_'//mpiSelf%rankLabel()
+#endif
+    parameterFile=workPath//'/parameters.ini'
+    call Directory_Make(workPath)
+    open(newunit=classParameterFile,file=char(parameterFile),status='unknown',form='formatted')
+    write (classParameterFile,'(a,1x,"=",1x,a,a  )') 'root            ',char(workPath),'/output'
+    write (classParameterFile,'(a,1x,"=",1x,a    )') 'overwrite_root  ','yes'
+    write (classParameterFile,'(a,1x,"=",1x,a    )') 'headers         ','yes'
+    write (classParameterFile,'(a,1x,"=",1x,a    )') 'format          ','class'
+    write (classParameterFile,'(a,1x,"=",1x,a    )') 'output          ',trim(adjustl(outputs))
+    write (classParameterFile,'(a,1x,"=",1x,a    )') 'modes           ','s'
+    write (classParameterFile,'(a,1x,"=",1x,a    )') 'gauge           ','synchronous'
+    write (classParameterFile,'(a,1x,"=",1x,a    )') 'ic              ','ad'
+    write (classParameterFile,'(a,1x,"=",1x,e12.6)') 'h               ',                                                                                     cosmologyParameters_%HubbleConstant(hubbleUnitsLittleH)
+    write (classParameterFile,'(a,1x,"=",1x,e12.6)') 'T_cmb           ',       cosmologyParameters_%temperatureCMB()
+    write (classParameterFile,'(a,1x,"=",1x,e12.6)') 'omega_b         ',(      cosmologyParameters_%OmegaBaryon   ()                                       )*cosmologyParameters_%HubbleConstant(hubbleUnitsLittleH)**2
+    write (classParameterFile,'(a,1x,"=",1x,e12.6)') 'omega_cdm       ',(      cosmologyParameters_%OmegaMatter   ()-cosmologyParameters_%OmegaBaryon    ())*cosmologyParameters_%HubbleConstant(hubbleUnitsLittleH)**2
+    write (classParameterFile,'(a,1x,"=",1x,e12.6)') 'Omega_k         ', 1.0d0-cosmologyParameters_%OmegaMatter   ()-cosmologyParameters_%OmegaDarkEnergy()
+    write (classParameterFile,'(a,1x,"=",1x,e12.6)') 'N_ur            ',3.044d+0
+    write (classParameterFile,'(a,1x,"=",1x,e12.6)') 'YHe             ',heliumByMassPrimordial
+    write (classParameterFile,'(a,1x,"=",1x,e12.6)') 'A_s             ',normalizationAs
+    ! The primordial power spectrum parameters (which affect only the normalization, not the transfer functions). If not given,
+    ! CLASS' defaults are used.
+    if (present(indexSpectral       )) write (classParameterFile,'(a,1x,"=",1x,es24.16)') 'n_s             ',indexSpectral
+    if (present(indexSpectralRunning)) write (classParameterFile,'(a,1x,"=",1x,es24.16)') 'alpha_s         ',indexSpectralRunning
+    if (present(wavenumberPivot     )) write (classParameterFile,'(a,1x,"=",1x,es24.16)') 'k_pivot         ',wavenumberPivot
+    ! The dark energy equation of state. If not given, or if it is that of a cosmological constant (to within a tolerance, as w_a
+    ! may be found by finite difference), CLASS' default (a cosmological constant) is used. Otherwise, the dark energy is a fluid, with density fixed by the closure relation.
+    if (present(equationOfState0) .and. present(equationOfStateA)) then
+       if (.not.classDarkEnergyIsLambda(equationOfState0,equationOfStateA)) then
+          write (classParameterFile,'(a,1x,"=",1x,a      )') 'Omega_Lambda    ','0'
+          write (classParameterFile,'(a,1x,"=",1x,es24.16)') 'w0_fld          ',equationOfState0
+          write (classParameterFile,'(a,1x,"=",1x,es24.16)') 'wa_fld          ',equationOfStateA
+       end if
+    else if (present(equationOfState0) .or. present(equationOfStateA)) then
+       call Error_Report('both or neither of `equationOfState0` and `equationOfStateA` must be given'//{introspection:location})
+    end if
+    write (classParameterFile,'(a,1x,"=",1x,i1   )') 'fourier_verbose ',1
+    if (haveTransferFunctions .or. havePerturbations) then
+       write        (classParameterFile,'(a,1x,"=",1x,e12.6)') 'P_k_max_1/Mpc      ',wavenumberCLASS
+       if (countPerDecade_ > 0) &
+            & write (classParameterFile,'(a,1x,"=",1x,i3   )') 'k_per_decade_for_pk',countPerDecade_
+       write        (classParameterFile,'(a,1x,"=",$       )') 'z_pk               '
+       do i=size(redshifts),1,-1
+          write     (classParameterFile,'(1x,a,$           )') trim(adjustl(redshiftLabels(i)))
+          if (i > 1 ) write (classParameterFile,'(",",$)')
+       end do
+    end if
+    write (classParameterFile,'(a)') ''
+    close(classParameterFile)
+    ! Run CLASS.
+    escapedExecutable   =shellEscape(classPath//"class"    )
+    escapedParameterFile=shellEscape(parameterFile         )
+    escapedLogFile      =shellEscape(workPath//"/class.log")
+    call System_Command_Do(escapedExecutable//" "//escapedParameterFile//" > "//escapedLogFile//" 2>&1",status)
+    ! Note that the log file name and message are built in assignments, not in the argument list below - `varying_string`
+    ! expressions passed directly as arguments are not finalized by gfortran, and so leak.
+    if (status /= 0) then
+       logFileName=workPath//"/class.log"
+       helpMessage=var_str('CLASS most often fails because the cosmological parameters given to it are invalid. Its')// &
+            &      ' parameter file is "'//parameterFile//'".'
+       call System_Command_Failure_Report('CLASS',logFileName,helpMessage)
+    end if
+    ! Extract the ratio σ₈²/Aₛ.
+    if (haveNormalization) then
+       found=.false.
+       open(newUnit=classLog,file=char(workPath)//"/class.log",form="formatted",status="old",iostat=status)
+       do while (status == 0)
+          read (classLog,'(a)',iostat=status) line
+          offset=index(line,"sigma8=")
+          if (offset > 0) then
+             found=.true.
+             read (line(offset+7:),*) sigma8
+          end if
+       end do
+       close(classLog)
+       if (.not.found) call Error_Report("CLASS σ₈ value not found"//{introspection:location})
+       ratioSigma8SquaredAs=+sigma8         **2 &
+            &               /normalizationAs
+    end if
+    ! Read the CLASS transfer function file.
+    if (haveTransferFunctions) then
+       if (allocated(wavenumbers      )) deallocate(wavenumbers      )
+       if (allocated(transferFunctions)) deallocate(transferFunctions)
+       allocate(wavenumbers      (0    ))
+       allocate(transferFunctions(0,0,0))
+       countWavenumber=0
+       do j=1,size(redshifts)
+          if (size(redshifts) > 1) then
+             transferFileName=workPath//'/output_z'//j//'_tk.dat'
+          else
+             transferFileName=workPath//'/output_tk.dat'
+          end if
+          if (j == 1) then
+             countWavenumber=Count_Lines_In_File(transferFileName,"#")
+             if (allocated(wavenumbers      )) deallocate(wavenumbers      )
+             if (allocated(transferFunctions)) deallocate(transferFunctions)
+             allocate(wavenumbers      (countWavenumber                  ))
+             allocate(transferFunctions(countWavenumber,3,size(redshifts)))
+          end if
+          open(newunit=classTransferFile,file=char(transferFileName),status='old',form='formatted')
+          i=0
+          do while (i < countWavenumber)
+             read (classTransferFile,'(a)',iostat=status) classTransferLine
+             if (status == 0) then
+                if (classTransferLine(1:1) /= "#") then
+                   i=i+1
+                   read (classTransferLine,*) wavenumbers(i),transferFunctions(i,classSpeciesPhotons%ID,j),transferFunctions(i,classSpeciesBaryons%ID,j),transferFunctions(i,classSpeciesDarkMatter%ID,j)
+                end if
+             else
+                call Error_Report('unable to read CLASS transfer function file'//{introspection:location})
+             end if
+          end do
+          close(classTransferFile)
+       end do
+       ! Convert from CLASS units to Galacticus units.
+       wavenumbers=+wavenumbers                                                   &
+            &      *cosmologyParameters_%HubbleConstant(units=hubbleUnitsLittleH)
+       ! Convert transfer functions to standard form.
+       do i=1,3
+          do j=1,size(redshifts)
+             transferFunctions(:,i,j)=-transferFunctions(:,i,j)/wavenumbers**2
+          end do
+       end do
+    end if
+    ! Read the CLASS perturbations file.
+    if (havePerturbations) then
+       if (allocated(wavenumbers  )) deallocate(wavenumbers  )
+       if (allocated(perturbations)) deallocate(perturbations)
+       allocate(wavenumbers  (0    ))
+       allocate(perturbations(0,0,0))
+       countWavenumber=0
+       do j=1,size(redshifts)
+          if (size(redshifts) > 1) then
+             transferFileName=workPath//'/output_z'//j//'_tk.dat'
+          else
+             transferFileName=workPath//'/output_tk.dat'
+          end if
+          if (j == 1) then
+             countWavenumber=Count_Lines_In_File(transferFileName,"#")
+             if (allocated(wavenumbers  )) deallocate(wavenumbers  )
+             if (allocated(perturbations)) deallocate(perturbations)
+             allocate(wavenumbers  (countWavenumber                  ))
+             allocate(perturbations(countWavenumber,3,size(redshifts)))
+          end if
+          open(newunit=classTransferFile,file=char(transferFileName),status='old',form='formatted')
+          i=0
+          do while (i < countWavenumber)
+             read (classTransferFile,'(a)',iostat=status) classTransferLine
+             if (status == 0) then
+                if (classTransferLine(1:1) /= "#") then
+                   i=i+1
+                   read (classTransferLine,*) wavenumbers(i),perturbations(i,classSpeciesPhotons%ID,j),perturbations(i,classSpeciesBaryons%ID,j),perturbations(i,classSpeciesDarkMatter%ID,j)
+                end if
+             else
+                call Error_Report('unable to read CLASS perturbations file'//{introspection:location})
+             end if
+          end do
+          close(classTransferFile)
+       end do
+       ! Convert from CLASS units to Galacticus units.
+       wavenumbers=+wavenumbers                                                   &
+            &      *cosmologyParameters_%HubbleConstant(units=hubbleUnitsLittleH)
+       ! Convert perturbations to standard form.
+       do i=1,3
+          do j=1,size(redshifts)
+             perturbations(:,i,j)=-perturbations(:,i,j)/wavenumbers**2
+          end do
+       end do
+    end if
+    ! Remove temporary files.
+    call File_Remove(parameterFile             )
+    call File_Remove(workPath//"/class.log"    )
+    if (haveNormalization) then
+       call File_Remove(workPath//"/output_pk.dat")
+    end if
+    if (haveTransferFunctions .or. havePerturbations) then
+       do i=1,size(redshifts)
+          if (size(redshifts) > 1) then
+             transferFileName=workPath//'/output_z'//i//'_tk.dat'
+          else
+             transferFileName=workPath//'/output_tk.dat'
+          end if
+          call File_Remove(transferFileName)
+       end do
+    end if
+    call Directory_Remove(workPath)
+    return
+  end subroutine Interface_CLASS_Run
+
+end module Interfaces_CLASS

@@ -197,7 +197,7 @@
     </translation>
   </migration>
   <migration commit="7030a7dab187c4e0aa5112681b3273647595bbde">
-    <translation function="radiationFieldIntergalacticBackgroundCMB"/>
+    <translation function="radiation_field_intergalactic_background_cmb"/>
   </migration>
   <migration commit="bdcfda39270bcb782937b8106034dd32144f44cd">
     <translation xpath="//galacticDynamicsBarInstability[@value='efstathiou1982' or @value='efstathiou1982Tidal' or @value='fixedTimescale']/fractionAngularMomentumRetained[@value]">
@@ -226,16 +226,19 @@
     </translation>
   </migration>
   <migration commit="085033d9d7d8f1956eb0b5b7918ce731229d57e2">
-    <translation function="blackHoleSeedMass"/>
+    <translation function="black_hole_seed_mass"/>
   </migration>
   <migration commit="e87039e32d4d86a381ce015abf11e08a20c7e68e">
-    <translation function="blackHolePhysics"/>
+    <translation function="black_hole_physics"/>
   </migration>
   <migration commit="c71d2291b119918574bc006255028c62430b554b">
-    <translation function="modelParameterXPath"/>
+    <translation function="model_parameter_xpath"/>
   </migration>
   <migration commit="f483d9caf532e5f33cdbe46aad53d076316ec394">
-    <translation function="methodSuffixRemove"/>
+    <translation function="method_suffix_remove"/>
+  </migration>
+  <migration commit="dc78406459ea03b964218f7256d2bf3f4e150bf3">
+    <translation function="evaluated_parameter_xpath"/>
   </migration>
   <migration commit="2af8b4de4a0d9c4e83a0254a2f161dc94e305c15">
     <translation xpath="//stellarFeedbackOutflows[@value]">
@@ -243,10 +246,10 @@
     </translation>
   </migration>
   <migration commit="9e30e6b7b20cde818f4d9e935b0a34f0b5c78c29">
-    <translation function="satelliteOrphanize"/>
+    <translation function="satellite_orphanize"/>
   </migration>
   <migration commit="49430476890d1e0d92c686020f046e972952f81e">
-    <translation function="blackHoleNonCentral"/>
+    <translation function="black_hole_non_central"/>
   </migration>
   <migration commit="65c7326e2d0e0e85feea12ef933222871f069fb2">
     <translation xpath="//scaleCutOffModel[@value]">
@@ -259,16 +262,287 @@
     </translation>
   </migration>
   <migration commit="c8ece7c25a69867343f09ac4c4c325380dbf8f21">
-    <translation function="hotHaloVerySimple"/>
+    <translation function="hot_halo_very_simple"/>
   </migration>
   <migration commit="d4bf2d8db876eb8e44d94e1672bc36a6ea8135cc">
-    <translation function="collaborativeMPI"/>
+    <translation function="collaborative_mpi"/>
   </migration>
   <migration commit="8e1ca452b775faffbba73ded8deb7fb348523429">
-    <translation function="hotHaloStandardAccretion"/>
+    <translation function="hot_halo_standard_accretion"/>
   </migration>
   <migration commit="d51ad8f72ee53c80cd6cb933ff21cc3ec52b32fe">
-    <translation function="hotHaloStandardInflowOutflow"/>
+    <translation function="hot_halo_standard_inflow_outflow"/>
+  </migration>
+  <migration commit="551c092c6cfb98a955ac3631fb6dfbff1a5364f5">
+    <translation function="hot_halo_standard_ram_pressure_stripping"/>
+  </migration>
+  <migration commit="212e406d158bef30e0d62f78445334f7547b50e8">
+    <translation function="satellite_bound_mass_initializor"/>
+  </migration>
+  <migration commit="13ffc8779d109a773f8cf7d85d4008541207f8e8">
+    <translation function="disk_very_simple_analytic_solver"/>
+  </migration>
+  <migration commit="3148b72923e0261deb472182fee74ccd1a9a7a13">
+    <translation function="satellite_orbit_initializor"/>
+  </migration>
+  <migration commit="f5362cac8f91d04771a5d9c4a705a0f9f6c6e8e7">
+    <translation function="vitvitska_subresolution_method"/>
+  </migration>
+  <migration commit="fff198c4bbadc530c67668591ae98e4aa0f445a9">
+    <translation function="vitvitska_subresolution_method_enum"/>
+  </migration>
+  <migration commit="fcefb0ab4f1ff0c4e788e46b066ffe7b3e1ab599">
+    <translation function="johnson2021_mass_function_slope"/>
+  </migration>
+  <migration commit="befbbb8d669ec76a2ddf0299ed7da8f31077700e">
+    <translation function="johnson2021_correlated_branches"/>
+  </migration>
+  <migration commit="938122648f2740d19a67598157de78201a17e4b7">
+    <translation function="chandrasekhar_suppress_extended_mass"/>
+  </migration>
+  <migration commit="74b18cd7c3510fa2a2aaf2890fa2cd44c3d55301">
+    <translation xpath="//chandrasekharIntegralComputeVelocityDispersion[@value]">
+      <remove/>
+    </translation>
+  </migration>
+  <migration commit="3d1d472f3d7fccfd1f0b6f047774c01e0ca427eb">
+    <translation xpath="//starFormationRateSurfaceDensityDisks[@value='krumholz2009']/assumeMonotonicSurfaceDensity[@value]">
+      <remove/>
+    </translation>
+  </migration>
+  <migration commit="9664f0bc59ca51e262b671cf24853d3ca6213b9c">
+    <!-- The `accretionFlowShi2016` dark matter profile class no longer makes use of critical  -->
+    <!-- overdensity or cosmological mass variance objects - the peak height which it required -->
+    <!-- them for is now evaluated by the `darkMatterHaloSplashbackRadius` class instead.      -->
+    <translation xpath="//darkMatterProfileDMO[@value='accretionFlowShi2016']/criticalOverdensity[@value]">
+      <remove/>
+    </translation>
+    <translation xpath="//darkMatterProfileDMO[@value='accretionFlowShi2016']/cosmologicalMassVariance[@value]">
+      <remove/>
+    </translation>
+    <!-- Both accretion flow classes now take their transition radius from a splashback radius  -->
+    <!-- object which defaults to `diemer2020`. Pin the previous model to retain the original   -->
+    <!-- behavior of existing parameter files.                                                  -->
+    <translation function="splashback_radius_accretion_flow"/>
+  </migration>
+  <migration commit="def071a0fd5184deb821b30d7f382e27cbafa49e">
+    <!-- The fuzzy dark matter tidal stripping classes were renamed, so that their names indicate  -->
+    <!-- that they apply only to solitonic halos.                                                  -->
+    <translation xpath="//nodeOperator[@value]">
+      <value old="satelliteConditionalMassLoss" new="satelliteTidalMassLossSoliton"/>
+    </translation>
+    <translation xpath="//satelliteTidalStrippingRadius[@value]">
+      <value old="limited" new="solitonLimited"/>
+    </translation>
+  </migration>
+
+  <migration commit="ece0d28426e2797fbd0042eadab736710304dec1">
+    <!-- The `darkMatterProfilePromptCusps` node operator now follows the reference implementation of Delos & White (2025) in  -->
+    <!-- assigning no cusp to halos for which the cusp collapse epoch postdates the halo itself - such halos can not have      -->
+    <!-- formed, and are pruned from the merger tree. This changes the physics of existing models, so pin the original         -->
+    <!-- behavior here. Models which want the new behavior should set `requireCollapseBeforeHalo` to true and add a merger     -->
+    <!-- tree operator to prune the labeled halos.                                                                            -->
+    <translation function="prompt_cusp_require_collapse_before_halo"/>
+  </migration>
+
+  <migration commit="e2792e6912698e66e1edb09a981098eeddd57381">
+    <!-- The `stellarSpectraDustAttenuation` class and the `lmnstyStllrCF2000` property extractor were retired in    -->
+    <!-- favor of the `dustAttenuation` and `dustExtinctionCurve` classes. The former was consumed only by classes   -->
+    <!-- which have themselves been migrated, so the parameter is simply removed; the latter is replaced by the      -->
+    <!-- equivalent structure of extractors.                                                                        -->
+    <translation xpath="//stellarSpectraDustAttenuation[@value]">
+      <remove/>
+    </translation>
+    <translation function="dust_attenuation_framework"/>
+  </migration>
+
+  <migration commit="48c5e9fe8c7ed983d45d1b0018a81c2bc09f709e">
+    <!-- Adjective-first parameter names settled on the noun-first form, and the -->
+    <!-- `labelled` galactic filter renamed to `labeled`. Each rename is scoped  -->
+    <!-- to the implementation which reads it, so that identically-named         -->
+    <!-- parameters of other classes, and the `outerRadius` *property* of the    -->
+    <!-- hot halo components, are left alone.                                    -->
+    <translation xpath="//*[@value='exponentialDisk']/scaleRadius[@value]">
+      <name new="radiusScale"/>
+    </translation>
+    <translation xpath="//*[@value='NFW' or @value='einasto']/virialRadius[@value]">
+      <name new="radiusVirial"/>
+    </translation>
+    <translation xpath="//*[@value='betaProfile']/outerRadius[@value]">
+      <name new="radiusOuter"/>
+    </translation>
+    <translation xpath="//*[@value='betaProfile']/coreRadius[@value]">
+      <name new="radiusCore"/>
+    </translation>
+    <translation xpath="//task[@value='haloMassFunction' or @value='haloSpinDistribution']/haloMassMinimum[@value]">
+      <name new="massHaloMinimum"/>
+    </translation>
+    <translation xpath="//task[@value='haloMassFunction']/haloMassMaximum[@value]">
+      <name new="massHaloMaximum"/>
+    </translation>
+    <translation xpath="//posteriorSampleLikelihood[@value='massFunction' or @value='prjctdCorrelationFunction']/haloMassMinimum[@value]">
+      <name new="massHaloMinimum"/>
+    </translation>
+    <translation xpath="//posteriorSampleLikelihood[@value='massFunction' or @value='prjctdCorrelationFunction']/haloMassMaximum[@value]">
+      <name new="massHaloMaximum"/>
+    </translation>
+    <translation xpath="//galacticFilter[@value]">
+      <value old="labelled" new="labeled"/>
+    </translation>
+  </migration>
+
+  <migration commit="d8a194faa0b50129f8dd029419c92cf5005a4be7">
+    <!-- Vowel-stripped implementation names expanded. Each rule is scoped to  -->
+    <!-- the class which offers the implementation, so an identically-spelled  -->
+    <!-- value of another class is untouched. One <translation> per renamed    -->
+    <!-- value: parametersMigrate.py reads only the first <value> child of a   -->
+    <!-- translation, so grouping them would silently drop all but the first.  -->
+    <translation xpath="//mergerTreeBranchingProbability[@value]">
+      <value old="gnrlzdPrssSchchtr" new="generalizedPressSchechter"/>
+    </translation>
+    <translation xpath="//mergerTreeBuildMassDistribution[@value]">
+      <value old="stllrMssFnctn" new="stellarMassFunction"/>
+    </translation>
+    <translation xpath="//nodePropertyExtractor[@value]">
+      <value old="lmnstyEmssnLineAGN" new="luminosityEmissionLineAGN"/>
+    </translation>
+    <translation xpath="//nodePropertyExtractor[@value]">
+      <value old="lmnstyEmssnLinePanuzzo2003" new="luminosityEmissionLinePanuzzo2003"/>
+    </translation>
+    <translation xpath="//outputAnalysisDistributionOperator[@value]">
+      <value old="grvtnlLnsng" new="gravitationalLensing"/>
+    </translation>
+    <translation xpath="//outputAnalysisDistributionOperator[@value]">
+      <value old="rndmErrNbodyMass" new="randomErrorNbodyMass"/>
+    </translation>
+    <translation xpath="//outputAnalysisDistributionOperator[@value]">
+      <value old="randomErrorPlynml" new="randomErrorPolynomial"/>
+    </translation>
+    <translation xpath="//outputAnalysisPropertyOperator[@value]">
+      <value old="csmlgyAnglrDstnc" new="cosmologyAngularDistance"/>
+    </translation>
+    <translation xpath="//outputAnalysisPropertyOperator[@value]">
+      <value old="csmlgyLmnstyDstnc" new="cosmologyLuminosityDistance"/>
+    </translation>
+    <translation xpath="//outputAnalysisPropertyOperator[@value]">
+      <value old="systmtcPolynomial" new="systematicPolynomial"/>
+    </translation>
+    <translation xpath="//outputAnalysisWeightOperator[@value]">
+      <value old="csmlgyVolume" new="cosmologyVolume"/>
+    </translation>
+    <translation xpath="//posteriorSampleLikelihood[@value]">
+      <value old="indpndntLklhdsSqntl" new="independentLikelihoodsSequential"/>
+    </translation>
+    <translation xpath="//posteriorSampleLikelihood[@value]">
+      <value old="prjctdCorrelationFunction" new="projectedCorrelationFunction"/>
+    </translation>
+    <translation xpath="//posteriorSampleSimulation[@value]">
+      <value old="annealedDffrntlEvltn" new="annealedDifferentialEvolution"/>
+    </translation>
+    <translation xpath="//posteriorSampleSimulation[@value]">
+      <value old="stochasticDffrntlEvltn" new="stochasticDifferentialEvolution"/>
+    </translation>
+    <translation xpath="//posteriorSampleSimulation[@value]">
+      <value old="temperedDffrntlEvltn" new="temperedDifferentialEvolution"/>
+    </translation>
+    <translation xpath="//sphericalCollapseSolver[@value]">
+      <value old="cllsnlssMttrDarkEnergy" new="collisionlessMatterDarkEnergy"/>
+    </translation>
+    <translation xpath="//stellarFeedbackOutflows[@value]">
+      <value old="vlctyMxSclng" new="velocityMaximumScaling"/>
+    </translation>
+  </migration>
+
+  <migration commit="b9c98aa6ed4afa1acd4c62856f53bd91336bc61d">
+    <!-- The `blitz2006` star formation rate surface density class no longer tabulates its disk integrals - the    -->
+    <!-- molecular fraction is now the `R/(1+R)` form of eqn. (21) of Blitz & Rosolowsky (2006), for which the     -->
+    <!-- analytic solutions underlying the tabulation do not exist - so `[useTabulation]` is retired.              -->
+    <translation xpath="//starFormationRateSurfaceDensityDisks[@value='blitz2006']/useTabulation[@value]">
+      <remove/>
+    </translation>
+    <!-- `[pressureCharacteristic]` is the characteristic pressure P_0/k_B in K/cm^3, but its default of 4.54 was  -->
+    <!-- log10(P_0/k_B) for the "Mean" row of Table 2 of Blitz & Rosolowsky (2006), used as though it were linear. -->
+    <!-- Parameter files which set that default explicitly are translated to the linear value; note that this      -->
+    <!-- changes the physics of such models - as intended, since the previous pressure was some 7,700 times too    -->
+    <!-- small - and so they will require recalibration.                                                           -->
+    <translation xpath="//starFormationRateSurfaceDensityDisks[@value='blitz2006']/pressureCharacteristic[@value]">
+      <value old="4.54" new="3.5e4"/>
+    </translation>
+  </migration>
+  
+  <migration commit="93b7a61e6990a21676d122050b0bda6c53ffde6e">
+    <translation function="dust_properties"/>
+  </migration>
+
+  <migration commit="c4fcd080cd8318396aa8a98edbe95def9f970a62">
+    <translation xpath="//mergerTreeOperator[@value='conditionalMF']/nameGroupOutput[@value]">
+      <name new="outputGroupName"/>
+    </translation>
+    <translation function="extended_schmidt_normalization_per_gigayear"/>
+  </migration>
+
+  <migration commit="b3ff1596d63d4132d90031c9598249499eb60e51">
+    <!-- Dynamical friction from gaseous components now defaults to the Kim & Kim (2007) treatment; retain the -->
+    <!-- collisionless Chandrasekhar (1943) formula previously used for them.                                    -->
+    <translation function="dynamical_friction_gaseous"/>
+  </migration>
+
+  <migration commit="baae269b17f8fdc2c1b73be7816049e84a2f6cbc">
+    <!-- The default of `fractionTimestepSatelliteMinimum` in the standard and threaded merger tree evolvers changed -->
+    <!-- from 0 to 0.75 (issue #1431); retain the absence of satellite deferral in explicitly-selected evolvers.       -->
+    <translation function="satellite_deferral_default"/>
+  </migration>
+
+  <migration commit="1a5ec938b51c297ef411ccf8cb7f9593b224d74c">
+    <!-- The interstellar medium of standard disks, spheroids, and nuclear star clusters is now collisional by default, so that       -->
+    <!-- dynamical friction from it uses the gaseous treatment; retain the collisionless kinematics previously shared with the stars. -->
+    <translation function="interstellar_medium_kinematics"/>
+  </migration>
+
+  <migration commit="fef23b1e1709f07948033f5f052667c7a893b8f2">
+    <!-- The `relativePosition` ram pressure force class was removed in favor of `orbitalPosition`. The `hotHaloMassDistribution` -->
+    <!-- object which `relativePosition` accepted (but never used) is not accepted by `orbitalPosition`, so is removed first.     -->
+    <translation xpath="//hotHaloRamPressureForce[@value='relativePosition']/hotHaloMassDistribution">
+      <remove/>
+    </translation>
+    <translation xpath="//hotHaloRamPressureForce[@value]">
+      <value old="relativePosition" new="orbitalPosition"/>
+    </translation>
+  </migration>
+
+  <migration commit="f88a96423e21da1fe340565b2036399633246e13">
+    <!-- Power spectrum normalization moved from cosmologicalMassVarianceFilteredPower into a new, top-level powerSpectrumNormalizer -->
+    <!-- (issue #145): move sigma_8/amplitudeScalar/wavenumberReference/reference into the appropriate normalizer.                  -->
+    <translation function="power_spectrum_normalizer"/>
+  </migration>
+
+  <migration commit="035477f5609c023b2fbd8cb59f38102188cc5b33">
+    <!-- The minimum initial mass for a Type II supernova is now a parameter of the stellar astrophysics class, shared by the  -->
+    <!-- stellar yields and the supernova feedback.                                                                           -->
+    <translation function="supernovae_type_ii_mass_stellar_astrophysics"/>
+  </migration>
+
+  <migration commit="518db11475a8e45e44085e4d5ff809afeaa2ee0e">
+    <!-- powerSpectrumNormalizerAmplitudeScalar now normalizes to A_s directly (issue #145, phase 3), so no longer performs a sigma_8 -->
+    <!-- integral, and no longer accepts the parameters controlling it.                                                         -->
+    <translation xpath="//powerSpectrumNormalizer[@value='amplitudeScalar']/tolerance[@value]">
+      <remove/>
+    </translation>
+    <translation xpath="//powerSpectrumNormalizer[@value='amplitudeScalar']/integrationFailureIsFatal[@value]">
+      <remove/>
+    </translation>
+    <translation xpath="//powerSpectrumNormalizer[@value='amplitudeScalar']/powerSpectrumWindowFunctionTopHat[@value]">
+      <remove/>
+    </translation>
+  </migration>
+
+  <migration commit="ea6b55717d89e3ac2234e42c78fca7eebcf9e2fc">
+    <!-- The blitz2006 star formation frequency now applies to all molecular gas (including helium), as for the star formation    -->
+    <!-- efficiency of molecular gas of Leroy et al. (2008), rather than to molecular hydrogen only. Rescale explicitly given values -->
+    <!-- by Leroy et al.'s hydrogen mass fraction, 1/1.36, so that existing models are unchanged.                                -->
+    <translation xpath="//starFormationRateSurfaceDensityDisks[@value='blitz2006']/starFormationFrequencyNormalization">
+      <scale factor="0.73529411764705882" description="now per unit molecular gas mass including helium"/>
+    </translation>
   </migration>
 
   <!-- Known default values for parameters -->

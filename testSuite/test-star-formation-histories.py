@@ -13,8 +13,10 @@ import warnings
 # Galacticus are compared to analytic solutions.
 # Andrew Benson (31-August-2024)
 
-# Iterate over star formation history types.
-for sfhType in ( "adaptive", "metallicitySplit" ):
+# Iterate over star formation history types. The "metallicitySplitBoundaries" case repeats the
+# "metallicitySplit" case, but with the metallicity bin boundaries given explicitly instead of via
+# "countMetallicities" - a path which previously left the number of metallicity bins undefined.
+for sfhType in ( "adaptive", "metallicitySplit", "metallicitySplitBoundaries" ):
     # Construct the file name suffix.
     suffix = sfhType[0].upper() + sfhType[1:]
     print("Testing '"+sfhType+"' star formation histories...")
@@ -29,7 +31,7 @@ for sfhType in ( "adaptive", "metallicitySplit" ):
         print("   ...done ("+str(status)+")")
         print("   FAILED: model run:")
         subprocess.run("cat outputs/test-star-formation-histories.log",shell=True)
-        sys.exit()
+        sys.exit(0)
     else:
         print("   ...done")
         print("   Checking for errors...")
@@ -38,20 +40,20 @@ for sfhType in ( "adaptive", "metallicitySplit" ):
         print("   ...done ("+str(status)+")")
         print("   FAILED: model run (errors):")
         subprocess.run("cat outputs/test-star-formation-histories.log",shell=True)
-        sys.exit()
+        sys.exit(0)
     else:
         print("   ...done")
         print("   SUCCESS: model run")
 
     # Find Solar metallicity from the Galacticus source file.
     metallicitySolar = None
-    for line in open(os.environ['GALACTICUS_EXEC_PATH']+'/source/numerical.constants.astronomical.F90'):
+    for line in open(os.environ['GALACTICUS_EXEC_PATH']+'/source/numerical/constants/astronomical.F90'):
         match = re.match(r'.*variable="metallicitySolar"\s+value="([0-9\.\+\-]+)d([0-9\+\-]+)"',line)
         if match:
             metallicitySolar = float(match.group(1))*10**int(match.group(2))
     if metallicitySolar is None:
         print("   FAILED: unable to find Solar metallicity")
-        sys.exit()
+        sys.exit(0)
 
     # Extract the initial propeties of the galaxy from the merger tree file.
     tree         = ET.parse('parameters/starFormationHistoryTree.xml')

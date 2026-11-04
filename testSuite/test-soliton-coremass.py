@@ -23,14 +23,14 @@ print("...done ("+str(status)+")")
 if status.returncode != 0:
     print("FAILED: model run:")
     subprocess.run(f"cat {pathOutputLog}",shell=True)
-    sys.exit()
+    sys.exit(0)
 print("Checking for errors...")
 status = subprocess.run(f"grep -q -i -e fatal -e aborted -e \"Galacticus experienced an error in the GSL library\" {pathOutputLog}",shell=True)
 print("...done ("+str(status)+")")
 if status.returncode == 0:
     print("FAILED: model run (errors):")
     subprocess.run(f"cat {pathOutputLog}",shell=True)
-    sys.exit()
+    sys.exit(0)
 print("SUCCESS: model run")
 
 # Best-fitting parameters from Chan et al. (2022; MNRAS; 551; 943; https://ui.adsabs.harvard.edu/abs/2022MNRAS.511..943C).
@@ -66,7 +66,7 @@ with h5py.File(pathOutputModel, 'r') as file:
         )/np.sqrt(expansionFactor)
 
         # Verify that numerical results agree with the analytic expectation.
-        if np.allclose(massCore, massCoreAnalytic, rtol=massCore*1e-4):
+        if np.allclose(massCore, massCoreAnalytic, rtol=1.0e-4):
             print(f"SUCCESS [output {i}]: results do agree"   )
         else:
             print(f"FAILED  [output {i}]: results do not agree")

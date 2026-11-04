@@ -1,0 +1,157 @@
+!! Copyright 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
+!!           2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026
+!!    Andrew Benson <abenson@carnegiescience.edu>
+!!
+!! This file is part of Galacticus.
+!!
+!!    Galacticus is free software: you can redistribute it and/or modify
+!!    it under the terms of the GNU General Public License as published by
+!!    the Free Software Foundation, either version 3 of the License, or
+!!    (at your option) any later version.
+!!
+!!    Galacticus is distributed in the hope that it will be useful,
+!!    but WITHOUT ANY WARRANTY; without even the implied warranty of
+!!    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+!!    GNU General Public License for more details.
+!!
+!!    You should have received a copy of the GNU General Public License
+!!    along with Galacticus.  If not, see <http://www.gnu.org/licenses/>.
+
+!!{RST
+Implements a stellar mass property extractor class.
+!!}
+
+  !![
+  <nodePropertyExtractor name="nodePropertyExtractorMassStellar" docformat="rst">
+   <description>
+   Extracts the total stellar mass of a galaxy node by summing the stellar masses of disk and spheroid components, for comparison with stellar mass functions and stellar-to-halo mass relations from photometric surveys.
+   </description>
+  </nodePropertyExtractor>
+  !!]
+  type, extends(nodePropertyExtractorScalar) :: nodePropertyExtractorMassStellar
+     !!{RST
+     A stellar mass property extractor class.
+     !!}
+     private
+   contains
+     procedure :: extract     => massStellarExtract
+     procedure :: name        => massStellarName
+     procedure :: description => massStellarDescription
+     procedure :: unitsInSI   => massStellarUnitsInSI
+     procedure :: quantity    => massStellarQuantity
+     procedure :: units       => massStellarUnits
+  end type nodePropertyExtractorMassStellar
+
+  interface nodePropertyExtractorMassStellar
+     !!{RST
+     Constructors for the :galacticus-class:`nodePropertyExtractorMassStellar` property extractor class.
+     !!}
+     module procedure massStellarConstructorParameters
+  end interface nodePropertyExtractorMassStellar
+
+contains
+
+  function massStellarConstructorParameters(parameters) result(self)
+    !!{RST
+    Constructor for the :galacticus-class:`nodePropertyExtractorMassStellar` property extractor class which takes a parameter set as input.
+    !!}
+    use :: Input_Parameters, only : inputParameters
+    implicit none
+    type (nodePropertyExtractorMassStellar)                :: self
+    type (inputParameters                 ), intent(inout) :: parameters
+
+    self=nodePropertyExtractorMassStellar()
+    !![
+    <inputParametersValidate source="parameters"/>
+    !!]
+    return
+  end function massStellarConstructorParameters
+
+  double precision function massStellarExtract(self,node,instance)
+    !!{RST
+    Implement a massStellar output analysis.
+    !!}
+    use :: Galactic_Structure_Options, only : massTypeStellar
+    use :: Mass_Distributions        , only : massDistributionClass
+    implicit none
+    class(nodePropertyExtractorMassStellar), intent(inout), target   :: self
+    type (treeNode                        ), intent(inout), target   :: node
+    type (multiCounter                    ), intent(inout), optional :: instance
+    class(massDistributionClass           )               , pointer  :: massDistribution_
+    !$GLC attributes unused :: self, instance
+
+    massDistribution_  => node             %massDistribution(massType=massTypeStellar)
+    massStellarExtract =  massDistribution_%massTotal       (                        )
+    !![
+    <objectDestructor name="massDistribution_"/>
+    !!]
+    return
+  end function massStellarExtract
+
+  function massStellarName(self)
+    !!{RST
+    Return the name of the massStellar property.
+    !!}
+    implicit none
+    type (varying_string                  )                :: massStellarName
+    class(nodePropertyExtractorMassStellar), intent(inout) :: self
+    !$GLC attributes unused :: self
+
+    massStellarName=var_str('massStellarTotal')
+    return
+  end function massStellarName
+
+  function massStellarDescription(self)
+    !!{RST
+    Return a description of the massStellar property.
+    !!}
+    implicit none
+    type (varying_string                  )                :: massStellarDescription
+    class(nodePropertyExtractorMassStellar), intent(inout) :: self
+    !$GLC attributes unused :: self
+
+    massStellarDescription=var_str('The total mass of stars in this node [M☉].')
+    return
+  end function massStellarDescription
+
+  double precision function massStellarUnitsInSI(self)
+    !!{RST
+    Return the units of the stellar mass property in the SI system.
+    !!}
+    use :: Numerical_Constants_Astronomical, only : massSolar
+    implicit none
+    class(nodePropertyExtractorMassStellar), intent(inout) :: self
+    !$GLC attributes unused :: self
+
+    massStellarUnitsInSI=massSolar
+    return
+  end function massStellarUnitsInSI
+
+
+  function massStellarQuantity(self)
+    !!{RST
+    Return the class of the stellar mass property.
+    !!}
+    use :: Output_Analyses_Options, only : outputAnalysisPropertyQuantityMass
+    implicit none
+    type (enumerationOutputAnalysisPropertyQuantityType)                :: massStellarQuantity
+    class(nodePropertyExtractorMassStellar             ), intent(inout) :: self
+    !$GLC attributes unused :: self
+
+    massStellarQuantity=outputAnalysisPropertyQuantityMass
+    return
+  end function massStellarQuantity
+
+  function massStellarUnits(self) result(units)
+    !!{RST
+    Return the units of the stellar mass property.
+    !!}
+    use :: Units_MetaData, only : unitType
+    implicit none
+    type (unitType                        )                :: units
+    class(nodePropertyExtractorMassStellar), intent(inout) :: self
+    !$GLC attributes unused :: self
+
+    units=unitType(self%unitsInSI(),description='Solar masses',quantity='solMass')
+    return
+  end function massStellarUnits
