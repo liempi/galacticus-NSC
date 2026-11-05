@@ -594,17 +594,9 @@ contains
                    if (.not.allocated(integrator_)) then
                       select case (self%odeLatentIntegratorType%ID)
                       case (latentIntegratorTypeGaussKronrod%ID)
-                         allocate(integratorMultiVectorizedCompositeGaussKronrod1D :: integrator_)
-                         select type (integrator_)
-                         type is (integratorMultiVectorizedCompositeGaussKronrod1D)
-                            call integrator_%initialize(self%odeLatentIntegratorIntervalsMaximum,self%odeLatentIntegratorOrder)
-                         end select
+                         allocate(integrator_,source=integratorMultiVectorizedCompositeGaussKronrod1D(self%odeLatentIntegratorIntervalsMaximum,self%odeLatentIntegratorOrder))
                       case (latentIntegratorTypeTrapezoidal %ID)
-                         allocate(integratorMultiVectorizedCompositeTrapezoidal1D  :: integrator_)
-                         select type (integrator_)
-                         type is (integratorMultiVectorizedCompositeTrapezoidal1D )
-                            call integrator_%initialize(self%odeLatentIntegratorIntervalsMaximum                              )
-                         end select
+                         allocate(integrator_,source=integratorMultiVectorizedCompositeTrapezoidal1D (self%odeLatentIntegratorIntervalsMaximum                              ))
                       end select
                    end if
                    odeAlgorithm=self%odeAlgorithm

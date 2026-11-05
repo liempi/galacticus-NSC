@@ -88,7 +88,7 @@ program Test_ODE_Solver
   ! Harmonic oscillator.
   call Unit_Tests_Begin_Group("y″=-y; z′=1/√{1+y²}")
   xEnd=[1.0d0,2.0d0,3.0d0,4.0d0,5.0d0,6.0d0,7.0d0,8.0d0,9.0d0,10.0d0]
-  call integrator_%initialize   (24,61)
+  integrator_=integratorMultiVectorizedCompositeGaussKronrod1D(24,61)
   call integrator_%tolerancesSet([1.0d-9,1.0d-9],[1.0d-9,1.0d-9])
   allocate(solver)
   solver=odeSolver(2_c_size_t,ODE_Set_2,Jacobian_Set_2,toleranceAbsolute=1.0d-9,toleranceRelative=1.0d-9,scale=[1.0d0,1.0d0],stepperType=gsl_odeiv2_step_msbdfactive,integrator=integrator_,integrands=Integrands_Set_2)

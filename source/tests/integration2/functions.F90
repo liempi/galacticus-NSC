@@ -42,7 +42,6 @@ module Test_Integration2_Functions
      !!}
      class  (integrator2   ), allocatable :: integrator_
      type   (varying_string)              :: description
-     integer                              :: order
   end type testIntegrator
 
   type :: testFunction
@@ -61,7 +60,6 @@ module Test_Integration2_Functions
      !!}
      class  (integratorMulti), allocatable :: integrator_
      type   (varying_string )              :: description
-     integer                               :: order
   end type testIntegratorMulti
 
   type :: testFunctionMulti

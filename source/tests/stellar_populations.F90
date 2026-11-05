@@ -174,7 +174,7 @@ program Test_Stellar_Populations
   call abundancesNode%metallicitySet(metallicityNode)
   recycledFractionTabulated =stellarPopulation_%rateRecycling(abundancesNode,ageMinimum=0.0d0,ageMaximum=ageNode)*ageNode
   yieldTabulated            =stellarPopulation_%rateYield    (abundancesNode,ageMinimum=0.0d0,ageMaximum=ageNode)*ageNode
-  call integrator_%initialize  (24    ,61    )
+  integrator_=integratorCompositeGaussKronrod1D(24,61)
   call integrator_%toleranceSet(1.0d-3,1.0d-4)
   call integrator_%integrandSet(integrandRecycledFraction)
   recycledFractionIntegrated=integrator_%evaluate(initialMassFunction_%massMinimum(),initialMassFunction_%massMaximum())

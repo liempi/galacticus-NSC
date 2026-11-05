@@ -113,14 +113,15 @@ module Numerical_Integration2
      private
      integer :: iterationsMaximum
    contains
-     !![
-     <methods docformat="rst">
-       <method description="Set the maximum number of iterations allowed in the integrator." method="initialize" />
-     </methods>
-     !!]
-     procedure :: initialize => compositeTrapezoidalInitialize1D
      procedure :: evaluate   => compositeTrapezoidalEvaluate1D
   end type integratorCompositeTrapezoidal1D
+
+  interface integratorCompositeTrapezoidal1D
+     !!{RST
+     Constructors for the :galacticus-class:`integratorCompositeTrapezoidal1D` numerical integrator class.
+     !!}
+     module procedure compositeTrapezoidalConstructor1D
+  end interface integratorCompositeTrapezoidal1D
 
   ! Adaptive-composite trapezoidal 1D integrator.
   type, extends(integratorCompositeTrapezoidal1D) :: integratorAdaptiveCompositeTrapezoidal1D
@@ -131,6 +132,13 @@ module Numerical_Integration2
    contains
      procedure :: evaluate => adaptiveCompositeTrapezoidalEvaluate1D
   end type integratorAdaptiveCompositeTrapezoidal1D
+
+  interface integratorAdaptiveCompositeTrapezoidal1D
+     !!{RST
+     Constructors for the :galacticus-class:`integratorAdaptiveCompositeTrapezoidal1D` numerical integrator class.
+     !!}
+     module procedure adaptiveCompositeTrapezoidalConstructor1D
+  end interface integratorAdaptiveCompositeTrapezoidal1D
 
   ! Composite Gauss-Kronrod 1D integrator.
   type, extends(integrator1D) :: integratorCompositeGaussKronrod1D
@@ -143,14 +151,19 @@ module Numerical_Integration2
    contains
      !![
      <methods docformat="rst">
-       <method description="Initialize the integrator." method="initialize" />
        <method description="Evaluate the integral over an interval and also return the error on the integral." method="evaluateInterval" />
      </methods>
      !!]
-     procedure :: initialize       => compositeGaussKronrod1DInitialize
      procedure :: evaluate         => compositeGaussKronrod1DEvaluate
      procedure :: evaluateInterval => compositeGaussKronrod1DEvaluateInterval
   end type integratorCompositeGaussKronrod1D
+
+  interface integratorCompositeGaussKronrod1D
+     !!{RST
+     Constructors for the :galacticus-class:`integratorCompositeGaussKronrod1D` numerical integrator class.
+     !!}
+     module procedure compositeGaussKronrod1DConstructor
+  end interface integratorCompositeGaussKronrod1D
 
   ! Generic one-dimensional vectorized integrator.
   type, abstract, extends(integrator2) :: integratorVectorized1D
@@ -193,13 +206,18 @@ module Numerical_Integration2
    contains
      !![
      <methods docformat="rst">
-       <method description="Set the maximum number of iterations allowed in the integrator." method="initialize" />
        <method description="Evaluate the integral." method="evaluate" />
      </methods>
      !!]
-     procedure :: initialize => vectorizedCompositeTrapezoidalInitialize1D
      procedure :: evaluate   => vectorizedCompositeTrapezoidalEvaluate1D
   end type integratorVectorizedCompositeTrapezoidal1D
+
+  interface integratorVectorizedCompositeTrapezoidal1D
+     !!{RST
+     Constructors for the :galacticus-class:`integratorVectorizedCompositeTrapezoidal1D` numerical integrator class.
+     !!}
+     module procedure vectorizedCompositeTrapezoidalConstructor1D
+  end interface integratorVectorizedCompositeTrapezoidal1D
 
   ! Vectorized composite Gauss-Kronrod 1D integrator.
   type, extends(integratorVectorized1D) :: integratorVectorizedCompositeGaussKronrod1D
@@ -212,15 +230,20 @@ module Numerical_Integration2
    contains
      !![
      <methods docformat="rst">
-       <method description="Set the maximum number of iterations allowed, and the order of the integrator." method="initialize" />
        <method description="Evaluate the integral." method="evaluate" />
        <method description="Evaluate the integral over an interval and also return the error on the integral." method="evaluateInterval" />
      </methods>
      !!]
-     procedure :: initialize       => vectorizedCompositeGaussKronrod1DInitialize
      procedure :: evaluate         => vectorizedCompositeGaussKronrod1DEvaluate
      procedure :: evaluateInterval => vectorizedCompositeGaussKronrod1DEvaluateInterval
   end type integratorVectorizedCompositeGaussKronrod1D
+
+  interface integratorVectorizedCompositeGaussKronrod1D
+     !!{RST
+     Constructors for the :galacticus-class:`integratorVectorizedCompositeGaussKronrod1D` numerical integrator class.
+     !!}
+     module procedure vectorizedCompositeGaussKronrod1DConstructor
+  end interface integratorVectorizedCompositeGaussKronrod1D
 
   ! Generic multi-integrand integrator.
   type :: integratorMulti
@@ -234,7 +257,6 @@ module Numerical_Integration2
        <method description="Set tolerances to use in this integrator." method="tolerancesSet" />
      </methods>
      !!]
-     final     ::                  integratorMultiDestructor
      procedure :: tolerancesSet => tolerancesSetGeneric
   end type integratorMulti
 
@@ -320,15 +342,20 @@ module Numerical_Integration2
    contains
      !![
      <methods docformat="rst">
-       <method description="Set the maximum number of intervals allowed, and the order of the integrator." method="initialize" />
        <method description="Evaluate the integrals." method="evaluate" />
        <method description="Evaluate the integrals over an interval and also return errors on the integrals." method="evaluateInterval" />
      </methods>
      !!]
-     procedure :: initialize       => multiVectorizedCompositeGaussKronrod1DInitialize
      procedure :: evaluate         => multiVectorizedCompositeGaussKronrod1DEvaluate
      procedure :: evaluateInterval => multiVectorizedCompositeGaussKronrod1DEvaluateInterval
   end type integratorMultiVectorizedCompositeGaussKronrod1D
+
+  interface integratorMultiVectorizedCompositeGaussKronrod1D
+     !!{RST
+     Constructors for the :galacticus-class:`integratorMultiVectorizedCompositeGaussKronrod1D` numerical integrator class.
+     !!}
+     module procedure multiVectorizedCompositeGaussKronrod1DConstructor
+  end interface integratorMultiVectorizedCompositeGaussKronrod1D
 
   ! Vectorized composite multi-integrand trapezoidal 1D integrator.
   type, extends(integratorMultiVectorized1D) :: integratorMultiVectorizedCompositeTrapezoidal1D
@@ -340,13 +367,18 @@ module Numerical_Integration2
    contains
      !![
      <methods docformat="rst">
-       <method description="Set the maximum number of intervals allowed." method="initialize" />
        <method description="Evaluate the integrals." method="evaluate" />
      </methods>
      !!]
-     procedure :: initialize => multiVectorizedCompositeTrapezoidal1DInitialize
      procedure :: evaluate   => multiVectorizedCompositeTrapezoidal1DEvaluate
   end type integratorMultiVectorizedCompositeTrapezoidal1D
+
+  interface integratorMultiVectorizedCompositeTrapezoidal1D
+     !!{RST
+     Constructors for the :galacticus-class:`integratorMultiVectorizedCompositeTrapezoidal1D` numerical integrator class.
+     !!}
+     module procedure multiVectorizedCompositeTrapezoidal1DConstructor
+  end interface integratorMultiVectorizedCompositeTrapezoidal1D
 
 contains
 
@@ -509,13 +541,13 @@ contains
   end subroutine integrandSet1D
 
   ! Composite trapezoidal 1D integrator.
-  subroutine compositeTrapezoidalInitialize1D(self,iterationsMaximum)
+  function compositeTrapezoidalConstructor1D(iterationsMaximum) result(self)
     !!{RST
-    Initialize a one-dimensional, composite trapezoidal numerical integrator.
+    Constructor for a one-dimensional, composite trapezoidal numerical integrator.
     !!}
     use :: Error, only : Error_Report
     implicit none
-    class  (integratorCompositeTrapezoidal1D), intent(inout) :: self
+    type  (integratorCompositeTrapezoidal1D)                :: self
     integer                                  , intent(in   ) :: iterationsMaximum
 
     if (iterationsMaximum < 3)                                                 &
@@ -525,7 +557,7 @@ contains
          &                             )
     self%iterationsMaximum=iterationsMaximum
     return
-  end subroutine compositeTrapezoidalInitialize1D
+  end function compositeTrapezoidalConstructor1D
 
   double precision function compositeTrapezoidalEvaluate1D(self,a,b)
     !!{RST
@@ -574,15 +606,28 @@ contains
     return
   end function compositeTrapezoidalEvaluate1D
 
+  ! Adaptive composite trapezoidal 1D integrator.
+  function adaptiveCompositeTrapezoidalConstructor1D(iterationsMaximum) result(self)
+    !!{RST
+    Constructor for a one-dimensional, adaptive composite trapezoidal numerical integrator.
+    !!}
+    implicit none
+    type   (integratorAdaptiveCompositeTrapezoidal1D)                :: self
+    integer                                          , intent(in   ) :: iterationsMaximum
+
+    self%integratorCompositeTrapezoidal1D=integratorCompositeTrapezoidal1D(iterationsMaximum)
+    return
+  end function adaptiveCompositeTrapezoidalConstructor1D
+
   ! Composite Gauss-Kronrod 1D integrator.
 
-  subroutine compositeGaussKronrod1DInitialize(self,iterationsMaximum,order)
+  function compositeGaussKronrod1DConstructor(iterationsMaximum,order) result(self)
     !!{RST
-    Initialize a one-dimensional, composite Gauss-Kronrod numerical integrator. Evaluation points and weights are taken from those used in the :term:`GSL`.
+    Constructor for a one-dimensional, composite Gauss-Kronrod numerical integrator. Evaluation points and weights are taken from those used in the :term:`GSL`.
     !!}
     use :: Error , only : Error_Report
     implicit none
-    class  (integratorCompositeGaussKronrod1D), intent(inout) :: self
+    type  (integratorCompositeGaussKronrod1D)                :: self
     integer                                   , intent(in   ) :: iterationsMaximum, order
 
     if (iterationsMaximum < 3)                                      &
@@ -714,7 +759,7 @@ contains
        call Error_Report('unknown order'//{introspection:location})
     end select
     return
-  end subroutine compositeGaussKronrod1DInitialize
+  end function compositeGaussKronrod1DConstructor
 
   double precision function compositeGaussKronrod1DEvaluate(self,a,b)
     !!{RST
@@ -878,13 +923,13 @@ contains
 
   ! Vectorized composite Gauss-Kronrod 1D integrator.
 
-  subroutine vectorizedCompositeGaussKronrod1DInitialize(self,iterationsMaximum,order)
+  function vectorizedCompositeGaussKronrod1DConstructor(iterationsMaximum,order) result(self)
     !!{RST
-    Initialize a one-dimensional, vectorized composite Gauss-Kronrod numerical integrator. Evaluation points and weights are taken from those used in the :term:`GSL`.
+    Constructor for a one-dimensional, vectorized composite Gauss-Kronrod numerical integrator. Evaluation points and weights are taken from those used in the :term:`GSL`.
     !!}
     use :: Error , only : Error_Report
     implicit none
-    class  (integratorVectorizedCompositeGaussKronrod1D), intent(inout) :: self
+    type  (integratorVectorizedCompositeGaussKronrod1D)                :: self
     integer                                             , intent(in   ) :: iterationsMaximum, order
 
     if (iterationsMaximum < 3)                                                 &
@@ -1016,7 +1061,7 @@ contains
        call Error_Report('unknown order'//{introspection:location})
     end select
     return
-  end subroutine vectorizedCompositeGaussKronrod1DInitialize
+  end function vectorizedCompositeGaussKronrod1DConstructor
 
   double precision function vectorizedCompositeGaussKronrod1DEvaluate(self,a,b)
     !!{RST
@@ -1296,13 +1341,13 @@ contains
   end subroutine integrandVectorizedSet1D
 
   ! Vectorized composite trapezoidal 1D integrator.
-  subroutine vectorizedCompositeTrapezoidalInitialize1D(self,iterationsMaximum)
+  function vectorizedCompositeTrapezoidalConstructor1D(iterationsMaximum) result(self)
     !!{RST
-    Initialize a one-dimensional, vectorized composite trapezoidal numerical integrator.
+    Constructor for a one-dimensional, vectorized composite trapezoidal numerical integrator.
     !!}
     use :: Error , only : Error_Report
     implicit none
-    class           (integratorVectorizedCompositeTrapezoidal1D), intent(inout) :: self
+    type           (integratorVectorizedCompositeTrapezoidal1D)                :: self
     integer                                                     , intent(in   ) :: iterationsMaximum
     integer                                                                     :: workspaceSize    , i, &
          &                                                                         j                , n
@@ -1328,7 +1373,7 @@ contains
        end forall
     end do
     return
-  end subroutine vectorizedCompositeTrapezoidalInitialize1D
+  end function vectorizedCompositeTrapezoidalConstructor1D
 
   double precision function vectorizedCompositeTrapezoidalEvaluate1D(self,a,b)
     !!{RST
@@ -1373,18 +1418,6 @@ contains
   end function vectorizedCompositeTrapezoidalEvaluate1D
 
   ! Generic functions.
-
-  subroutine integratorMultiDestructor(self)
-    !!{RST
-    Destructor for the ``integratorMulti`` class.
-    !!}
-    implicit none
-    type(integratorMulti), intent(inout) :: self
-
-    if (allocated(self%toleranceAbsolute)) deallocate(self%toleranceAbsolute)
-    if (allocated(self%toleranceRelative)) deallocate(self%toleranceRelative)
-    return
-  end subroutine integratorMultiDestructor
 
   subroutine tolerancesSetGeneric(self,toleranceAbsolute,toleranceRelative)
     !!{RST
@@ -1463,13 +1496,13 @@ contains
 
   ! Vectorized composite Gauss-Kronrod 1D integrator.
 
-  subroutine multiVectorizedCompositeGaussKronrod1DInitialize(self,intervalsMaximum,order)
+  function multiVectorizedCompositeGaussKronrod1DConstructor(intervalsMaximum,order) result(self)
     !!{RST
-    Initialize a one-dimensional, multi-integrand, vectorized composite Gauss-Kronrod numerical integrator. Evaluation points and weights are taken from those used in the :term:`GSL`.
+    Constructor for a one-dimensional, multi-integrand, vectorized composite Gauss-Kronrod numerical integrator. Evaluation points and weights are taken from those used in the :term:`GSL`.
     !!}
     use :: Error , only : Error_Report
     implicit none
-    class  (integratorMultiVectorizedCompositeGaussKronrod1D), intent(inout) :: self
+    type  (integratorMultiVectorizedCompositeGaussKronrod1D)                :: self
     integer                                                  , intent(in   ) :: intervalsMaximum, order
 
     if (intervalsMaximum < 1)                                               &
@@ -1601,7 +1634,7 @@ contains
        call Error_Report('unknown order'//{introspection:location})
     end select
     return
-  end subroutine multiVectorizedCompositeGaussKronrod1DInitialize
+  end function multiVectorizedCompositeGaussKronrod1DConstructor
 
   function multiVectorizedCompositeGaussKronrod1DEvaluate(self,a,b,status) result(integral)
     !!{RST
@@ -1878,13 +1911,13 @@ contains
 
   ! Vectorized composite trapezoidal 1D integrator.
 
-  subroutine multiVectorizedCompositeTrapezoidal1DInitialize(self,intervalsMaximum)
+  function multiVectorizedCompositeTrapezoidal1DConstructor(intervalsMaximum) result(self)
     !!{RST
-    Initialize a one-dimensional, multi-integrand, vectorized composite trapezoidal numerical integrator.
+    Constructor for a one-dimensional, multi-integrand, vectorized composite trapezoidal numerical integrator.
     !!}
     use :: Error, only : Error_Report
     implicit none
-    class  (integratorMultiVectorizedCompositeTrapezoidal1D), intent(inout) :: self
+    type  (integratorMultiVectorizedCompositeTrapezoidal1D)                :: self
     integer                                                 , intent(in   ) :: intervalsMaximum
 
     if (intervalsMaximum < 1)                                               &
@@ -1894,7 +1927,7 @@ contains
          &                             )
     self%intervalsMaximum=intervalsMaximum
     return
-  end subroutine multiVectorizedCompositeTrapezoidal1DInitialize
+  end function multiVectorizedCompositeTrapezoidal1DConstructor
 
   function multiVectorizedCompositeTrapezoidal1DEvaluate(self,a,b,status) result(integral)
     !!{RST

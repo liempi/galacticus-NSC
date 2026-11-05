@@ -95,24 +95,20 @@ program Test_Integration2
           &                                testFunctions(iFunction)%rangeHigh
      call displayIndent(message)
      ! Allocate integrators.
-     allocate(integratorCompositeTrapezoidal1D                 :: integrators     (1)%integrator_)
+     allocate(integrators     (1)%integrator_,source=integratorCompositeTrapezoidal1D(24))
      integrators     (1)%description="Scalar composite trapezoidal"
-     allocate(integratorAdaptiveCompositeTrapezoidal1D         :: integrators     (2)%integrator_)
+     allocate(integrators     (2)%integrator_,source=integratorAdaptiveCompositeTrapezoidal1D(24))
      integrators     (2)%description="Scalar adaptive composite trapezoidal"
-     allocate(integratorVectorizedCompositeTrapezoidal1D       :: integrators     (3)%integrator_)
+     allocate(integrators     (3)%integrator_,source=integratorVectorizedCompositeTrapezoidal1D(24))
      integrators     (3)%description="Vector adaptive composite trapezoidal"
-     allocate(integratorCompositeGaussKronrod1D                :: integrators     (4)%integrator_)
+     allocate(integrators     (4)%integrator_,source=integratorCompositeGaussKronrod1D(24,15))
      integrators     (4)%description="Scalar adaptive composite Gauss-Kronrod 15-point"
-     integrators     (4)%order   =15
-     allocate(integratorCompositeGaussKronrod1D                :: integrators     (5)%integrator_)
+     allocate(integrators     (5)%integrator_,source=integratorCompositeGaussKronrod1D(24,61))
      integrators     (5)%description="Scalar adaptive composite Gauss-Kronrod 61-point"
-     integrators     (5)%order   =61
-     allocate(integratorVectorizedCompositeGaussKronrod1D      :: integrators     (6)%integrator_)
+     allocate(integrators     (6)%integrator_,source=integratorVectorizedCompositeGaussKronrod1D(24,15))
      integrators     (6)%description="Vector adaptive composite Gauss-Kronrod 15-point"
-     integrators     (6)%order   =15
-     allocate(integratorVectorizedCompositeGaussKronrod1D      :: integrators     (7)%integrator_)
+     allocate(integrators     (7)%integrator_,source=integratorVectorizedCompositeGaussKronrod1D(24,61))
      integrators     (7)%description="Vector adaptive composite Gauss-Kronrod 61-point"
-     integrators     (7)%order   =61
      ! Find the longest description.
      descriptionLengthMaximum=26
      do i=1,integratorCount
@@ -121,25 +117,7 @@ program Test_Integration2
      write (formatter,'(a,i3.3,a)') '(a',descriptionLengthMaximum,',": ⏲=",f16.3,1x,a,1x,"∫=",f14.10,1x,"ℯ=",e14.8," [",a,"]")'
      ! Initialize integrators.
      do i=1,integratorCount
-        select type (integrator_ => integrators(i)%integrator_)
-        class is (integratorCompositeTrapezoidal1D           )
-           call integrator_%initialize  (24                                    )
-           call integrator_%toleranceSet(toleranceAbsolute,toleranceRelative   )
-        class is (integratorAdaptiveCompositeTrapezoidal1D   )
-           call integrator_%initialize  (24                                    )
-           call integrator_%toleranceSet(toleranceAbsolute,toleranceRelative   )
-        class is (integratorVectorizedCompositeTrapezoidal1D )
-           call integrator_%initialize  (24                                    )
-           call integrator_%toleranceSet(toleranceAbsolute,toleranceRelative   )
-        class is (integratorCompositeGaussKronrod1D          )
-           call integrator_%initialize  (24               ,integrators(i)%order)
-           call integrator_%toleranceSet(toleranceAbsolute,toleranceRelative   )
-        class is (integratorVectorizedCompositeGaussKronrod1D)
-           call integrator_%initialize  (24               ,integrators(i)%order)
-           call integrator_%toleranceSet(toleranceAbsolute,toleranceRelative   )
-        class default
-           call Error_Report('unknown integrator class [1]'//{introspection:location})
-        end select
+        call integrators(i)%integrator_%toleranceSet(toleranceAbsolute,toleranceRelative)
      end do
      ! Assign functions.
      do i=1,integratorCount
@@ -256,11 +234,10 @@ program Test_Integration2
           &                                testFunctionsMulti(iFunction)%rangeHigh
      call displayIndent(message)
      ! Allocate integrators.
-     allocate(integratorMultiVectorizedCompositeTrapezoidal1D  :: integratorsMulti( 1)%integrator_)
+     allocate(integratorsMulti( 1)%integrator_,source=integratorMultiVectorizedCompositeTrapezoidal1D (1000000   ))
      integratorsMulti( 1)%description="Multi-integrand vector adaptive composite trapezoidal"
-     allocate(integratorMultiVectorizedCompositeGaussKronrod1D :: integratorsMulti( 2)%integrator_)
+     allocate(integratorsMulti( 2)%integrator_,source=integratorMultiVectorizedCompositeGaussKronrod1D(1000000,61))
      integratorsMulti( 2)%description="Multi-integrand vector adaptive composite Gauss-Kronrod 61-point"
-     integratorsMulti( 2)%order   =61
      ! Find the longest description.
      descriptionLengthMaximum=26
      do i=1,integratorMultiCount
@@ -269,28 +246,13 @@ program Test_Integration2
      write (formatter,'(a,i3.3,a)') '(a',descriptionLengthMaximum,',": ⏲=",f16.3,1x,a,1x,"∫=",f14.10,",",f14.10,1x,"ℯ=",e14.8," [",a,"]")'
      ! Initialize integrators.
      do i=1,integratorMultiCount
-        select type (integrator_ => integratorsMulti(i)%integrator_)
-        class is (integratorMultiVectorizedCompositeTrapezoidal1D)
-           call integrator_%initialize   (1000000                                    )
-           allocate(tolerancesAbsolute(size(testFunctionsMulti(iFunction)%solution)))
-           allocate(tolerancesRelative(size(testFunctionsMulti(iFunction)%solution)))
-           tolerancesAbsolute=toleranceAbsolute
-           tolerancesRelative=toleranceRelative
-           call integrator_%tolerancesSet(tolerancesAbsolute,tolerancesRelative)
-           deallocate(tolerancesAbsolute)
-           deallocate(tolerancesRelative)
-        class is (integratorMultiVectorizedCompositeGaussKronrod1D)
-           call integrator_%initialize   (1000000          ,integratorsMulti(i)%order)
-           allocate(tolerancesAbsolute(size(testFunctionsMulti(iFunction)%solution)))
-           allocate(tolerancesRelative(size(testFunctionsMulti(iFunction)%solution)))
-           tolerancesAbsolute=toleranceAbsolute
-           tolerancesRelative=toleranceRelative
-           call integrator_%tolerancesSet(tolerancesAbsolute,tolerancesRelative)
-           deallocate(tolerancesAbsolute)
-           deallocate(tolerancesRelative)
-        class default
-           call Error_Report('unknown integrator class [1.m]'//{introspection:location})
-        end select
+        allocate(tolerancesAbsolute(size(testFunctionsMulti(iFunction)%solution)))
+        allocate(tolerancesRelative(size(testFunctionsMulti(iFunction)%solution)))
+        tolerancesAbsolute=toleranceAbsolute
+        tolerancesRelative=toleranceRelative
+        call integratorsMulti(i)%integrator_%tolerancesSet(tolerancesAbsolute,tolerancesRelative)
+        deallocate(tolerancesAbsolute)
+        deallocate(tolerancesRelative)
      end do
       ! Assign functions.
       do i=1,integratorMultiCount

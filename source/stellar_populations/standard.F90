@@ -587,7 +587,7 @@ contains
           !!]
           !$omp end critical(stellarPopulationsStandardDeepCopy)
           !$omp barrier
-          call integrator_%initialize  (24                        ,61                        )
+          integrator_=integratorCompositeGaussKronrod1D(24,61)
           call integrator_%toleranceSet(property%toleranceAbsolute,property%toleranceRelative)
           call integrator_%integrandSet(property%integrand                                   )
           !$omp do schedule(dynamic)

@@ -92,7 +92,7 @@ program Test_Initial_Mass_Functions
   
   call displayVerbositySet(verbosityLevelStandard)
   call Unit_Tests_Begin_Group("Stellar initial mass functions")
-  call integrator_%initialize  (24           )
+  integrator_=integratorCompositeTrapezoidal1D(24)
   call integrator_%toleranceSet(1.0d-7,1.0d-7)
   call integrator_%integrandSet(initialMassFunctionIntegrand)
   call Unit_Tests_Begin_Group("Normalization")
