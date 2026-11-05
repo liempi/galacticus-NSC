@@ -1251,26 +1251,23 @@ contains
        if (associated(head)) then
           ! Stack is not empty. Perform an insertion sort to insert our new subintervals into the sorted stack.
           current  => head
-          previous => head
+          previous => null()
           do while (associated(current%next).and.abs(current%error) > abs(newInterval1%error))
              previous => current
              current  => current%next
           end do
           ! Check if we reached the end of the stack.
-          if (.not.associated(current%next)) then
-             ! End of stack reached. Check if new intervals go before or after the final stack entry.
-             if (abs(current%error) > abs(newInterval1%error)) then
-                ! New intervals go at the end of the stack.
-                current%next => newInterval1
-             else
-                ! New intervals go before the final interval.
-                newInterval2%next => previous    %next
-                previous    %next => newInterval1
-             end if
-          else
-             ! End of stack not reached. Insert new intervals after the previous interval.
+          if (.not.associated(current%next) .and. abs(current%error) > abs(newInterval1%error)) then
+             ! New intervals go at the end of the stack.
+             current%next => newInterval1
+          else if (associated(previous)) then
+             ! New intervals go before the current interval, which is not the head interval.
              newInterval2%next => previous    %next
              previous    %next => newInterval1
+          else
+             ! New intervals go before the head interval.
+             newInterval2%next => head
+             head              => newInterval1
           end if
        else
           ! Stack is empty - simply point the head to the first of our new subintervals.
