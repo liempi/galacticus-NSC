@@ -1632,6 +1632,7 @@ contains
     ! If the interval has zero size, return a zero result.
     if (a == b) then
        integral=0.0d0
+       if (present(status)) status=errorStatusSuccess
        return
     end if
     ! Create our first estimate of the integral, using a single interval.
@@ -1981,6 +1982,7 @@ contains
     ! If the interval has zero size, return a zero result.
     if (a == b) then
        integral=0.0d0
+       if (present(status)) status=errorStatusSuccess
        return
     end if
     ! Create list of intervals.
