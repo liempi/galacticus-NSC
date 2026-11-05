@@ -1813,7 +1813,7 @@ contains
     end do
     ! Report error if number of intervals was exceeded.
     if (present(status)) status=errorStatusSuccess
-    if (intervalCount > self%intervalsMaximum .and. .not.all(converged)) then
+    if (intervalCount >= self%intervalsMaximum .and. .not.all(converged)) then
        if (present(status)) then
           status=errorStatusFail
        else
