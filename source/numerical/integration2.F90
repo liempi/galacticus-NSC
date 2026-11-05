@@ -481,6 +481,90 @@ contains
     return
   end subroutine intervalMultiLink
 
+  function intervalMultiNew(a,b,integrandCount) result(interval_)
+    !!{RST
+    Allocate a new multi-integrand interval spanning ``a`` to ``b``, not linked into any list.
+    !!}
+    implicit none
+    type            (intervalMulti), pointer       :: interval_
+    double precision               , intent(in   ) :: a             , b
+    integer                        , intent(in   ) :: integrandCount
+
+    allocate(interval_                    )
+    allocate(interval_%fa      (integrandCount))
+    allocate(interval_%fb      (integrandCount))
+    allocate(interval_%integral(integrandCount))
+    allocate(interval_%error   (integrandCount))
+    interval_%a    =  a
+    interval_%b    =  b
+    interval_%next => null()
+    return
+  end function intervalMultiNew
+
+  subroutine intervalMultiWorkspaceEnsure(list,listValue,listRank,intervalCount)
+    !!{RST
+    Ensure that the workspace arrays used for reordering a list of multi-integrand intervals can hold ``intervalCount`` intervals.
+    !!}
+    use, intrinsic :: ISO_C_Binding, only : c_size_t
+    implicit none
+    type            (intervalMultiList), intent(inout), dimension(:), allocatable :: list
+    double precision                   , intent(inout), dimension(:), allocatable :: listValue
+    integer         (c_size_t         ), intent(inout), dimension(:), allocatable :: listRank
+    integer         (c_size_t         ), intent(in   )                            :: intervalCount
+
+    if (allocated(list)) then
+       if (intervalCount <= size(list)) return
+       deallocate(list     )
+       deallocate(listValue)
+       deallocate(listRank )
+    end if
+    allocate(list     (2*intervalCount))
+    allocate(listValue(2*intervalCount))
+    allocate(listRank (2*intervalCount))
+    return
+  end subroutine intervalMultiWorkspaceEnsure
+
+  subroutine intervalMultiResort(head,intervalCount,converged,errorScale,list,listValue,listRank)
+    !!{RST
+    Reorder a list of multi-integrand intervals by descending maximum scaled error over non-converged integrands. This is needed when an integrand converges, as this changes the measure by which the list is sorted.
+    !!}
+    use, intrinsic :: ISO_C_Binding, only : c_size_t
+    use            :: Sorting      , only : sortIndex
+    implicit none
+    type            (intervalMulti    ), intent(inout), pointer                   :: head
+    integer         (c_size_t         ), intent(in   )                            :: intervalCount
+    logical                            , intent(in   ), dimension(:)              :: converged
+    double precision                   , intent(in   ), dimension(:)              :: errorScale
+    type            (intervalMultiList), intent(inout), dimension(:), allocatable :: list
+    double precision                   , intent(inout), dimension(:), allocatable :: listValue
+    integer         (c_size_t         ), intent(inout), dimension(:), allocatable :: listRank
+    type            (intervalMulti    ), pointer                                  :: interval_
+    integer         (c_size_t         )                                           :: iInterval
+    integer                                                                       :: i
+
+    call intervalMultiWorkspaceEnsure(list,listValue,listRank,intervalCount)
+    interval_ => head
+    do iInterval=1_c_size_t,intervalCount
+       list(iInterval)%interval_ => interval_
+       ! We avoid use of maxval(,mask=) here (and instead determine the maximum error using a simple loop) because maxval()
+       ! evaluates all elements prior to applying the mask, so it wastes time in computing values that we will never need.
+       listValue(iInterval)=0.0d0
+       do i=1,size(converged)
+          if (.not.converged(i)) listValue(iInterval)=max(listValue(iInterval),interval_%error(i)/errorScale(i))
+       end do
+       interval_ => interval_%next
+    end do
+    listRank(1_c_size_t:intervalCount)=sortIndex(listValue(1_c_size_t:intervalCount))
+    head      => list(listRank(intervalCount))%interval_
+    interval_ => head
+    do iInterval=2_c_size_t,intervalCount
+       interval_%next => list(listRank(intervalCount+1_c_size_t-iInterval))%interval_
+       interval_      => interval_%next
+    end do
+    interval_%next => null()
+    return
+  end subroutine intervalMultiResort
+
   subroutine intervalMultiListDestroy(head)
     !!{RST
     Destroy a list of multi-integrand intervals.
@@ -498,6 +582,367 @@ contains
     head => null()
     return
   end subroutine intervalMultiListDestroy
+
+  ! Gauss-Kronrod rules.
+  subroutine gaussKronrodRuleSet(order,xKronrod,wGauss,wKronrod)
+    !!{RST
+    Set the evaluation points and weights for a Gauss-Kronrod rule of the given ``order``. Evaluation points and weights are taken from those used in the :term:`GSL`.
+    !!}
+    use :: Error, only : Error_Report
+    implicit none
+    integer                                     , intent(in   ) :: order
+    double precision, allocatable, dimension(:) , intent(inout) :: xKronrod, wGauss, wKronrod
+
+    select case (order)
+    case (15) ! 15-point Kronrod rule.
+       allocate(xKronrod(8))
+       allocate(wKronrod(8))
+       allocate(wGauss  (4))
+       xKronrod =[                                       &
+            &          0.991455371120812639206854697526329d0, &
+            &          0.949107912342758524526189684047851d0, &
+            &          0.864864423359769072789712788640926d0, &
+            &          0.741531185599394439863864773280788d0, &
+            &          0.586087235467691130294144838258730d0, &
+            &          0.405845151377397166906606412076961d0, &
+            &          0.207784955007898467600689403773245d0, &
+            &          0.000000000000000000000000000000000d0  &
+            &        ]
+       wGauss  =[                                        &
+            &          0.129484966168869693270611432679082d0, &
+            &          0.279705391489276667901467771423780d0, &
+            &          0.381830050505118944950369775488975d0, &
+            &          0.417959183673469387755102040816327d0  &
+            &        ]
+       wKronrod=[                                        &
+            &          0.022935322010529224963732008058970d0, &
+            &          0.063092092629978553290700663189204d0, &
+            &          0.104790010322250183839876322541518d0, &
+            &          0.140653259715525918745189590510238d0, &
+            &          0.169004726639267902826583426598550d0, &
+            &          0.190350578064785409913256402421014d0, &
+            &          0.204432940075298892414161999234649d0, &
+            &          0.209482141084727828012999174891714d0  &
+            &        ]
+    case (61) ! 61-point Kronrod rule.
+       allocate(xKronrod(31))
+       allocate(wKronrod(31))
+       allocate(wGauss  (15))
+       xKronrod =[                                       &
+            &          0.999484410050490637571325895705811d0, &
+            &          0.996893484074649540271630050918695d0, &
+            &          0.991630996870404594858628366109486d0, &
+            &          0.983668123279747209970032581605663d0, &
+            &          0.973116322501126268374693868423707d0, &
+            &          0.960021864968307512216871025581798d0, &
+            &          0.944374444748559979415831324037439d0, &
+            &          0.926200047429274325879324277080474d0, &
+            &          0.905573307699907798546522558925958d0, &
+            &          0.882560535792052681543116462530226d0, &
+            &          0.857205233546061098958658510658944d0, &
+            &          0.829565762382768397442898119732502d0, &
+            &          0.799727835821839083013668942322683d0, &
+            &          0.767777432104826194917977340974503d0, &
+            &          0.733790062453226804726171131369528d0, &
+            &          0.697850494793315796932292388026640d0, &
+            &          0.660061064126626961370053668149271d0, &
+            &          0.620526182989242861140477556431189d0, &
+            &          0.579345235826361691756024932172540d0, &
+            &          0.536624148142019899264169793311073d0, &
+            &          0.492480467861778574993693061207709d0, &
+            &          0.447033769538089176780609900322854d0, &
+            &          0.400401254830394392535476211542661d0, &
+            &          0.352704725530878113471037207089374d0, &
+            &          0.304073202273625077372677107199257d0, &
+            &          0.254636926167889846439805129817805d0, &
+            &          0.204525116682309891438957671002025d0, &
+            &          0.153869913608583546963794672743256d0, &
+            &          0.102806937966737030147096751318001d0, &
+            &          0.051471842555317695833025213166723d0, &
+            &          0.000000000000000000000000000000000d0  &
+            &         ]
+       wGauss   =[                                       &
+            &          0.007968192496166605615465883474674d0, &
+            &          0.018466468311090959142302131912047d0, &
+            &          0.028784707883323369349719179611292d0, &
+            &          0.038799192569627049596801936446348d0, &
+            &          0.048402672830594052902938140422808d0, &
+            &          0.057493156217619066481721689402056d0, &
+            &          0.065974229882180495128128515115962d0, &
+            &          0.073755974737705206268243850022191d0, &
+            &          0.080755895229420215354694938460530d0, &
+            &          0.086899787201082979802387530715126d0, &
+            &          0.092122522237786128717632707087619d0, &
+            &          0.096368737174644259639468626351810d0, &
+            &          0.099593420586795267062780282103569d0, &
+            &          0.101762389748405504596428952168554d0, &
+            &          0.102852652893558840341285636705415d0  &
+            &         ]
+       wKronrod =[                                       &
+            &          0.001389013698677007624551591226760d0, &
+            &          0.003890461127099884051267201844516d0, &
+            &          0.006630703915931292173319826369750d0, &
+            &          0.009273279659517763428441146892024d0, &
+            &          0.011823015253496341742232898853251d0, &
+            &          0.014369729507045804812451432443580d0, &
+            &          0.016920889189053272627572289420322d0, &
+            &          0.019414141193942381173408951050128d0, &
+            &          0.021828035821609192297167485738339d0, &
+            &          0.024191162078080601365686370725232d0, &
+            &          0.026509954882333101610601709335075d0, &
+            &          0.028754048765041292843978785354334d0, &
+            &          0.030907257562387762472884252943092d0, &
+            &          0.032981447057483726031814191016854d0, &
+            &          0.034979338028060024137499670731468d0, &
+            &          0.036882364651821229223911065617136d0, &
+            &          0.038678945624727592950348651532281d0, &
+            &          0.040374538951535959111995279752468d0, &
+            &          0.041969810215164246147147541285970d0, &
+            &          0.043452539701356069316831728117073d0, &
+            &          0.044814800133162663192355551616723d0, &
+            &          0.046059238271006988116271735559374d0, &
+            &          0.047185546569299153945261478181099d0, &
+            &          0.048185861757087129140779492298305d0, &
+            &          0.049055434555029778887528165367238d0, &
+            &          0.049795683427074206357811569379942d0, &
+            &          0.050405921402782346840893085653585d0, &
+            &          0.050881795898749606492297473049805d0, &
+            &          0.051221547849258772170656282604944d0, &
+            &          0.051426128537459025933862879215781d0, &
+            &          0.051494729429451567558340433647099d0  &
+            &         ]
+    case default
+       call Error_Report('unknown order'//{introspection:location})
+    end select
+    return
+  end subroutine gaussKronrodRuleSet
+
+  elemental double precision function gaussKronrodError(error,integralAbsolute,integralAsc)
+    !!{RST
+    Compute the error estimate on an integral over an interval from the raw difference between the Kronrod and Gauss rules. This is based on the :term:`GSL` implementation. The logic is modified so that no power/sqrt is performed until after the evaluation of the conditional (no need to compute an expensive function if we don't really need to). Additionally, the expression for the error in the case where the conditional evaluates true is modified so that it involves a sqrt() instead of a ()**1.5 as this is better optimized.
+    !!}
+    implicit none
+    double precision, intent(in   ) :: error                     , integralAbsolute, &
+         &                             integralAsc
+    double precision, parameter     :: errorScaleFactor   =200.0d0
+    double precision, parameter     :: errorScaleFactorPow=errorScaleFactor**1.5d0
+
+    gaussKronrodError=error
+    if (integralAsc /= 0.0d0 .and. error /= 0.0d0) then
+       if (errorScaleFactor*error < integralAsc) then
+          gaussKronrodError=errorScaleFactorPow*error*sqrt(error/integralAsc)
+       else
+          gaussKronrodError=integralAsc
+       end if
+    end if
+    if (integralAbsolute > tiny(1.0d0)/(50.0d0*epsilon(1.0d0))) gaussKronrodError=max(gaussKronrodError,50.0d0*epsilon(1.0d0)*integralAbsolute)
+    return
+  end function gaussKronrodError
+
+  subroutine iterationsMaximumValidate(iterationsMaximum)
+    !!{RST
+    Validate the maximum number of iterations given to an integrator.
+    !!}
+    use :: Error, only : Error_Report
+    implicit none
+    integer, intent(in   ) :: iterationsMaximum
+
+    if (iterationsMaximum < 3)                                      &
+         & call Error_Report(                                       &
+         &                   'at least 3 iterations are required'// &
+         &                    {introspection:location}              &
+         &                  )
+    return
+  end subroutine iterationsMaximumValidate
+
+  double precision function gaussKronrodEvaluate(self,a,b,iterationsMaximum) result(integral)
+    !!{RST
+    Evaluate a one-dimension integral by adaptive bisection using a numerical composite Gauss-Kronrod rule. The bisection logic is common to the scalar and vectorized integrators, which differ only in how they evaluate the rule over an interval.
+    !!}
+    use :: Error, only : Error_Report
+    implicit none
+    class           (integrator2                      ), intent(inout) :: self
+    integer                                            , intent(in   ) :: iterationsMaximum
+    double precision                                   , intent(in   ) :: a           , b
+    logical                                                            :: converged
+    double precision                                                   :: error       , midpoint
+    type            (interval                         ), pointer       :: head        , newInterval1, &
+         &                                                                newInterval2, current
+
+    ! Create our first estimate of the integral, using a single interval.
+    allocate(head)
+    head%a        =  a
+    head%b        =  b
+    head%depth    =  1
+    head%next     => null()
+    call gaussKronrodEvaluateInterval(self,head%a,head%b,head%integral,head%error)
+    ! Initialize current integral and error estimates, and flag that we're not converged.
+    integral=head%integral
+    error                          =head%error
+    converged                      =                                                 &
+         &  abs(error) <= self%toleranceAbsolute                                     &
+         & .or.                                                                      &
+         &  abs(error) <= self%toleranceRelative*abs(integral)
+    ! Iterate until convergence is reached.
+    do while (.not.converged)
+       ! Bisect the head interval. By construction, this will always be the interval with the largest absolute error.
+       current  => head      ! Pop the head from the list.
+       head     => head%next
+       if (current%depth > iterationsMaximum)                   &
+            & call Error_Report(                                &
+            &                   'maximum iterations exceeded'// &
+            &                    {introspection:location}       &
+            &                  )
+       midpoint =  (current%b+current%a)/2.0d0
+       ! Create two new subintervals.
+       allocate(newInterval1)
+       allocate(newInterval2)
+       newInterval1%next  => null()
+       newInterval2%next  => null()
+       newInterval1%depth =  current%depth+1
+       newInterval2%depth =  current%depth+1
+       newInterval1%a    =  current%a
+       newInterval1%b    =  midpoint
+       newInterval2%a    =  midpoint
+       newInterval2%b    =  current%b
+       ! Compute the integral and error estimate in each new subinterval.
+       call gaussKronrodEvaluateInterval(self,newInterval1%a,newInterval1%b,newInterval1%integral,newInterval1%error)
+       call gaussKronrodEvaluateInterval(self,newInterval2%a,newInterval2%b,newInterval2%integral,newInterval2%error)
+       ! Update the total integral and error estimate for the new subintervals.
+       integral         &
+            & =integral &
+            & -current     %integral           &
+            & +newInterval1%integral           &
+            & +newInterval2%integral
+       error                                   &
+            & =error                           &
+            & -current     %error              &
+            & +newInterval1%error              &
+            & +newInterval2%error
+       ! Test for convergence.
+       converged=                                                                       &
+            &  abs(error) <= self%toleranceAbsolute                                     &
+            & .or.                                                                      &
+            &  abs(error) <= self%toleranceRelative*abs(integral)
+       ! Destroy the old interval.
+       deallocate(current)
+       ! Insert the new intervals into our stack.
+       call intervalInsert(head,newInterval1,newInterval1)
+       call intervalInsert(head,newInterval2,newInterval2)
+    end do
+    ! Destroy the stack.
+    call intervalListDestroy(head)
+    return
+  end function gaussKronrodEvaluate
+
+  subroutine gaussKronrodEvaluateInterval(self,a,b,integralKronrod,error)
+    !!{RST
+    Evaluate a Gauss-Kronrod rule over an interval using the method of the given integrator.
+    !!}
+    use :: Error, only : Error_Report
+    implicit none
+    class           (integrator2), intent(inout) :: self
+    double precision             , intent(in   ) :: a              , b
+    double precision             , intent(  out) :: integralKronrod, error
+
+    select type (self)
+    class is (integratorCompositeGaussKronrod1D          )
+       call self%evaluateInterval(a,b,integralKronrod,error)
+    class is (integratorVectorizedCompositeGaussKronrod1D)
+       call self%evaluateInterval(a,b,integralKronrod,error)
+    class default
+       call Error_Report('unknown integrator class'//{introspection:location})
+    end select
+    return
+  end subroutine gaussKronrodEvaluateInterval
+
+  subroutine intervalMultiFailureReport(a,b,current,head,integral,error,converged,statusPresent)
+    !!{RST
+    Report the state of a multi-integrand integration which has failed through loss of precision in the extent of an interval.
+    !!}
+    use :: Display           , only : displayIndent  , displayMessage     , displayUnindent       , displayVerbosity, &
+         &                            displayVerbositySet, verbosityLevelStandard
+    use :: ISO_Varying_String, only : assignment(=)  , operator(//)       , varying_string
+    implicit none
+    double precision                , intent(in   )               :: a            , b
+    type            (intervalMulti ), intent(in   ), pointer      :: current      , head
+    double precision                , intent(in   ), dimension(:) :: integral     , error
+    logical                         , intent(in   ), dimension(:) :: converged
+    logical                         , intent(in   )               :: statusPresent
+    type            (intervalMulti ), pointer                     :: interval_
+    type            (varying_string)                              :: message
+    character       (len=32        )                              :: label
+    integer                                                       :: i
+
+    if (displayVerbosity() < verbosityLevelStandard .and. .not.statusPresent) call displayVerbositySet(verbosityLevelStandard)
+    call displayIndent('integration failure:')
+    call displayIndent('current intervals:')
+    message="a/b/(b-a)       ="
+    write (label,'(e32.12)') a
+    message=message//" "  //label
+    write (label,'(e32.12)') b
+    message=message//"/"  //label
+    write (label,'(e32.12)') b-a
+    message=message//"/(" //label//")"
+    call displayMessage(message)
+    message="a/b : f(a)/f(b) ="
+    write (label,'(e32.12)') current%a
+    message=message//" "  //label
+    write (label,'(e32.12)') current%b
+    message=message//"/"  //label
+    call displayMessage(message)
+    do i=1,size(current%fa)
+       message="  (i="
+       write (label,'(i12)') i
+       message=message//adjustl(trim(label))//")"
+       write (label,'(e32.12)') current%fa(i)
+       message=message//" : "//label
+       write (label,'(e32.12)') current%fb(i)
+       message=message//"/"  //label
+       write (label,'(l1)') converged(i)
+       message=message//" (converged="//adjustl(trim(label))//")"
+       call displayMessage(message)
+    end do
+    interval_ => head
+    do while (associated(interval_))
+       message="a/b : f(a)/f(b) ="
+       write (label,'(e32.12)') interval_%a
+       message=message//" "  //label
+       write (label,'(e32.12)') interval_%b
+       message=message//"/"  //label
+       call displayMessage(message)
+       do i=1,size(interval_%fa)
+          message="  (i="
+          write (label,'(i12)') i
+          message=message//adjustl(trim(label))//")"
+          write (label,'(e32.12)') interval_%fa(i)
+          message=message//" : "//label
+          write (label,'(e32.12)') interval_%fb(i)
+          message=message//"/"  //label
+          write (label,'(l1)') converged(i)
+          message=message//" (converged="//adjustl(trim(label))//")"
+          call displayMessage(message)
+       end do
+       interval_ => interval_%next
+    end do
+    call displayUnindent('done')
+    call displayIndent  ('current integrals:')
+    do i=1,size(integral)
+       message="integral : error  (i="
+       write (label,'(i12)') i
+       message=message//adjustl(trim(label))//")"
+       write (label,'(e32.12)') integral (i)
+       message=message//" : "//label
+       write (label,'(e32.12)') error    (i)
+       message=message//"/"  //label
+       write (label,'(l1)'    ) converged(i)
+       message=message//" (converged="//adjustl(trim(label))//")"
+       call displayMessage(message)
+    end do
+    call displayUnindent('done')
+    call displayUnindent('done')
+    return
+  end subroutine intervalMultiFailureReport
 
   ! Generic functions.
   subroutine toleranceSetGeneric(self,toleranceAbsolute,toleranceRelative)
@@ -545,16 +990,11 @@ contains
     !!{RST
     Constructor for a one-dimensional, composite trapezoidal numerical integrator.
     !!}
-    use :: Error, only : Error_Report
     implicit none
     type  (integratorCompositeTrapezoidal1D)                :: self
     integer                                  , intent(in   ) :: iterationsMaximum
 
-    if (iterationsMaximum < 3)                                                 &
-         & call Error_Report(                                       &
-         &                              'at least 3 iterations are required'// &
-         &                               {introspection:location}              &
-         &                             )
+    call iterationsMaximumValidate(iterationsMaximum)
     self%iterationsMaximum=iterationsMaximum
     return
   end function compositeTrapezoidalConstructor1D
@@ -625,139 +1065,13 @@ contains
     !!{RST
     Constructor for a one-dimensional, composite Gauss-Kronrod numerical integrator. Evaluation points and weights are taken from those used in the :term:`GSL`.
     !!}
-    use :: Error , only : Error_Report
     implicit none
     type  (integratorCompositeGaussKronrod1D)                :: self
     integer                                   , intent(in   ) :: iterationsMaximum, order
 
-    if (iterationsMaximum < 3)                                      &
-         & call Error_Report(                                       &
-         &                   'at least 3 iterations are required'// &
-         &                    {introspection:location}              &
-         &                  )
+    call iterationsMaximumValidate(iterationsMaximum)
     self%iterationsMaximum=iterationsMaximum
-    ! Choose order.
-    select case (order)
-    case (15) ! 15-point Kronrod rule.
-       allocate(self%xKronrod(8))
-       allocate(self%wKronrod(8))
-       allocate(self%wGauss  (4))
-       self%xKronrod =[                                       &
-            &          0.991455371120812639206854697526329d0, &
-            &          0.949107912342758524526189684047851d0, &
-            &          0.864864423359769072789712788640926d0, &
-            &          0.741531185599394439863864773280788d0, &
-            &          0.586087235467691130294144838258730d0, &
-            &          0.405845151377397166906606412076961d0, &
-            &          0.207784955007898467600689403773245d0, &
-            &          0.000000000000000000000000000000000d0  &
-            &        ]
-       self%wGauss  =[                                        &
-            &          0.129484966168869693270611432679082d0, &
-            &          0.279705391489276667901467771423780d0, &
-            &          0.381830050505118944950369775488975d0, &
-            &          0.417959183673469387755102040816327d0  &
-            &        ]
-       self%wKronrod=[                                        &
-            &          0.022935322010529224963732008058970d0, &
-            &          0.063092092629978553290700663189204d0, &
-            &          0.104790010322250183839876322541518d0, &
-            &          0.140653259715525918745189590510238d0, &
-            &          0.169004726639267902826583426598550d0, &
-            &          0.190350578064785409913256402421014d0, &
-            &          0.204432940075298892414161999234649d0, &
-            &          0.209482141084727828012999174891714d0  &
-            &        ]
-    case (61) ! 61-point Kronrod rule.
-       allocate(self%xKronrod(31))
-       allocate(self%wKronrod(31))
-       allocate(self%wGauss  (15))
-       self%xKronrod =[                                       &
-            &          0.999484410050490637571325895705811d0, &
-            &          0.996893484074649540271630050918695d0, &
-            &          0.991630996870404594858628366109486d0, &
-            &          0.983668123279747209970032581605663d0, &
-            &          0.973116322501126268374693868423707d0, &
-            &          0.960021864968307512216871025581798d0, &
-            &          0.944374444748559979415831324037439d0, &
-            &          0.926200047429274325879324277080474d0, &
-            &          0.905573307699907798546522558925958d0, &
-            &          0.882560535792052681543116462530226d0, &
-            &          0.857205233546061098958658510658944d0, &
-            &          0.829565762382768397442898119732502d0, &
-            &          0.799727835821839083013668942322683d0, &
-            &          0.767777432104826194917977340974503d0, &
-            &          0.733790062453226804726171131369528d0, &
-            &          0.697850494793315796932292388026640d0, &
-            &          0.660061064126626961370053668149271d0, &
-            &          0.620526182989242861140477556431189d0, &
-            &          0.579345235826361691756024932172540d0, &
-            &          0.536624148142019899264169793311073d0, &
-            &          0.492480467861778574993693061207709d0, &
-            &          0.447033769538089176780609900322854d0, &
-            &          0.400401254830394392535476211542661d0, &
-            &          0.352704725530878113471037207089374d0, &
-            &          0.304073202273625077372677107199257d0, &
-            &          0.254636926167889846439805129817805d0, &
-            &          0.204525116682309891438957671002025d0, &
-            &          0.153869913608583546963794672743256d0, &
-            &          0.102806937966737030147096751318001d0, &
-            &          0.051471842555317695833025213166723d0, &
-            &          0.000000000000000000000000000000000d0  &
-            &         ]
-       self%wGauss   =[                                       &
-            &          0.007968192496166605615465883474674d0, &
-            &          0.018466468311090959142302131912047d0, &
-            &          0.028784707883323369349719179611292d0, &
-            &          0.038799192569627049596801936446348d0, &
-            &          0.048402672830594052902938140422808d0, &
-            &          0.057493156217619066481721689402056d0, &
-            &          0.065974229882180495128128515115962d0, &
-            &          0.073755974737705206268243850022191d0, &
-            &          0.080755895229420215354694938460530d0, &
-            &          0.086899787201082979802387530715126d0, &
-            &          0.092122522237786128717632707087619d0, &
-            &          0.096368737174644259639468626351810d0, &
-            &          0.099593420586795267062780282103569d0, &
-            &          0.101762389748405504596428952168554d0, &
-            &          0.102852652893558840341285636705415d0  &
-            &         ]
-       self%wKronrod =[                                       &
-            &          0.001389013698677007624551591226760d0, &
-            &          0.003890461127099884051267201844516d0, &
-            &          0.006630703915931292173319826369750d0, &
-            &          0.009273279659517763428441146892024d0, &
-            &          0.011823015253496341742232898853251d0, &
-            &          0.014369729507045804812451432443580d0, &
-            &          0.016920889189053272627572289420322d0, &
-            &          0.019414141193942381173408951050128d0, &
-            &          0.021828035821609192297167485738339d0, &
-            &          0.024191162078080601365686370725232d0, &
-            &          0.026509954882333101610601709335075d0, &
-            &          0.028754048765041292843978785354334d0, &
-            &          0.030907257562387762472884252943092d0, &
-            &          0.032981447057483726031814191016854d0, &
-            &          0.034979338028060024137499670731468d0, &
-            &          0.036882364651821229223911065617136d0, &
-            &          0.038678945624727592950348651532281d0, &
-            &          0.040374538951535959111995279752468d0, &
-            &          0.041969810215164246147147541285970d0, &
-            &          0.043452539701356069316831728117073d0, &
-            &          0.044814800133162663192355551616723d0, &
-            &          0.046059238271006988116271735559374d0, &
-            &          0.047185546569299153945261478181099d0, &
-            &          0.048185861757087129140779492298305d0, &
-            &          0.049055434555029778887528165367238d0, &
-            &          0.049795683427074206357811569379942d0, &
-            &          0.050405921402782346840893085653585d0, &
-            &          0.050881795898749606492297473049805d0, &
-            &          0.051221547849258772170656282604944d0, &
-            &          0.051426128537459025933862879215781d0, &
-            &          0.051494729429451567558340433647099d0  &
-            &         ]
-    case default
-       call Error_Report('unknown order'//{introspection:location})
-    end select
+    call gaussKronrodRuleSet(order,self%xKronrod,self%wGauss,self%wKronrod)
     return
   end function compositeGaussKronrod1DConstructor
 
@@ -765,78 +1079,11 @@ contains
     !!{RST
     Evaluate a one-dimension integral using a numerical composite Gauss-Kronrod rule.
     !!}
-    use :: Error, only : Error_Report
     implicit none
     class           (integratorCompositeGaussKronrod1D), intent(inout) :: self
-    double precision                                   , intent(in   ) :: a           , b
-    logical                                                            :: converged
-    double precision                                                   :: error       , midpoint
-    type            (interval                         ), pointer       :: head        , newInterval1, &
-         &                                                                newInterval2, current
+    double precision                                   , intent(in   ) :: a   , b
 
-    ! Create our first estimate of the integral, using a single interval.
-    allocate(head)
-    head%a        =  a
-    head%b        =  b
-    head%depth    =  1
-    head%next     => null()
-    call self%evaluateInterval(head%a,head%b,head%integral,head%error)
-    ! Initialize current integral and error estimates, and flag that we're not converged.
-    compositeGaussKronrod1DEvaluate=head%integral
-    error                          =head%error
-    converged                      =                                                 &
-         &  abs(error) <= self%toleranceAbsolute                                     &
-         & .or.                                                                      &
-         &  abs(error) <= self%toleranceRelative*abs(compositeGaussKronrod1DEvaluate)
-    ! Iterate until convergence is reached.
-    do while (.not.converged)
-       ! Bisect the head interval. By construction, this will always be the interval with the largest absolute error.
-       current  => head      ! Pop the head from the list.
-       head     => head%next
-       if (current%depth > self%iterationsMaximum)              &
-            & call Error_Report(                                &
-            &                   'maximum iterations exceeded'// &
-            &                    {introspection:location}       &
-            &                  )
-       midpoint =  (current%b+current%a)/2.0d0
-       ! Create two new subintervals.
-       allocate(newInterval1)
-       allocate(newInterval2)
-       newInterval1%next  => null()
-       newInterval2%next  => null()
-       newInterval1%depth =  current%depth+1
-       newInterval2%depth =  current%depth+1
-       newInterval1%a    =  current%a
-       newInterval1%b    =  midpoint
-       newInterval2%a    =  midpoint
-       newInterval2%b    =  current%b
-       ! Compute the integral and error estimate in each new subinterval.
-       call self%evaluateInterval(newInterval1%a,newInterval1%b,newInterval1%integral,newInterval1%error)
-       call self%evaluateInterval(newInterval2%a,newInterval2%b,newInterval2%integral,newInterval2%error)
-       ! Update the total integral and error estimate for the new subintervals.
-       compositeGaussKronrod1DEvaluate         &
-            & =compositeGaussKronrod1DEvaluate &
-            & -current     %integral           &
-            & +newInterval1%integral           &
-            & +newInterval2%integral
-       error                                   &
-            & =error                           &
-            & -current     %error              &
-            & +newInterval1%error              &
-            & +newInterval2%error
-       ! Test for convergence.
-       converged=                                                                       &
-            &  abs(error) <= self%toleranceAbsolute                                     &
-            & .or.                                                                      &
-            &  abs(error) <= self%toleranceRelative*abs(compositeGaussKronrod1DEvaluate)
-       ! Destroy the old interval.
-       deallocate(current)
-       ! Insert the new intervals into our stack.
-       call intervalInsert(head,newInterval1,newInterval1)
-       call intervalInsert(head,newInterval2,newInterval2)
-    end do
-    ! Destroy the stack.
-    call intervalListDestroy(head)
+    compositeGaussKronrod1DEvaluate=gaussKronrodEvaluate(self,a,b,self%iterationsMaximum)
     return
   end function compositeGaussKronrod1DEvaluate
 
@@ -856,14 +1103,11 @@ contains
     double precision                                   , intent(in   )                    :: a                                          , b
     double precision                                   , intent(  out)                    :: integralKronrod                            , error
     double precision                                   , dimension(size(self%xKronrod)-1) :: fValue1                                    , fValue2
-    double precision                                   , parameter                        :: errorScaleFactor   =200.0d0
-    double precision                                   , parameter                        :: errorScaleFactorPow=errorScaleFactor**1.5d0
     double precision                                                                      :: integralGauss                              , fCenter         , &
          &                                                                                   xCenter                                    , halfLength      , &
          &                                                                                   fSum                                       , x               , &
          &                                                                                   halfLengthAbsolute                         , integralAbsolute, &
-         &                                                                                   mean                                       , integralAsc     , &
-         &                                                                                   scale
+         &                                                                                   mean                                       , integralAsc
     integer                                                                               :: pointCountKronrod                          , pointCountGauss , &
          &                                                                                   jtw                                        , jtwm1           , &
          &                                                                                   j
@@ -905,19 +1149,7 @@ contains
     integralKronrod =integralKronrod *halfLength
     integralAbsolute=integralAbsolute*halfLengthAbsolute
     integralAsc     =integralAsc     *halfLengthAbsolute
-    ! Compute error. This is based on the GSL implementation. The logic is modified so that no power/sqrt is performed until after
-    ! the evaluation of the conditional (no need to compute an expensive function if we don't really need to). Additionally, the
-    ! expression for the error in the case where the conditional evaluates true is modified so that it involves a sqrt() instead
-    ! of a ()**1.5 as this is better optimized.
-    if (integralAsc /= 0.0d0 .and. error /= 0.0d0) then
-       scale=errorScaleFactor*error
-       if (scale < integralAsc) then
-          error=errorScaleFactorPow*error*sqrt(error/integralAsc)
-       else
-          error=integralAsc
-       end if
-    end if
-    if (integralAbsolute > tiny(1.0d0)/(50.0d0*epsilon(1.0d0))) error=max(error,50.0d0*epsilon(1.0d0)*integralAbsolute)
+    error           =gaussKronrodError(error,integralAbsolute,integralAsc)
     return
   end subroutine compositeGaussKronrod1DEvaluateInterval
 
@@ -927,139 +1159,13 @@ contains
     !!{RST
     Constructor for a one-dimensional, vectorized composite Gauss-Kronrod numerical integrator. Evaluation points and weights are taken from those used in the :term:`GSL`.
     !!}
-    use :: Error , only : Error_Report
     implicit none
     type  (integratorVectorizedCompositeGaussKronrod1D)                :: self
     integer                                             , intent(in   ) :: iterationsMaximum, order
 
-    if (iterationsMaximum < 3)                                                 &
-         & call Error_Report(                                       &
-         &                              'at least 3 iterations are required'// &
-         &                               {introspection:location}              &
-         &                             )
+    call iterationsMaximumValidate(iterationsMaximum)
     self%iterationsMaximum=iterationsMaximum
-    ! Choose order.
-    select case (order)
-    case (15) ! 15-point Kronrod rule.
-       allocate(self%xKronrod(8))
-       allocate(self%wKronrod(8))
-       allocate(self%wGauss  (4))
-       self%xKronrod =[                                       &
-            &          0.991455371120812639206854697526329d0, &
-            &          0.949107912342758524526189684047851d0, &
-            &          0.864864423359769072789712788640926d0, &
-            &          0.741531185599394439863864773280788d0, &
-            &          0.586087235467691130294144838258730d0, &
-            &          0.405845151377397166906606412076961d0, &
-            &          0.207784955007898467600689403773245d0, &
-            &          0.000000000000000000000000000000000d0  &
-            &        ]
-       self%wGauss  =[                                        &
-            &          0.129484966168869693270611432679082d0, &
-            &          0.279705391489276667901467771423780d0, &
-            &          0.381830050505118944950369775488975d0, &
-            &          0.417959183673469387755102040816327d0  &
-            &        ]
-       self%wKronrod=[                                        &
-            &          0.022935322010529224963732008058970d0, &
-            &          0.063092092629978553290700663189204d0, &
-            &          0.104790010322250183839876322541518d0, &
-            &          0.140653259715525918745189590510238d0, &
-            &          0.169004726639267902826583426598550d0, &
-            &          0.190350578064785409913256402421014d0, &
-            &          0.204432940075298892414161999234649d0, &
-            &          0.209482141084727828012999174891714d0  &
-            &        ]
-    case (61) ! 61-point Kronrod rule.
-       allocate(self%xKronrod(31))
-       allocate(self%wKronrod(31))
-       allocate(self%wGauss  (15))
-       self%xKronrod =[                                       &
-            &          0.999484410050490637571325895705811d0, &
-            &          0.996893484074649540271630050918695d0, &
-            &          0.991630996870404594858628366109486d0, &
-            &          0.983668123279747209970032581605663d0, &
-            &          0.973116322501126268374693868423707d0, &
-            &          0.960021864968307512216871025581798d0, &
-            &          0.944374444748559979415831324037439d0, &
-            &          0.926200047429274325879324277080474d0, &
-            &          0.905573307699907798546522558925958d0, &
-            &          0.882560535792052681543116462530226d0, &
-            &          0.857205233546061098958658510658944d0, &
-            &          0.829565762382768397442898119732502d0, &
-            &          0.799727835821839083013668942322683d0, &
-            &          0.767777432104826194917977340974503d0, &
-            &          0.733790062453226804726171131369528d0, &
-            &          0.697850494793315796932292388026640d0, &
-            &          0.660061064126626961370053668149271d0, &
-            &          0.620526182989242861140477556431189d0, &
-            &          0.579345235826361691756024932172540d0, &
-            &          0.536624148142019899264169793311073d0, &
-            &          0.492480467861778574993693061207709d0, &
-            &          0.447033769538089176780609900322854d0, &
-            &          0.400401254830394392535476211542661d0, &
-            &          0.352704725530878113471037207089374d0, &
-            &          0.304073202273625077372677107199257d0, &
-            &          0.254636926167889846439805129817805d0, &
-            &          0.204525116682309891438957671002025d0, &
-            &          0.153869913608583546963794672743256d0, &
-            &          0.102806937966737030147096751318001d0, &
-            &          0.051471842555317695833025213166723d0, &
-            &          0.000000000000000000000000000000000d0  &
-            &         ]
-       self%wGauss   =[                                       &
-            &          0.007968192496166605615465883474674d0, &
-            &          0.018466468311090959142302131912047d0, &
-            &          0.028784707883323369349719179611292d0, &
-            &          0.038799192569627049596801936446348d0, &
-            &          0.048402672830594052902938140422808d0, &
-            &          0.057493156217619066481721689402056d0, &
-            &          0.065974229882180495128128515115962d0, &
-            &          0.073755974737705206268243850022191d0, &
-            &          0.080755895229420215354694938460530d0, &
-            &          0.086899787201082979802387530715126d0, &
-            &          0.092122522237786128717632707087619d0, &
-            &          0.096368737174644259639468626351810d0, &
-            &          0.099593420586795267062780282103569d0, &
-            &          0.101762389748405504596428952168554d0, &
-            &          0.102852652893558840341285636705415d0  &
-            &         ]
-       self%wKronrod =[                                       &
-            &          0.001389013698677007624551591226760d0, &
-            &          0.003890461127099884051267201844516d0, &
-            &          0.006630703915931292173319826369750d0, &
-            &          0.009273279659517763428441146892024d0, &
-            &          0.011823015253496341742232898853251d0, &
-            &          0.014369729507045804812451432443580d0, &
-            &          0.016920889189053272627572289420322d0, &
-            &          0.019414141193942381173408951050128d0, &
-            &          0.021828035821609192297167485738339d0, &
-            &          0.024191162078080601365686370725232d0, &
-            &          0.026509954882333101610601709335075d0, &
-            &          0.028754048765041292843978785354334d0, &
-            &          0.030907257562387762472884252943092d0, &
-            &          0.032981447057483726031814191016854d0, &
-            &          0.034979338028060024137499670731468d0, &
-            &          0.036882364651821229223911065617136d0, &
-            &          0.038678945624727592950348651532281d0, &
-            &          0.040374538951535959111995279752468d0, &
-            &          0.041969810215164246147147541285970d0, &
-            &          0.043452539701356069316831728117073d0, &
-            &          0.044814800133162663192355551616723d0, &
-            &          0.046059238271006988116271735559374d0, &
-            &          0.047185546569299153945261478181099d0, &
-            &          0.048185861757087129140779492298305d0, &
-            &          0.049055434555029778887528165367238d0, &
-            &          0.049795683427074206357811569379942d0, &
-            &          0.050405921402782346840893085653585d0, &
-            &          0.050881795898749606492297473049805d0, &
-            &          0.051221547849258772170656282604944d0, &
-            &          0.051426128537459025933862879215781d0, &
-            &          0.051494729429451567558340433647099d0  &
-            &         ]
-    case default
-       call Error_Report('unknown order'//{introspection:location})
-    end select
+    call gaussKronrodRuleSet(order,self%xKronrod,self%wGauss,self%wKronrod)
     return
   end function vectorizedCompositeGaussKronrod1DConstructor
 
@@ -1067,78 +1173,11 @@ contains
     !!{RST
     Evaluate a one-dimension integral using a numerical composite Gauss-Kronrod rule.
     !!}
-    use :: Error, only : Error_Report
     implicit none
     class           (integratorVectorizedCompositeGaussKronrod1D), intent(inout) :: self
-    double precision                                   , intent(in   ) :: a           , b
-    logical                                                            :: converged
-    double precision                                                   :: error       , midpoint
-    type            (interval                         ), pointer       :: head        , newInterval1, &
-         &                                                                newInterval2, current
+    double precision                                             , intent(in   ) :: a   , b
 
-    ! Create our first estimate of the integral, using a single interval.
-    allocate(head)
-    head%a        =  a
-    head%b        =  b
-    head%depth    =  1
-    head%next     => null()
-    call self%evaluateInterval(head%a,head%b,head%integral,head%error)
-    ! Initialize current integral and error estimates, and flag that we're not converged.
-    vectorizedCompositeGaussKronrod1DEvaluate=head%integral
-    error                          =head%error
-    converged                      =                                                 &
-         &  abs(error) <= self%toleranceAbsolute                                     &
-         & .or.                                                                      &
-         &  abs(error) <= self%toleranceRelative*abs(vectorizedCompositeGaussKronrod1DEvaluate)
-    ! Iterate until convergence is reached.
-    do while (.not.converged)
-       ! Bisect the head interval. By construction, this will always be the interval with the largest absolute error.
-       current  => head      ! Pop the head from the list.
-       head     => head%next
-       if (current%depth > self%iterationsMaximum)              &
-            & call Error_Report(                                &
-            &                   'maximum iterations exceeded'// &
-            &                    {introspection:location}       &
-            &                  )
-       midpoint =  (current%b+current%a)/2.0d0
-       ! Create two new subintervals.
-       allocate(newInterval1)
-       allocate(newInterval2)
-       newInterval1%next  => null()
-       newInterval2%next  => null()
-       newInterval1%depth =  current%depth+1
-       newInterval2%depth =  current%depth+1
-       newInterval1%a    =  current%a
-       newInterval1%b    =  midpoint
-       newInterval2%a    =  midpoint
-       newInterval2%b    =  current%b
-       ! Compute the integral and error estimate in each new subinterval.
-       call self%evaluateInterval(newInterval1%a,newInterval1%b,newInterval1%integral,newInterval1%error)
-       call self%evaluateInterval(newInterval2%a,newInterval2%b,newInterval2%integral,newInterval2%error)
-       ! Update the total integral and error estimate for the new subintervals.
-       vectorizedCompositeGaussKronrod1DEvaluate         &
-            & =vectorizedCompositeGaussKronrod1DEvaluate &
-            & -current     %integral                     &
-            & +newInterval1%integral                     &
-            & +newInterval2%integral
-       error                                             &
-            & =error                                     &
-            & -current     %error                        &
-            & +newInterval1%error                        &
-            & +newInterval2%error
-       ! Test for convergence.
-       converged=                                                                       &
-            &  abs(error) <= self%toleranceAbsolute                                     &
-            & .or.                                                                      &
-            &  abs(error) <= self%toleranceRelative*abs(vectorizedCompositeGaussKronrod1DEvaluate)
-       ! Destroy the old interval.
-       deallocate(current)
-       ! Insert the new intervals into our stack.
-       call intervalInsert(head,newInterval1,newInterval1)
-       call intervalInsert(head,newInterval2,newInterval2)
-    end do
-    ! Destroy the stack.
-    call intervalListDestroy(head)
+    vectorizedCompositeGaussKronrod1DEvaluate=gaussKronrodEvaluate(self,a,b,self%iterationsMaximum)
     return
   end function vectorizedCompositeGaussKronrod1DEvaluate
 
@@ -1153,9 +1192,7 @@ contains
     double precision                                             , pointer      , dimension(:                      ) :: fValue1                                    , fValue2
     double precision                                             , target       , dimension(2*size(self%xKronrod)-1) :: fUnion
     double precision                                                            , dimension(2*size(self%xKronrod)-1) :: xUnion
-    double precision                                             , parameter                                         :: errorScaleFactor   =200.0d0
-    double precision                                             , parameter                                         :: errorScaleFactorPow=errorScaleFactor**1.5d0
-    double precision                                                                                                 :: integralGauss                              , scale           , &
+    double precision                                                                                                 :: integralGauss                              , &
          &                                                                                                              xCenter                                    , halfLength      , &
          &                                                                                                              halfLengthAbsolute                         , integralAbsolute, &
          &                                                                                                              mean                                       , integralAsc
@@ -1217,19 +1254,7 @@ contains
     integralKronrod =integralKronrod *halfLength
     integralAbsolute=integralAbsolute*halfLengthAbsolute
     integralAsc     =integralAsc     *halfLengthAbsolute
-    ! Compute error. This is based on the GSL implementation. The logic is modified so that no power/sqrt is performed until after
-    ! the evaluation of the conditional (no need to compute an expensive function if we don't really need to). Additionally, the
-    ! expression for the error in the case where the conditional evaluates true is modified so that it involves a sqrt() instead
-    ! of a ()**1.5 as this is better optimized.
-    if (integralAsc /= 0.0d0 .and. error /= 0.0d0) then
-       scale=errorScaleFactor*error
-       if (scale < integralAsc) then
-          error=errorScaleFactorPow*error*sqrt(error/integralAsc)
-       else
-          error=integralAsc
-       end if
-    end if
-    if (integralAbsolute > tiny(1.0d0)/(50.0d0*epsilon(1.0d0))) error=max(error,50.0d0*epsilon(1.0d0)*integralAbsolute)
+    error           =gaussKronrodError(error,integralAbsolute,integralAsc)
     return
   end subroutine vectorizedCompositeGaussKronrod1DEvaluateInterval
 
@@ -1345,7 +1370,6 @@ contains
     !!{RST
     Constructor for a one-dimensional, vectorized composite trapezoidal numerical integrator.
     !!}
-    use :: Error , only : Error_Report
     implicit none
     type           (integratorVectorizedCompositeTrapezoidal1D)                :: self
     integer                                                     , intent(in   ) :: iterationsMaximum
@@ -1353,11 +1377,7 @@ contains
          &                                                                         j                , n
     double precision                                                            :: step
 
-    if (iterationsMaximum < 3)                                      &
-         & call Error_Report(                                       &
-         &                   'at least 3 iterations are required'// &
-         &                    {introspection:location}              &
-         &                  )
+    call iterationsMaximumValidate(iterationsMaximum)
     self%iterationsMaximum=iterationsMaximum
     workspaceSize=2**iterationsMaximum
     allocate(self%d(workspaceSize))
@@ -1511,128 +1531,7 @@ contains
          &                               {introspection:location}           &
          &                             )
     self%intervalsMaximum=intervalsMaximum
-    ! Choose order.
-    select case (order)
-    case (15) ! 15-point Kronrod rule.
-       allocate(self%xKronrod(8))
-       allocate(self%wKronrod(8))
-       allocate(self%wGauss  (4))
-       self%xKronrod =[                                       &
-            &          0.991455371120812639206854697526329d0, &
-            &          0.949107912342758524526189684047851d0, &
-            &          0.864864423359769072789712788640926d0, &
-            &          0.741531185599394439863864773280788d0, &
-            &          0.586087235467691130294144838258730d0, &
-            &          0.405845151377397166906606412076961d0, &
-            &          0.207784955007898467600689403773245d0, &
-            &          0.000000000000000000000000000000000d0  &
-            &        ]
-       self%wGauss  =[                                        &
-            &          0.129484966168869693270611432679082d0, &
-            &          0.279705391489276667901467771423780d0, &
-            &          0.381830050505118944950369775488975d0, &
-            &          0.417959183673469387755102040816327d0  &
-            &        ]
-       self%wKronrod=[                                        &
-            &          0.022935322010529224963732008058970d0, &
-            &          0.063092092629978553290700663189204d0, &
-            &          0.104790010322250183839876322541518d0, &
-            &          0.140653259715525918745189590510238d0, &
-            &          0.169004726639267902826583426598550d0, &
-            &          0.190350578064785409913256402421014d0, &
-            &          0.204432940075298892414161999234649d0, &
-            &          0.209482141084727828012999174891714d0  &
-            &        ]
-    case (61) ! 61-point Kronrod rule.
-       allocate(self%xKronrod(31))
-       allocate(self%wKronrod(31))
-       allocate(self%wGauss  (15))
-       self%xKronrod =[                                       &
-            &          0.999484410050490637571325895705811d0, &
-            &          0.996893484074649540271630050918695d0, &
-            &          0.991630996870404594858628366109486d0, &
-            &          0.983668123279747209970032581605663d0, &
-            &          0.973116322501126268374693868423707d0, &
-            &          0.960021864968307512216871025581798d0, &
-            &          0.944374444748559979415831324037439d0, &
-            &          0.926200047429274325879324277080474d0, &
-            &          0.905573307699907798546522558925958d0, &
-            &          0.882560535792052681543116462530226d0, &
-            &          0.857205233546061098958658510658944d0, &
-            &          0.829565762382768397442898119732502d0, &
-            &          0.799727835821839083013668942322683d0, &
-            &          0.767777432104826194917977340974503d0, &
-            &          0.733790062453226804726171131369528d0, &
-            &          0.697850494793315796932292388026640d0, &
-            &          0.660061064126626961370053668149271d0, &
-            &          0.620526182989242861140477556431189d0, &
-            &          0.579345235826361691756024932172540d0, &
-            &          0.536624148142019899264169793311073d0, &
-            &          0.492480467861778574993693061207709d0, &
-            &          0.447033769538089176780609900322854d0, &
-            &          0.400401254830394392535476211542661d0, &
-            &          0.352704725530878113471037207089374d0, &
-            &          0.304073202273625077372677107199257d0, &
-            &          0.254636926167889846439805129817805d0, &
-            &          0.204525116682309891438957671002025d0, &
-            &          0.153869913608583546963794672743256d0, &
-            &          0.102806937966737030147096751318001d0, &
-            &          0.051471842555317695833025213166723d0, &
-            &          0.000000000000000000000000000000000d0  &
-            &         ]
-       self%wGauss   =[                                       &
-            &          0.007968192496166605615465883474674d0, &
-            &          0.018466468311090959142302131912047d0, &
-            &          0.028784707883323369349719179611292d0, &
-            &          0.038799192569627049596801936446348d0, &
-            &          0.048402672830594052902938140422808d0, &
-            &          0.057493156217619066481721689402056d0, &
-            &          0.065974229882180495128128515115962d0, &
-            &          0.073755974737705206268243850022191d0, &
-            &          0.080755895229420215354694938460530d0, &
-            &          0.086899787201082979802387530715126d0, &
-            &          0.092122522237786128717632707087619d0, &
-            &          0.096368737174644259639468626351810d0, &
-            &          0.099593420586795267062780282103569d0, &
-            &          0.101762389748405504596428952168554d0, &
-            &          0.102852652893558840341285636705415d0  &
-            &         ]
-       self%wKronrod =[                                       &
-            &          0.001389013698677007624551591226760d0, &
-            &          0.003890461127099884051267201844516d0, &
-            &          0.006630703915931292173319826369750d0, &
-            &          0.009273279659517763428441146892024d0, &
-            &          0.011823015253496341742232898853251d0, &
-            &          0.014369729507045804812451432443580d0, &
-            &          0.016920889189053272627572289420322d0, &
-            &          0.019414141193942381173408951050128d0, &
-            &          0.021828035821609192297167485738339d0, &
-            &          0.024191162078080601365686370725232d0, &
-            &          0.026509954882333101610601709335075d0, &
-            &          0.028754048765041292843978785354334d0, &
-            &          0.030907257562387762472884252943092d0, &
-            &          0.032981447057483726031814191016854d0, &
-            &          0.034979338028060024137499670731468d0, &
-            &          0.036882364651821229223911065617136d0, &
-            &          0.038678945624727592950348651532281d0, &
-            &          0.040374538951535959111995279752468d0, &
-            &          0.041969810215164246147147541285970d0, &
-            &          0.043452539701356069316831728117073d0, &
-            &          0.044814800133162663192355551616723d0, &
-            &          0.046059238271006988116271735559374d0, &
-            &          0.047185546569299153945261478181099d0, &
-            &          0.048185861757087129140779492298305d0, &
-            &          0.049055434555029778887528165367238d0, &
-            &          0.049795683427074206357811569379942d0, &
-            &          0.050405921402782346840893085653585d0, &
-            &          0.050881795898749606492297473049805d0, &
-            &          0.051221547849258772170656282604944d0, &
-            &          0.051426128537459025933862879215781d0, &
-            &          0.051494729429451567558340433647099d0  &
-            &         ]
-    case default
-       call Error_Report('unknown order'//{introspection:location})
-    end select
+    call gaussKronrodRuleSet(order,self%xKronrod,self%wGauss,self%wKronrod)
     return
   end function multiVectorizedCompositeGaussKronrod1DConstructor
 
@@ -1642,7 +1541,6 @@ contains
     !!}
     use            :: Error, only : Error_Report, errorStatusFail, errorStatusSuccess
     use, intrinsic :: ISO_C_Binding   , only : c_size_t
-    use            :: Sorting         , only : sortIndex
     implicit none
     class           (integratorMultiVectorizedCompositeGaussKronrod1D), intent(inout)                              :: self
     double precision                                                  , intent(in   )                              :: a                , b
@@ -1668,14 +1566,7 @@ contains
     end if
     ! Create our first estimate of the integral, using a single interval.
     intervalCount=1_c_size_t
-    allocate(head                              )
-    allocate(head%fa      (self%integrandCount))
-    allocate(head%fb      (self%integrandCount))
-    allocate(head%integral(self%integrandCount))
-    allocate(head%error   (self%integrandCount))
-    head%a       =  a
-    head%b       =  b
-    head%next    => null()
+    head => intervalMultiNew(a,b,self%integrandCount)
     mustEvaluate =  .true.
     call self%evaluateInterval(head%a,head%b,head%integral,head%error,mustEvaluate)
     ! Initialize current integral and error estimates, and flag that we're not converged.
@@ -1693,22 +1584,8 @@ contains
        intervalCount=intervalCount-1_c_size_t
        midpoint =  (current%b+current%a)/2.0d0
        ! Create two new subintervals.
-       allocate(newInterval1)
-       allocate(newInterval2)
-       allocate(newInterval1%fa      (self%integrandCount))
-       allocate(newInterval1%fb      (self%integrandCount))
-       allocate(newInterval1%integral(self%integrandCount))
-       allocate(newInterval1%error   (self%integrandCount))
-       allocate(newInterval2%fa      (self%integrandCount))
-       allocate(newInterval2%fb      (self%integrandCount))
-       allocate(newInterval2%integral(self%integrandCount))
-       allocate(newInterval2%error   (self%integrandCount))
-       newInterval1%next => null()
-       newInterval2%next => null()
-       newInterval1%a    =  current%a
-       newInterval1%b    =  midpoint
-       newInterval2%a    =  midpoint
-       newInterval2%b    =  current%b
+       newInterval1 => intervalMultiNew(current%a,midpoint ,self%integrandCount)
+       newInterval2 => intervalMultiNew(midpoint ,current%b,self%integrandCount)
        ! Check for loss of precision in interval extent.
        if     (                     &
             &   midpoint==current%a &
@@ -1751,26 +1628,7 @@ contains
                &         self%toleranceAbsolute              , &
                &         self%toleranceRelative*abs(integral)  &
                &        )
-          allocate(list     (intervalCount))
-          allocate(listValue(intervalCount))
-          allocate(listRank (intervalCount))
-          newInterval => head
-          do iInterval=1_c_size_t,intervalCount
-             list     (iInterval)%interval_ =>        newInterval
-             listValue(iInterval)           =  maxval(newInterval%error/errorScale,mask=.not.converged)
-             newInterval                    =>        newInterval%next
-          end do
-          listRank    =  sortIndex(listValue)
-          head        => list(listRank(intervalCount))%interval_
-          newInterval => head
-          do iInterval=2_c_size_t,intervalCount
-             newInterval%next => list(listRank(intervalCount+1_c_size_t-iInterval))%interval_
-             newInterval      => newInterval%next
-          end do
-          newInterval%next => null()
-          deallocate(list     )
-          deallocate(listValue)
-          deallocate(listRank )
+          call intervalMultiResort(head,intervalCount,converged,errorScale,list,listValue,listRank)
        end if
        ! Destroy the old interval.
        deallocate(current)
@@ -1833,9 +1691,7 @@ contains
     double precision                                                  , target       , dimension(self%integrandCount,2*size(self%xKronrod)-1) :: fUnion
     double precision                                                                 , dimension(                    2*size(self%xKronrod)-1) :: xUnion
     double precision                                                                                                                          :: halfLength                                 , halfLengthAbsolute, &
-         &                                                                                                                                       xCenter                                    , scale
-    double precision                                                  , parameter                                                             :: errorScaleFactor   =200.0d0
-    double precision                                                  , parameter                                                             :: errorScaleFactorPow=errorScaleFactor**1.5d0
+         &                                                                                                                                       xCenter
     integer                                                                                                                                   :: pointCountKronrod                          , pointCountGauss   , &
          &                                                                                                                                       i
 
@@ -1891,20 +1747,7 @@ contains
        integralKronrod (i)=integralKronrod (i)*halfLength
        integralAbsolute(i)=integralAbsolute(i)*halfLengthAbsolute
        integralAsc     (i)=integralAsc     (i)*halfLengthAbsolute
-       ! Compute error. This is based on the GSL implementation. The logic is modified so that no power/sqrt is performed until after
-       ! the evaluation of the conditional (no need to compute an expensive function if we don't really need to). Additionally, the
-       ! expression for the error in the case where the conditional evaluates true is modified so that it involves a sqrt() instead
-       ! of a ()**1.5 as this is better optimized.
-       if (integralAsc(i) /= 0.0d0 .and. error(i) /= 0.0d0) then
-          scale=errorScaleFactor*error(i)
-          if (scale < integralAsc(i)) then
-             error(i)=errorScaleFactorPow*error(i)*sqrt(error(i)/integralAsc(i))
-          else
-             error(i)=integralAsc(i)
-          end if
-
-       end if
-       if (integralAbsolute(i) > tiny(1.0d0)/(50.0d0*epsilon(1.0d0))) error(i)=max(error(i),50.0d0*epsilon(1.0d0)*integralAbsolute(i))
+       error           (i)=gaussKronrodError(error(i),integralAbsolute(i),integralAsc(i))
     end do
     return
   end subroutine multiVectorizedCompositeGaussKronrod1DEvaluateInterval
@@ -1933,12 +1776,8 @@ contains
     !!{RST
     Evaluate a one-dimension integral using a numerical composite trapezoidal rule.
     !!}
-    use            :: Display           , only : displayIndent          , displayMessage        , displayUnindent   , displayVerbosity, &
-          &                                      displayVerbositySet    , verbosityLevelStandard
     use            :: Error  , only : Error_Report, errorStatusFail       , errorStatusSuccess
     use, intrinsic :: ISO_C_Binding     , only : c_size_t
-    use            :: ISO_Varying_String, only : assignment(=)          , operator(//)          , varying_string
-    use            :: Sorting           , only : sortIndex
     implicit none
     class           (integratorMultiVectorizedCompositeTrapezoidal1D), intent(inout)                                :: self
     double precision                                                 , intent(in   )                                :: a                                      , b
@@ -1966,10 +1805,7 @@ contains
          &                                                                                                             errorMaximum
     integer         (c_size_t                                       )                                               :: iInterval                              , intervalCount                        , &
          &                                                                                                             i                                      , indexStart                           , &
-         &                                                                                                             indexEnd                               , indexMidpoint                        , &
-         &                                                                                                             integralCount
-    type            (varying_string                                 )                                               :: message
-    character       (len=32                                         )                                               :: label
+         &                                                                                                             indexEnd                               , indexMidpoint
     logical                                                                                                         :: precisionLost
     !$GLC attributes initialized :: previous
 
@@ -1985,15 +1821,8 @@ contains
     allocate(listRank (intervalListSizeInitial))
     ! Create our first estimate of the integral, using a single interval.
     intervalCount=1_c_size_t
-    allocate(head                              )
-    allocate(head%fa      (self%integrandCount))
-    allocate(head%fb      (self%integrandCount))
-    allocate(head%integral(self%integrandCount))
-    allocate(head%error   (self%integrandCount))
+    head => intervalMultiNew(a,b,self%integrandCount)
     lastInsertCurrent => null()
-    head%next         => null()
-    head%a            =  a
-    head%b            =  b
     mustEvaluate      =  .true.
     xUnion=[head%a,head%b]
     call self%integrand(self%integrandCount,xUnion,mustEvaluate,fUnion)
@@ -2024,97 +1853,18 @@ contains
        fa       =  current%fa
        fb       =  current%fb
        ! Create two new subintervals.
-       allocate(newInterval1)
-       allocate(newInterval2)
-       allocate(newInterval1%fa      (self%integrandCount))
-       allocate(newInterval1%fb      (self%integrandCount))
-       allocate(newInterval1%integral(self%integrandCount))
-       allocate(newInterval1%error   (self%integrandCount))
-       allocate(newInterval2%fa      (self%integrandCount))
-       allocate(newInterval2%fb      (self%integrandCount))
-       allocate(newInterval2%integral(self%integrandCount))
-       allocate(newInterval2%error   (self%integrandCount))
-       newInterval1%next => null()
-       newInterval2%next => null()
-       newInterval1%a    =  current%a
-       newInterval1%b    =  midpoint
-       newInterval2%a    =  midpoint
-       newInterval2%b    =  current%b
+       newInterval1 => intervalMultiNew(current%a,midpoint ,self%integrandCount)
+       newInterval2 => intervalMultiNew(midpoint ,current%b,self%integrandCount)
        ! Check for loss of precision in interval extent.
        if     (                     &
             &   midpoint==current%a &
             &  .or.                 &
             &   midpoint==current%b &
             & ) then
-          if (displayVerbosity() < verbosityLevelStandard .and. .not.present(status)) call displayVerbositySet(verbosityLevelStandard)
-          call displayIndent('integration failure:')
-          call displayIndent('current intervals:')
-          message="a/b/(b-a)       ="
-          write (label,'(e32.12)') a
-          message=message//" "  //label
-          write (label,'(e32.12)') b
-          message=message//"/"  //label
-          write (label,'(e32.12)') b-a
-          message=message//"/(" //label//")"
-          call displayMessage(message)
-          message="a/b : f(a)/f(b) ="
-          write (label,'(e32.12)') current%a
-          message=message//" "  //label
-          write (label,'(e32.12)') current%b
-          message=message//"/"  //label
-          call displayMessage(message)
-          do i=1,size(current%fa)
-             message="  (i="
-             write (label,'(i12)') i
-             message=message//adjustl(trim(label))//")"
-             write (label,'(e32.12)') current%fa(i)
-             message=message//" : "//label
-             write (label,'(e32.12)') current%fb(i)
-             message=message//"/"  //label
-             write (label,'(l1)') converged(i)
-             message=message//" (converged="//adjustl(trim(label))//")"
-             call displayMessage(message)
-          end do
-          integralCount =  size(current%fa)
-          current       =>      head
-          do while (associated(current))
-             message="a/b : f(a)/f(b) ="
-             write (label,'(e32.12)') current%a
-             message=message//" "  //label
-             write (label,'(e32.12)') current%b
-             message=message//"/"  //label
-             call displayMessage(message)
-             do i=1,size(current%fa)
-                message="  (i="
-                write (label,'(i12)') i
-                message=message//adjustl(trim(label))//")"
-                write (label,'(e32.12)') current%fa(i)
-                message=message//" : "//label
-                write (label,'(e32.12)') current%fb(i)
-                message=message//"/"  //label
-                write (label,'(l1)') converged(i)
-                message=message//" (converged="//adjustl(trim(label))//")"
-                call displayMessage(message)
-             end do
-             current  => current%next
-          end do
-          call displayUnindent('done')
-          call displayIndent  ('current integrals:')
-          current => searchStart
-          do i=1,integralCount
-             message="integral : error  (i="
-             write (label,'(i12)') i
-             message=message//adjustl(trim(label))//")"
-             write (label,'(e32.12)') integral (i)
-             message=message//" : "//label
-             write (label,'(e32.12)') error    (i)
-             message=message//"/"  //label
-             write (label,'(l1)'    ) converged(i)
-             message=message//" (converged="//adjustl(trim(label))//")"
-             call displayMessage(message)
-          end do
-          call displayUnindent('done')
-          call displayUnindent('done')
+          call intervalMultiFailureReport(a,b,current,head,integral,error,converged,present(status))
+          deallocate(current     )
+          deallocate(newInterval1)
+          deallocate(newInterval2)
           ! Force exit.
           precisionLost=.true.
           exit          
@@ -2163,33 +1913,7 @@ contains
                &         self%toleranceAbsolute              , &
                &         self%toleranceRelative*abs(integral)  &
                &        )
-          if (intervalCount > size(list)) then
-             deallocate(list                      )
-             deallocate(listValue                 )
-             deallocate(listRank                  )
-             allocate  (list     (2*intervalCount))
-             allocate  (listValue(2*intervalCount))
-             allocate  (listRank (2*intervalCount))
-          end if
-          newInterval => head
-          do iInterval=1_c_size_t,intervalCount
-             list     (iInterval)%interval_ => newInterval
-             newInterval                    => newInterval%next
-             ! We avoid use of maxval(,mask=) here (and instead determine the maximum error using a simple loop) because maxval()
-             ! evaluates all elements prior to applying the mask, so it wastes time in computing values that we will never need.
-             listValue(iInterval)=0.0d0
-             do i=1,self%integrandCount
-                if (.not.converged(i)) listValue(iInterval)=max(listValue(iInterval),list(iInterval)%interval_%error(i)/errorScale(i))
-             end do
-          end do
-          listRank(1_c_size_t:intervalCount)    =  sortIndex(listValue(1_c_size_t:intervalCount))
-          head        => list(listRank(intervalCount))%interval_
-          newInterval => head
-          do iInterval=2_c_size_t,intervalCount
-             newInterval%next => list(listRank(intervalCount+1_c_size_t-iInterval))%interval_
-             newInterval      => newInterval%next
-          end do
-          newInterval%next => null()
+          call intervalMultiResort(head,intervalCount,converged,errorScale,list,listValue,listRank)
        end if
        ! Destroy the old interval.
        deallocate(current)
@@ -2244,14 +1968,7 @@ contains
              indexStart  = 1_c_size_t
              searchStart => current
              if (any(.not.converged .and. searchStart%error > errorsMaximum)) then
-                if (intervalCount > size(list)) then
-                   deallocate(list                      )
-                   deallocate(listValue                 )
-                   deallocate(listRank                  )
-                   allocate  (list     (2*intervalCount))
-                   allocate  (listValue(2*intervalCount))
-                   allocate  (listRank (2*intervalCount))
-                end if
+                call intervalMultiWorkspaceEnsure(list,listValue,listRank,intervalCount)
                 indexEnd                 =  1_c_size_t
                 searchEnd                => current
                 list(indexEnd)%interval_ => head
