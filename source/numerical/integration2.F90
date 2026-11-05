@@ -350,6 +350,123 @@ module Numerical_Integration2
 
 contains
 
+  ! Linked lists of intervals, maintained in order of descending error.
+  subroutine intervalInsert(head,newFirst,newLast)
+    !!{RST
+    Insert a chain of new intervals, all sharing the error of ``newFirst``, into a list sorted by descending absolute error. The new intervals are placed ahead of any existing interval with an equal error.
+    !!}
+    implicit none
+    type(interval), intent(inout), pointer :: head
+    type(interval), intent(in   ), pointer :: newFirst, newLast
+    type(interval)               , pointer :: current , previous
+
+    if (.not.associated(head)) then
+       head => newFirst
+       return
+    end if
+    current  => head
+    previous => null()
+    do while (associated(current%next).and.abs(current%error) > abs(newFirst%error))
+       previous => current
+       current  => current%next
+    end do
+    if (.not.associated(current%next) .and. abs(current%error) > abs(newFirst%error)) then
+       ! New intervals go at the end of the list.
+       current%next     => newFirst
+    else if (associated(previous)) then
+       ! New intervals go before the current interval, which is not the head.
+       newLast %next    => previous%next
+       previous%next    => newFirst
+    else
+       ! New intervals go before the head.
+       newLast %next    => head
+       head             => newFirst
+    end if
+    return
+  end subroutine intervalInsert
+
+  subroutine intervalListDestroy(head)
+    !!{RST
+    Destroy a list of intervals.
+    !!}
+    implicit none
+    type(interval), intent(inout), pointer :: head
+    type(interval)               , pointer :: current, previous
+
+    current => head
+    do while (associated(current))
+       previous => current
+       current  => current%next
+       deallocate(previous)
+    end do
+    head => null()
+    return
+  end subroutine intervalListDestroy
+
+  subroutine intervalMultiSearch(current,previous,converged,errorsMaximum)
+    !!{RST
+    Step along a list of multi-integrand intervals from ``current`` until reaching the first interval whose error, for every non-converged integrand, does not exceed ``errorsMaximum`` (or the final interval). On return ``previous`` is the interval preceding ``current``, unless ``current`` did not move.
+    !!}
+    implicit none
+    type            (intervalMulti), intent(inout), pointer      :: current      , previous
+    logical                        , intent(in   ), dimension(:) :: converged
+    double precision               , intent(in   ), dimension(:) :: errorsMaximum
+
+    do while (                                                                 &
+         &      associated(                     current%next                 ) &
+         &    .and.                                                            &
+         &      any       (.not.converged .and. current%error > errorsMaximum) &
+         &   )
+       previous => current
+       current  => current%next
+    end do
+    return
+  end subroutine intervalMultiSearch
+
+  subroutine intervalMultiLink(head,current,previous,newFirst,newLast,converged,errorsMaximum)
+    !!{RST
+    Link a chain of new multi-integrand intervals into a list at the insertion point found by a search: before ``current``, unless ``current`` is the final interval and has a larger error than the new intervals.
+    !!}
+    implicit none
+    type            (intervalMulti), intent(inout), pointer      :: head
+    type            (intervalMulti), intent(in   ), pointer      :: current      , previous, &
+         &                                                          newFirst     , newLast
+    logical                        , intent(in   ), dimension(:) :: converged
+    double precision               , intent(in   ), dimension(:) :: errorsMaximum
+
+    if (.not.associated(current%next) .and. any(.not.converged .and. current%error > errorsMaximum)) then
+       ! New intervals go at the end of the list.
+       current %next => newFirst
+    else if (associated(current,head)) then
+       ! New intervals go before the head.
+       newLast %next => head
+       head          => newFirst
+    else
+       ! New intervals go before the current interval.
+       newLast %next => previous%next
+       previous%next => newFirst
+    end if
+    return
+  end subroutine intervalMultiLink
+
+  subroutine intervalMultiListDestroy(head)
+    !!{RST
+    Destroy a list of multi-integrand intervals.
+    !!}
+    implicit none
+    type(intervalMulti), intent(inout), pointer :: head
+    type(intervalMulti)               , pointer :: current, previous
+
+    current => head
+    do while (associated(current))
+       previous => current
+       current  => current%next
+       deallocate(previous)
+    end do
+    head => null()
+    return
+  end subroutine intervalMultiListDestroy
+
   ! Generic functions.
   subroutine toleranceSetGeneric(self,toleranceAbsolute,toleranceRelative)
     !!{RST
@@ -607,12 +724,10 @@ contains
     implicit none
     class           (integratorCompositeGaussKronrod1D), intent(inout) :: self
     double precision                                   , intent(in   ) :: a           , b
-    integer                                                            :: iInterval
     logical                                                            :: converged
     double precision                                                   :: error       , midpoint
     type            (interval                         ), pointer       :: head        , newInterval1, &
-         &                                                                newInterval2, current     , &
-         &                                                                previous    , newInterval
+         &                                                                newInterval2, current
 
     ! Create our first estimate of the integral, using a single interval.
     allocate(head)
@@ -672,64 +787,11 @@ contains
        ! Destroy the old interval.
        deallocate(current)
        ! Insert the new intervals into our stack.
-       do iInterval=1,2
-          if (iInterval == 1) then
-             newInterval => newInterval1
-          else
-             newInterval => newInterval2
-          end if
-          ! Check if the stack is empty.
-          if (associated(head)) then
-             ! Stack is not empty. Perform an insertion sort to insert our new subinterval into the sorted stack.
-             current  => head
-             previous => null()
-             do while (associated(current%next).and.abs(current%error) > abs(newInterval%error))
-                previous => current
-                current  => current%next
-             end do
-             ! Check if we reached the end of the stack.
-             if (.not.associated(current%next)) then
-                ! End of stack reached. Check if new interval goes before or after the final stack entry.
-                if (abs(current%error) > abs(newInterval%error)) then
-                   ! New interval goes at the end of the stack.
-                   current%next => newInterval
-                else
-                   ! New interval goes before the final interval.
-                   if (associated(previous)) then
-                      ! Final interval is not the head interval.
-                      newInterval%next => previous   %next
-                      previous   %next => newInterval
-                   else
-                      ! Final interval is the head interval.
-                      newInterval%next => current
-                      head             => newInterval
-                   end if
-                end if
-             else
-                ! End of stack not reached. Insert new interval after the previous interval.
-                if (associated(previous)) then
-                   ! Next interval is not the head interval.
-                   newInterval%next => previous   %next
-                   previous   %next => newInterval
-                else
-                   ! Next interval is the head interval.
-                   newInterval%next => current
-                   head             => newInterval
-                end if
-             end if
-          else
-             ! Stack is empty - simply point the head to our new subinterval.
-             head => newInterval
-          end if
-       end do
+       call intervalInsert(head,newInterval1,newInterval1)
+       call intervalInsert(head,newInterval2,newInterval2)
     end do
     ! Destroy the stack.
-    current => head
-    do while (associated(current))
-       previous => current
-       current  => current%next
-       deallocate(previous)
-    end do
+    call intervalListDestroy(head)
     return
   end function compositeGaussKronrod1DEvaluate
 
@@ -964,12 +1026,10 @@ contains
     implicit none
     class           (integratorVectorizedCompositeGaussKronrod1D), intent(inout) :: self
     double precision                                   , intent(in   ) :: a           , b
-    integer                                                            :: iInterval
     logical                                                            :: converged
     double precision                                                   :: error       , midpoint
     type            (interval                         ), pointer       :: head        , newInterval1, &
-         &                                                                newInterval2, current     , &
-         &                                                                previous    , newInterval
+         &                                                                newInterval2, current
 
     ! Create our first estimate of the integral, using a single interval.
     allocate(head)
@@ -1029,64 +1089,11 @@ contains
        ! Destroy the old interval.
        deallocate(current)
        ! Insert the new intervals into our stack.
-       do iInterval=1,2
-          if (iInterval == 1) then
-             newInterval => newInterval1
-          else
-             newInterval => newInterval2
-          end if
-          ! Check if the stack is empty.
-          if (associated(head)) then
-             ! Stack is not empty. Perform an insertion sort to insert our new subinterval into the sorted stack.
-             current  => head
-             previous => null()
-             do while (associated(current%next).and.abs(current%error) > abs(newInterval%error))
-                previous => current
-                current  => current%next
-             end do
-             ! Check if we reached the end of the stack.
-             if (.not.associated(current%next)) then
-                ! End of stack reached. Check if new interval goes before or after the final stack entry.
-                if (abs(current%error) > abs(newInterval%error)) then
-                   ! New interval goes at the end of the stack.
-                   current%next => newInterval
-                else
-                   ! New interval goes before the final interval.
-                   if (associated(previous)) then
-                      ! Final interval is not the head interval.
-                      newInterval%next => previous   %next
-                      previous   %next => newInterval
-                   else
-                      ! Final interval is the head interval.
-                      newInterval%next => current
-                      head             => newInterval
-                   end if
-                end if
-             else
-                ! End of stack not reached. Insert new interval after the previous interval.
-                if (associated(previous)) then
-                   ! Next interval is not the head interval.
-                   newInterval%next => previous   %next
-                   previous   %next => newInterval
-                else
-                   ! Next interval is the head interval.
-                   newInterval%next => current
-                   head             => newInterval
-                end if
-             end if
-          else
-             ! Stack is empty - simply point the head to our new subinterval.
-             head => newInterval
-          end if
-       end do
+       call intervalInsert(head,newInterval1,newInterval1)
+       call intervalInsert(head,newInterval2,newInterval2)
     end do
     ! Destroy the stack.
-    current => head
-    do while (associated(current))
-       previous => current
-       current  => current%next
-       deallocate(previous)
-    end do
+    call intervalListDestroy(head)
     return
   end function vectorizedCompositeGaussKronrod1DEvaluate
 
@@ -1193,7 +1200,7 @@ contains
     double precision                                          , intent(in   ) :: a,b
     logical                                                                   :: converged
     double precision                                                          :: error,width,midpoint,fa,fb,fm
-    type            (interval                                ), pointer       :: head,newInterval1,newInterval2,current,previous
+    type            (interval                                ), pointer       :: head,newInterval1,newInterval2,current
 
     ! Create our first estimate of the integral, using a single trapezoid.
     allocate(head)
@@ -1268,40 +1275,10 @@ contains
        ! Insert the new intervals into our stack.
        ! First, link the two subintervals - they will always be consecutive in the list as they have the same error estimate.
        newInterval1%next => newInterval2
-       ! Check if the stack is empty.
-       if (associated(head)) then
-          ! Stack is not empty. Perform an insertion sort to insert our new subintervals into the sorted stack.
-          current  => head
-          previous => null()
-          do while (associated(current%next).and.abs(current%error) > abs(newInterval1%error))
-             previous => current
-             current  => current%next
-          end do
-          ! Check if we reached the end of the stack.
-          if (.not.associated(current%next) .and. abs(current%error) > abs(newInterval1%error)) then
-             ! New intervals go at the end of the stack.
-             current%next => newInterval1
-          else if (associated(previous)) then
-             ! New intervals go before the current interval, which is not the head interval.
-             newInterval2%next => previous    %next
-             previous    %next => newInterval1
-          else
-             ! New intervals go before the head interval.
-             newInterval2%next => head
-             head              => newInterval1
-          end if
-       else
-          ! Stack is empty - simply point the head to the first of our new subintervals.
-          head => newInterval1
-       end if
+       call intervalInsert(head,newInterval1,newInterval2)
     end do
     ! Destroy the stack.
-    current => head
-    do while (associated(current))
-       previous => current
-       current  => current%next
-       deallocate(previous)
-    end do
+    call intervalListDestroy(head)
     return
   end function adaptiveCompositeTrapezoidalEvaluate1D
 
@@ -1776,8 +1753,6 @@ contains
              ! Stack is not empty. Perform an insertion sort to insert our new subinterval into the sorted stack. The sorting is
              ! such that the stack is ordered with the interval for which the scaled error (i.e. error divided by the larger of
              ! the absolute and relative tolerances) of non-converged integrals is descending.
-             current       =>  head
-             previous      =>  head
              errorScale    =   max(                                    &
                   &              self%toleranceAbsolute              , &
                   &              self%toleranceRelative*abs(integral)  &
@@ -1785,40 +1760,10 @@ contains
              errorMaximum  =   max(0.0d0,maxval(newInterval%error/errorScale,mask=.not.converged))
              errorsMaximum =  +errorScale   &
                   &           *errorMaximum
-             do while (                                                                 &
-                  &      associated(                     current%next                 ) &
-                  &    .and.                                                            &
-                  &      any       (.not.converged .and. current%error > errorsMaximum) &
-                  &   )
-                previous => current
-                current  => current%next
-             end do
-             ! Check if we reached the end of the stack.
-             if (.not.associated(current%next)) then
-                ! End of stack reached. Check if new interval goes before or after the final stack entry.
-                if (maxval(current%error/errorScale,mask=.not.converged) > errorMaximum) then
-                   ! New interval goes at the end of the stack.
-                   current%next => newInterval
-                else
-                   ! New interval goes before the final interval.
-                   if (associated(current,head)) then
-                      newInterval%next => head
-                      head             => newInterval
-                   else
-                      newInterval%next => previous   %next
-                      previous   %next => newInterval
-                   end if
-                end if
-             else
-                ! End of stack not reached. Insert new interval after the previous interval.
-                if (associated(current,head)) then
-                   newInterval%next => head
-                   head             => newInterval
-                else
-                   newInterval%next => previous   %next
-                   previous   %next => newInterval
-                end if
-             end if
+             current       =>  head
+             previous      =>  head
+             call intervalMultiSearch(current,previous,converged,errorsMaximum)
+             call intervalMultiLink  (head,current,previous,newInterval,newInterval,converged,errorsMaximum)
           else
              ! Stack is empty - simply point the head to our new subinterval.
              head => newInterval
@@ -1827,12 +1772,7 @@ contains
        intervalCount=intervalCount+2_c_size_t
     end do
     ! Destroy the stack.
-    current => head
-    do while (associated(current))
-       previous => current
-       current  => current%next
-       deallocate(previous)
-    end do
+    call intervalMultiListDestroy(head)
     ! Report error if number of intervals was exceeded.
     if (present(status)) status=errorStatusSuccess
     if (intervalCount >= self%intervalsMaximum .and. .not.all(converged)) then
@@ -2265,14 +2205,7 @@ contains
           ! performance.
           if (self%integrandCount <= bisectionIntegrandsMinimum .and. intervalCount > bisectionIntervalsMaximum) then
              ! Simple search.
-             do while (                                                                 &
-                  &      associated(                     current%next                 ) &
-                  &    .and.                                                            &
-                  &      any       (.not.converged .and. current%error > errorsMaximum) &
-                  &   )
-                previous => current
-                current  => current%next
-             end do
+             call intervalMultiSearch(current,previous,converged,errorsMaximum)
           else
              ! Bisection search.
              indexStart  = 1_c_size_t
@@ -2321,32 +2254,7 @@ contains
           ! Record the insertion point for use next time.
           lastInsertCurrent  => current
           lastInsertPrevious => previous
-          ! Check if we reached the end of the stack.
-          if (.not.associated(current%next)) then
-             ! End of stack reached. Check if new interval goes before or after the final stack entry.
-             if (any(.not.converged .and. current%error > errorsMaximum)) then
-                ! New interval goes at the end of the stack.
-                current%next => newInterval1
-             else
-                ! New interval goes before the final interval.
-                if (associated(current,head)) then
-                   newInterval2%next => head
-                   head              => newInterval1
-                else
-                   newInterval2%next => previous    %next
-                   previous    %next => newInterval1
-                end if
-             end if
-          else
-             ! End of stack not reached. Insert new interval after the previous interval.
-             if (associated(current,head)) then
-                newInterval2%next     => head
-                head                  => newInterval1
-             else
-                newInterval2%next => previous    %next
-                previous    %next => newInterval1
-             end if
-          end if
+          call intervalMultiLink(head,current,previous,newInterval1,newInterval2,converged,errorsMaximum)
        else
           ! Stack is empty - simply point the head to our new subinterval.
           head => newInterval1
@@ -2354,12 +2262,7 @@ contains
        intervalCount=intervalCount+2_c_size_t
     end do
     ! Destroy the stack.
-    current => head
-    do while (associated(current))
-       previous => current
-       current  => current%next
-       deallocate(previous)
-    end do
+    call intervalMultiListDestroy(head)
     ! Destroy the interval pointer list.
     deallocate(list     )
     deallocate(listValue)
