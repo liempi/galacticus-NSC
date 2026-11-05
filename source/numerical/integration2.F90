@@ -618,26 +618,34 @@ contains
     allocate(head)
     head%a        =  a
     head%b        =  b
+    head%depth    =  1
     head%next     => null()
     call self%evaluateInterval(head%a,head%b,head%integral,head%error)
     ! Initialize current integral and error estimates, and flag that we're not converged.
     compositeGaussKronrod1DEvaluate=head%integral
     error                          =head%error
     converged                      =                                                 &
-         &  abs(error) < self%toleranceAbsolute                                      &
+         &  abs(error) <= self%toleranceAbsolute                                     &
          & .or.                                                                      &
-         &  abs(error) < self%toleranceRelative*abs(compositeGaussKronrod1DEvaluate)
+         &  abs(error) <= self%toleranceRelative*abs(compositeGaussKronrod1DEvaluate)
     ! Iterate until convergence is reached.
     do while (.not.converged)
        ! Bisect the head interval. By construction, this will always be the interval with the largest absolute error.
        current  => head      ! Pop the head from the list.
        head     => head%next
+       if (current%depth > self%iterationsMaximum)              &
+            & call Error_Report(                                &
+            &                   'maximum iterations exceeded'// &
+            &                    {introspection:location}       &
+            &                  )
        midpoint =  (current%b+current%a)/2.0d0
        ! Create two new subintervals.
        allocate(newInterval1)
        allocate(newInterval2)
-       newInterval1%next => null()
-       newInterval2%next => null()
+       newInterval1%next  => null()
+       newInterval2%next  => null()
+       newInterval1%depth =  current%depth+1
+       newInterval2%depth =  current%depth+1
        newInterval1%a    =  current%a
        newInterval1%b    =  midpoint
        newInterval2%a    =  midpoint
@@ -658,9 +666,9 @@ contains
             & +newInterval2%error
        ! Test for convergence.
        converged=                                                                       &
-            &  abs(error) < self%toleranceAbsolute                                      &
+            &  abs(error) <= self%toleranceAbsolute                                     &
             & .or.                                                                      &
-            &  abs(error) < self%toleranceRelative*abs(compositeGaussKronrod1DEvaluate)
+            &  abs(error) <= self%toleranceRelative*abs(compositeGaussKronrod1DEvaluate)
        ! Destroy the old interval.
        deallocate(current)
        ! Insert the new intervals into our stack.
@@ -967,26 +975,34 @@ contains
     allocate(head)
     head%a        =  a
     head%b        =  b
+    head%depth    =  1
     head%next     => null()
     call self%evaluateInterval(head%a,head%b,head%integral,head%error)
     ! Initialize current integral and error estimates, and flag that we're not converged.
     vectorizedCompositeGaussKronrod1DEvaluate=head%integral
     error                          =head%error
     converged                      =                                                 &
-         &  abs(error) < self%toleranceAbsolute                                      &
+         &  abs(error) <= self%toleranceAbsolute                                     &
          & .or.                                                                      &
-         &  abs(error) < self%toleranceRelative*abs(vectorizedCompositeGaussKronrod1DEvaluate)
+         &  abs(error) <= self%toleranceRelative*abs(vectorizedCompositeGaussKronrod1DEvaluate)
     ! Iterate until convergence is reached.
     do while (.not.converged)
        ! Bisect the head interval. By construction, this will always be the interval with the largest absolute error.
        current  => head      ! Pop the head from the list.
        head     => head%next
+       if (current%depth > self%iterationsMaximum)              &
+            & call Error_Report(                                &
+            &                   'maximum iterations exceeded'// &
+            &                    {introspection:location}       &
+            &                  )
        midpoint =  (current%b+current%a)/2.0d0
        ! Create two new subintervals.
        allocate(newInterval1)
        allocate(newInterval2)
-       newInterval1%next => null()
-       newInterval2%next => null()
+       newInterval1%next  => null()
+       newInterval2%next  => null()
+       newInterval1%depth =  current%depth+1
+       newInterval2%depth =  current%depth+1
        newInterval1%a    =  current%a
        newInterval1%b    =  midpoint
        newInterval2%a    =  midpoint
@@ -1007,9 +1023,9 @@ contains
             & +newInterval2%error
        ! Test for convergence.
        converged=                                                                       &
-            &  abs(error) < self%toleranceAbsolute                                      &
+            &  abs(error) <= self%toleranceAbsolute                                     &
             & .or.                                                                      &
-            &  abs(error) < self%toleranceRelative*abs(vectorizedCompositeGaussKronrod1DEvaluate)
+            &  abs(error) <= self%toleranceRelative*abs(vectorizedCompositeGaussKronrod1DEvaluate)
        ! Destroy the old interval.
        deallocate(current)
        ! Insert the new intervals into our stack.
@@ -1200,6 +1216,11 @@ contains
        ! Bisect the head interval. By construction, this will always be the interval with the largest absolute error.
        current  => head      ! Pop the head from the list.
        head     => head%next
+       if (current%depth > self%iterationsMaximum)              &
+            & call Error_Report(                                &
+            &                   'maximum iterations exceeded'// &
+            &                    {introspection:location}       &
+            &                  )
        width    =  (current%b-current%a)/2.0d0
        midpoint =  (current%b+current%a)/2.0d0
        ! Evaluate the function at the endpoints and midpoints of the current interval. For endpoints, reuse stored values.
@@ -1651,9 +1672,9 @@ contains
     integral =head%integral
     error    =head%error
     converged=                                                &
-         &  abs(error) < self%toleranceAbsolute               &
+         &  abs(error) <= self%toleranceAbsolute              &
          & .or.                                               &
-         &  abs(error) < self%toleranceRelative*abs(integral)
+         &  abs(error) <= self%toleranceRelative*abs(integral)
     ! Iterate until convergence is reached.
     do while (.not.all(converged) .and. intervalCount < self%intervalsMaximum)
        ! Bisect the head interval. By construction, this will always be the interval with the largest absolute error.
@@ -1704,9 +1725,9 @@ contains
                & +newInterval2%error
           ! Test for convergence.
           converged=                                           &
-               &  error < self%toleranceAbsolute               &
+               &  error <= self%toleranceAbsolute              &
                & .or.                                          &
-               &  error < self%toleranceRelative*abs(integral)
+               &  error <= self%toleranceRelative*abs(integral)
        elsewhere
           newInterval1%integral=current%integral/2.0d0
           newInterval2%integral=current%integral/2.0d0
